@@ -24,6 +24,9 @@
         >
           <app-tabler-icon name="trash-x" [size]="20" />
         </p-button>
+        <p-button [text]="true" [rounded]="true" title="Reset zoom" (onClick)="resetView()">
+          <app-tabler-icon name="zoom-scan" [size]="20" />
+        </p-button>
         </div>
     </ng-template>
     <ng-template pTemplate="end">
@@ -109,9 +112,14 @@
         <svg
           #svgCanvas
           class="viewer__canvas"
-          [attr.viewBox]="'0 0 ' + surfaceWidthMm() + ' ' + surfaceHeightMm()"
+          [attr.viewBox]="viewBox().x + ' ' + viewBox().y + ' ' + viewBox().width + ' ' + viewBox().height"
           [style.aspect-ratio]="surfaceWidthMm() + ' / ' + surfaceHeightMm()"
           preserveAspectRatio="xMidYMid meet"
+          (wheel)="onWheel($event)"
+          (pointerdown)="onCanvasPointerDown($event)"
+          (pointermove)="onCanvasPointerMove($event)"
+          (pointerup)="onCanvasPointerUp($event)"
+          (pointercancel)="onCanvasPointerUp($event)"
         >
           <defs>
             <pattern id="grid-minor" width="1" height="1" patternUnits="userSpaceOnUse">

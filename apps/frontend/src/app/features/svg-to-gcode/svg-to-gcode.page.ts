@@ -135,10 +135,28 @@ export class SvgToGcodePage {
   private dragMoved = false;
   private ignoreNextClick = false;
 
+  private panState: {
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    startView: { x: number; y: number; width: number; height: number };
+    mmPerPixelX: number;
+    mmPerPixelY: number;
+  } | null = null;
+
   protected readonly machine = signal<Machine | null>(null);
   // Fallback cutting surface until the machine configuration has loaded.
   protected readonly surfaceWidthMm = computed(() => this.machine()?.bedWidthMm ?? 100);
   protected readonly surfaceHeightMm = computed(() => this.machine()?.bedHeightMm ?? 100);
+
+  /** Visible mm-space window into the canvas — the pan/zoom "camera", independent of the bed's
+   * own dimensions above. */
+  protected readonly viewBox = signal<{ x: number; y: number; width: number; height: number }>({
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+  });
 
   protected readonly documents = signal<WorkspaceDocument[]>([]);
   protected readonly selectedNodes = signal<TreeNode<SvgTreeNodeData>[]>([]);
@@ -302,6 +320,13 @@ export class SvgToGcodePage {
       this.selectionBaseFrame.set(this.computeBaseFrame(keys));
       this.selectionFrameTransform.set(IDENTITY_MATRIX);
     });
+
+    // Frames the whole bed once its real dimensions load (only fires again if they later change).
+    effect(() => {
+      const width = this.surfaceWidthMm();
+      const height = this.surfaceHeightMm();
+      this.viewBox.set({ x: 0, y: 0, width, height });
+    });
   }
 
   private computeBaseFrame(
@@ -358,6 +383,11 @@ export class SvgToGcodePage {
 
   openFilePicker(): void {
     this.fileInput().nativeElement.click();
+  }
+
+  /** Resets the pan/zoom camera back to framing the whole bed. */
+  resetView(): void {
+    this.viewBox.set({ x: 0, y: 0, width: this.surfaceWidthMm(), height: this.surfaceHeightMm() });
   }
 
   async onFileInputChange(event: Event): Promise<void> {
@@ -450,7 +480,7 @@ export class SvgToGcodePage {
 
   /** Starts dragging the current selection when the user presses down on one of its shapes. */
   protected onShapePointerDown(event: PointerEvent, shape: FlattenedShape): void {
-    if (!this.isShapeSelected(shape)) {
+    if (event.button !== 0 || !this.isShapeSelected(shape)) {
       return;
     }
 
@@ -478,6 +508,9 @@ export class SvgToGcodePage {
 
   /** Starts rotating the whole current selection around the center of its selection frame. */
   protected onHandlePointerDown(event: PointerEvent): void {
+    if (event.button !== 0) {
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
 
@@ -559,14 +592,99 @@ export class SvgToGcodePage {
     return Math.min(Math.max(delta, minDelta), maxDelta);
   }
 
+  /** Converts a client (screen) point to mm-space, accounting for the current pan/zoom. */
   private clientToSvgPoint(clientX: number, clientY: number): { x: number; y: number } {
     const rect = this.svgCanvas().nativeElement.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) {
       return { x: 0, y: 0 };
     }
-    const scaleX = this.surfaceWidthMm() / rect.width;
-    const scaleY = this.surfaceHeightMm() / rect.height;
-    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+    const view = this.viewBox();
+    return {
+      x: view.x + ((clientX - rect.left) / rect.width) * view.width,
+      y: view.y + ((clientY - rect.top) / rect.height) * view.height,
+    };
+  }
+
+  /** Zooms in/out around the cursor position, keeping the point under it fixed on screen. */
+  protected onWheel(event: WheelEvent): void {
+    event.preventDefault();
+    const view = this.viewBox();
+    const pointer = this.clientToSvgPoint(event.clientX, event.clientY);
+
+    const bedSpan = Math.max(this.surfaceWidthMm(), this.surfaceHeightMm());
+    const currentSpan = Math.max(view.width, view.height);
+    const rawScale = Math.exp(event.deltaY * 0.001);
+    const scale = Math.min(Math.max(rawScale, (bedSpan * 0.02) / currentSpan), (bedSpan * 4) / currentSpan);
+
+    this.viewBox.set(
+      this.clampView({
+        x: pointer.x - (pointer.x - view.x) * scale,
+        y: pointer.y - (pointer.y - view.y) * scale,
+        width: view.width * scale,
+        height: view.height * scale,
+      }),
+    );
+  }
+
+  /** Starts panning the view when the user presses the middle mouse button on the canvas. */
+  protected onCanvasPointerDown(event: PointerEvent): void {
+    if (event.button !== 1) {
+      return;
+    }
+    const rect = this.svgCanvas().nativeElement.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    const view = this.viewBox();
+    this.panState = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startView: view,
+      mmPerPixelX: view.width / rect.width,
+      mmPerPixelY: view.height / rect.height,
+    };
+    (event.target as Element).setPointerCapture(event.pointerId);
+  }
+
+  protected onCanvasPointerMove(event: PointerEvent): void {
+    const pan = this.panState;
+    if (!pan || pan.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const dx = (event.clientX - pan.startClientX) * pan.mmPerPixelX;
+    const dy = (event.clientY - pan.startClientY) * pan.mmPerPixelY;
+    this.viewBox.set(
+      this.clampView({ ...pan.startView, x: pan.startView.x - dx, y: pan.startView.y - dy }),
+    );
+  }
+
+  protected onCanvasPointerUp(event: PointerEvent): void {
+    if (this.panState?.pointerId === event.pointerId) {
+      this.panState = null;
+    }
+  }
+
+  /** Keeps the view from drifting arbitrarily far from the bed — allows up to one view's worth
+   * of empty margin around it in every direction. */
+  private clampView(view: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }): { x: number; y: number; width: number; height: number } {
+    const minX = -view.width;
+    const maxX = this.surfaceWidthMm();
+    const minY = -view.height;
+    const maxY = this.surfaceHeightMm();
+    return {
+      ...view,
+      x: Math.min(Math.max(view.x, minX), Math.max(minX, maxX)),
+      y: Math.min(Math.max(view.y, minY), Math.max(minY, maxY)),
+    };
   }
 
   /** Current world (mm) bounding box of every shape belonging to the given groups, including
