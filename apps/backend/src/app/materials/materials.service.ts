@@ -1,24 +1,22 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Material } from '@webcutter/prisma-client';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Material } from './entities/material.entity';
 import { CreateMaterialDto } from './dto/create-material.dto';
 import { UpdateMaterialDto } from './dto/update-material.dto';
 
 @Injectable()
 export class MaterialsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@InjectRepository(Material) private readonly materials: Repository<Material>) {}
 
-  findAll() {
-    return this.prisma.material.findMany({
-      include: { profiles: true },
-      orderBy: { name: 'asc' },
-    });
+  findAll(): Promise<Material[]> {
+    return this.materials.find({ relations: { profiles: true }, order: { name: 'ASC' } });
   }
 
-  async findOneOrThrow(id: number) {
-    const material = await this.prisma.material.findUnique({
+  async findOneOrThrow(id: number): Promise<Material> {
+    const material = await this.materials.findOne({
       where: { id },
-      include: { profiles: true },
+      relations: { profiles: true },
     });
     if (!material) {
       throw new NotFoundException(`Material ${id} not found.`);
@@ -27,16 +25,17 @@ export class MaterialsService {
   }
 
   create(dto: CreateMaterialDto): Promise<Material> {
-    return this.prisma.material.create({ data: dto });
+    return this.materials.save(this.materials.create(dto));
   }
 
   async update(id: number, dto: UpdateMaterialDto): Promise<Material> {
-    await this.findOneOrThrow(id);
-    return this.prisma.material.update({ where: { id }, data: dto });
+    const material = await this.findOneOrThrow(id);
+    Object.assign(material, dto);
+    return this.materials.save(material);
   }
 
   async remove(id: number): Promise<void> {
     await this.findOneOrThrow(id);
-    await this.prisma.material.delete({ where: { id } });
+    await this.materials.delete(id);
   }
 }

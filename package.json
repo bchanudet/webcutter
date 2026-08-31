@@ -2,7 +2,9 @@
   "name": "@template-angunest/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "serve": "nx run-many --target=serve --projects=backend,frontend"
+  },
   "private": true,
   "dependencies": {
     "@angular/common": "~22.1.4",
@@ -15,17 +17,17 @@
     "@nestjs/core": "^11.0.0",
     "@nestjs/mapped-types": "^12.0.0",
     "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/typeorm": "^11.0.0",
     "@openng/optimus-ui": "^2.0.2",
     "@openng/optimus-ui-themes": "^2.0.2",
-    "@prisma/adapter-better-sqlite3": "^7.10.0",
-    "@prisma/client": "^7.10.0",
     "@tabler/icons": "^3.46.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
-    "dotenv": "^17.4.2",
     "reflect-metadata": "^0.2.0",
     "rxjs": "~7.8.0",
-    "serialport": "^13.0.0"
+    "serialport": "^13.0.0",
+    "sqlite3": "^6.0.1",
+    "typeorm": "^0.3.31"
   },
   "devDependencies": {
     "@angular-devkit/core": "~22.1.0",
@@ -66,9 +68,8 @@
     "jsonc-eslint-parser": "^2.1.0",
     "nx": "23.1.1",
     "prettier": "~3.6.2",
-    "prisma": "^7.10.0",
     "ts-jest": "^29.4.7",
-    "ts-node": "10.9.1",
+    "ts-node": "10.9.2",
     "tslib": "^2.3.0",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.58.0",

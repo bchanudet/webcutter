@@ -24,7 +24,19 @@
         >
           <app-tabler-icon name="trash-x" [size]="20" />
         </p-button>
-      </div>
+        </div>
+    </ng-template>
+    <ng-template pTemplate="end">
+      <p-select
+          inputId="material-select"
+          [options]="materialOptions()"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="Select a material"
+          [showClear]="true"
+          [ngModel]="selectedMaterialId()"
+          (ngModelChange)="onMaterialChange($event)"
+        />
     </ng-template>
   </p-toolbar>
 
@@ -36,7 +48,7 @@
     (change)="onFileInputChange($event)"
   />
 
-  <p-splitter class="workspace__splitter" layout="horizontal" [panelSizes]="[25, 75]" [minSizes]="[220, 320]">
+  <p-splitter class="workspace__splitter" layout="horizontal" [panelSizes]="[25, 75]">
     <ng-template pTemplate="panel">
       <aside class="sidebar">
         <p-tree
@@ -60,54 +72,45 @@
           <p-message severity="error" [closable]="false">{{ message }}</p-message>
         }
 
-        @if (documents().length > 0) {
-          <p-card header="Cutting parameters">
-            <form [formGroup]="form" class="params-stack">
-              <div class="field">
-                <label for="targetWidthMm">Target width (mm)</label>
-                <p-inputnumber inputId="targetWidthMm" formControlName="targetWidthMm" [min]="1" [step]="1" suffix=" mm" />
-              </div>
-              <div class="field">
-                <label for="feedRateMmMin">Cutting speed (mm/min)</label>
-                <p-inputnumber inputId="feedRateMmMin" formControlName="feedRateMmMin" [min]="1" [step]="50" suffix=" mm/min" />
-              </div>
-              <div class="field">
-                <label for="laserPower">Laser power (0-1000)</label>
-                <p-inputnumber inputId="laserPower" formControlName="laserPower" [min]="0" [max]="1000" [step]="10" />
-              </div>
-              <div class="field">
-                <label for="passes">Number of passes</label>
-                <p-inputnumber inputId="passes" formControlName="passes" [min]="1" [max]="20" [step]="1" />
-              </div>
-            </form>
-
-            <div class="actions">
-              <p-button [disabled]="form.invalid" (onClick)="generate()">
-                <span class="button-content"><app-tabler-icon name="route" [size]="18" />Generate G-code</span>
-              </p-button>
-            </div>
-          </p-card>
+        <p-card header="Profiles">
+        @if (selectedMaterial(); as material) {
+            @if (profiles().length === 0) {
+              <p class="hint">No profile defined for this material.</p>
+            } @else {
+              <ul class="profile-list">
+                @for (profile of profiles(); track profile.id) {
+                  <li>
+                    <button
+                      type="button"
+                      class="profile-item"
+                      [disabled]="selectedGroupKeys().size === 0"
+                      (click)="applyProfile(profile)"
+                    >
+                      <span class="color-swatch" [style.background]="profile.color"></span>
+                      <span class="profile-item__label">{{ profile.name }}</span>
+                      <span class="profile-item__meta"
+                        >{{ profile.mode }} · {{ profile.powerPercent }}% · {{ profile.speedMmPerSec }} mm/s</span
+                      >
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+          }
+        @else {
+          <p-message severity="warn">Select a material first.</p-message>
         }
-
-        @if (gcode(); as code) {
-          <p-card header="Generated G-code">
-            <pre class="gcode-output">{{ code }}</pre>
-            <div class="actions">
-              <p-button (onClick)="downloadGcode()">
-                <span class="button-content"><app-tabler-icon name="download" [size]="18" />Download .gcode</span>
-              </p-button>
-            </div>
-          </p-card>
-        }
+        </p-card>
       </aside>
     </ng-template>
 
     <ng-template pTemplate="panel">
       <section class="viewer">
         <svg
+          #svgCanvas
           class="viewer__canvas"
-          [attr.viewBox]="'0 0 ' + surfaceWidthMm + ' ' + surfaceHeightMm"
-          [style.aspect-ratio]="surfaceWidthMm + ' / ' + surfaceHeightMm"
+          [attr.viewBox]="'0 0 ' + surfaceWidthMm() + ' ' + surfaceHeightMm()"
+          [style.aspect-ratio]="surfaceWidthMm() + ' / ' + surfaceHeightMm()"
           preserveAspectRatio="xMidYMid meet"
         >
           <defs>
@@ -119,33 +122,91 @@
               <path d="M 10 0 L 0 0 0 10" fill="none" stroke="var(--p-surface-400, #94a3b8)" stroke-width="0.15" />
             </pattern>
             <clipPath id="surface-clip">
-              <rect [attr.width]="surfaceWidthMm" [attr.height]="surfaceHeightMm" />
+              <rect [attr.width]="surfaceWidthMm()" [attr.height]="surfaceHeightMm()" />
             </clipPath>
+            <marker id="arrow-x" markerWidth="2.4" markerHeight="2.4" refX="2" refY="1.2" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+              <path d="M0,0 L2.4,1.2 L0,2.4 Z" fill="#dc2626" />
+            </marker>
+            <marker id="arrow-y" markerWidth="2.4" markerHeight="2.4" refX="2" refY="1.2" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+              <path d="M0,0 L2.4,1.2 L0,2.4 Z" fill="#16a34a" />
+            </marker>
           </defs>
 
           <rect
-            [attr.width]="surfaceWidthMm"
-            [attr.height]="surfaceHeightMm"
+            [attr.width]="surfaceWidthMm()"
+            [attr.height]="surfaceHeightMm()"
             fill="url(#grid-major)"
             stroke="var(--p-surface-400, #94a3b8)"
             stroke-width="0.3"
           />
 
+          @for (tick of gridLegendX(); track tick.pos) {
+            <text class="grid-legend" [attr.x]="tick.pos + 0.4" [attr.y]="surfaceHeightMm() - 0.6">{{ tick.label }}</text>
+          }
+          @for (tick of gridLegendY(); track tick.pos) {
+            <text class="grid-legend" x="0.4" [attr.y]="tick.pos - 0.4">{{ tick.label }}</text>
+          }
+
+          <line
+            class="axis axis--x"
+            [attr.x1]="originPoint().x"
+            [attr.y1]="originPoint().y"
+            [attr.x2]="xAxisEnd().x"
+            [attr.y2]="xAxisEnd().y"
+            marker-end="url(#arrow-x)"
+          />
+          <line
+            class="axis axis--y"
+            [attr.x1]="originPoint().x"
+            [attr.y1]="originPoint().y"
+            [attr.x2]="yAxisEnd().x"
+            [attr.y2]="yAxisEnd().y"
+            marker-end="url(#arrow-y)"
+          />
+          <circle class="origin-point" [attr.cx]="originPoint().x" [attr.cy]="originPoint().y" r="1" />
+
           <g clip-path="url(#surface-clip)">
             @for (doc of documents(); track doc.id) {
-              <g [attr.transform]="'scale(' + previewScaleFor(doc) + ')'">
-                @for (shape of doc.shapes; track $index) {
-                  <polyline
-                    [attr.points]="toPolylinePoints(shape)"
-                    fill="none"
-                    [attr.stroke]="isShapeSelected(shape) ? 'var(--selected-stroke)' : 'var(--p-primary-color, #FF7300)'"
-                    stroke-width="0.3"
-                    stroke-linejoin="round"
-                  />
-                }
-              </g>
+              @for (shape of doc.shapes; track $index) {
+                <polyline
+                  class="shape"
+                  [class.shape--movable]="isShapeSelected(shape)"
+                  [attr.points]="toPolylinePoints(shape)"
+                  [attr.transform]="shapeTransform(shape, doc)"
+                  fill="none"
+                  [attr.stroke]="colorForShape(shape)"
+                  stroke-width="0.3"
+                  stroke-linejoin="round"
+                  (click)="onShapeClick($event, shape)"
+                  (pointerdown)="onShapePointerDown($event, shape)"
+                  (pointermove)="onShapePointerMove($event)"
+                  (pointerup)="onShapePointerUp($event)"
+                  (pointercancel)="onShapePointerUp($event)"
+                />
+              }
             }
           </g>
+
+          @if (selectionFrame(); as frame) {
+            <polygon class="selection-frame selection-frame--black" [attr.points]="frame.points" />
+            <polygon class="selection-frame selection-frame--white" [attr.points]="frame.points" />
+            <g
+              class="selection-handle"
+              [attr.transform]="'translate(' + frame.handle.x + ' ' + frame.handle.y + ') rotate(' + frame.angleDeg + ')'"
+              (pointerdown)="onHandlePointerDown($event)"
+              (pointermove)="onShapePointerMove($event)"
+              (pointerup)="onShapePointerUp($event)"
+              (pointercancel)="onShapePointerUp($event)"
+            >
+              <rect
+                class="selection-handle__square"
+                [attr.x]="-frame.handleSize / 2"
+                [attr.y]="-frame.handleSize / 2"
+                [attr.width]="frame.handleSize"
+                [attr.height]="frame.handleSize"
+              />
+            </g>
+          }
         </svg>
 
         @if (documents().length === 0) {

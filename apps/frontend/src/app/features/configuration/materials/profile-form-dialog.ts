@@ -7,6 +7,7 @@ import { InputText } from '@openng/optimus-ui/inputtext';
 import { InputNumber } from '@openng/optimus-ui/inputnumber';
 import { Select } from '@openng/optimus-ui/select';
 import { Profile, ProfileMode, ProfilePayload } from './material.model';
+import { PROFILE_COLOR_PALETTE } from './profile-color-palette';
 
 export interface ProfileSaveEvent {
   materialId: number;
@@ -35,6 +36,7 @@ export class ProfileFormDialog {
   readonly save = output<ProfileSaveEvent>();
 
   protected readonly modeOptions = MODE_OPTIONS;
+  protected readonly colorPalette = PROFILE_COLOR_PALETTE;
   protected readonly visible = signal(false);
   private materialId: number | null = null;
   private editingId: number | null = null;
@@ -44,7 +46,7 @@ export class ProfileFormDialog {
       nonNullable: true,
       validators: [Validators.required, Validators.minLength(1)],
     }),
-    color: new FormControl('#ff7300', { nonNullable: true, validators: [Validators.required] }),
+    color: new FormControl(PROFILE_COLOR_PALETTE[0], { nonNullable: true, validators: [Validators.required] }),
     mode: new FormControl<ProfileMode>('LINE', { nonNullable: true, validators: [Validators.required] }),
     powerPercent: new FormControl(100, {
       nonNullable: true,
@@ -74,7 +76,7 @@ export class ProfileFormDialog {
     this.editingId = null;
     this.form.reset({
       name: '',
-      color: '#ff7300',
+      color: PROFILE_COLOR_PALETTE[0],
       mode: 'LINE',
       powerPercent: 100,
       speedMmPerSec: 10,

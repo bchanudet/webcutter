@@ -49,9 +49,7 @@ Thumbs.db
 __screenshots__/
 
 .nx/polygraph
-/generated/prisma
 
-# Prisma / SQLite local database
-.env
+# Local SQLite database
 *.db
 *.db-journal

@@ -11,8 +11,20 @@
     </div>
 
     <div class="field">
-      <label for="profile-color">Color</label>
-      <input id="profile-color" type="color" class="color-input" formControlName="color" />
+      <span id="profile-color-label">Color</span>
+      <div class="color-palette" role="radiogroup" aria-labelledby="profile-color-label">
+        @for (color of colorPalette; track color) {
+          <button
+            type="button"
+            class="color-swatch-button"
+            [class.color-swatch-button--selected]="form.controls.color.value === color"
+            [style.background]="color"
+            [attr.aria-pressed]="form.controls.color.value === color"
+            [title]="color"
+            (click)="form.controls.color.setValue(color)"
+          ></button>
+        }
+      </div>
     </div>
 
     <div class="field">

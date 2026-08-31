@@ -1,5 +1,5 @@
 import { IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
-import { ProfileMode } from '@webcutter/prisma-client';
+import { ProfileMode } from '../entities/profile.entity';
 
 export class CreateProfileDto {
   @IsString()
