@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { Card } from '@openng/optimus-ui/card';
+import { MaterialsSection } from './materials/materials-section';
 
 @Component({
   selector: 'app-configuration-page',
-  imports: [Card],
+  imports: [MaterialsSection],
   templateUrl: './configuration.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

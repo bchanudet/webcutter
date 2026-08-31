@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { TreeNode } from '@openng/optimus-ui/api';
 import { IGNORED_TAGS, REFERENCE_ONLY_CONTAINER_TAGS } from './svg-container-tags';
+import { parsePathCommands } from './svg-path-data';
 
 export interface FlattenedShape {
   points: { x: number; y: number }[];
@@ -84,7 +85,10 @@ export class SvgFlattenerService {
             continue;
           }
           if (GEOMETRY_TAGS.has(tag)) {
-            const shape = this.sampleShape(child as unknown as SVGGeometryElement & SVGGraphicsElement);
+            const shape =
+              tag === 'path'
+                ? this.samplePath(child as unknown as SVGGeometryElement & SVGGraphicsElement, host)
+                : this.sampleShape(child as unknown as SVGGeometryElement & SVGGraphicsElement);
             if (shape) {
               shapes.push({ ...shape, groupKey });
             }
@@ -112,8 +116,11 @@ export class SvgFlattenerService {
   private directTitle(element: Element): string | null {
     for (const child of Array.from(element.children)) {
       if (child.tagName.toLowerCase() === 'title') {
-        const text = child.textContent?.trim();
-        if (text) {
+        let text = child.textContent?.trim();
+        if (text) { 
+          if (text.match(/^b'(.+)'$/i)){
+            text = text.replace(/^b'(.+)'$/, "$1");
+          }
           return text;
         }
       }
@@ -146,6 +153,180 @@ export class SvgFlattenerService {
     }
 
     return { points };
+  }
+
+  /**
+   * Flattens a <path> by walking its own `d` commands instead of uniformly re-sampling the
+   * whole outline by arc length: straight segments (M/L/H/V/Z) are kept exactly as authored
+   * (so corners stay sharp), while each curve segment (C/S/Q/T/A) is interpolated by handing
+   * just that segment to a throwaway <path> and letting the browser's own getTotalLength/
+   * getPointAtLength evaluate it — no Bezier/arc math to get wrong here.
+   */
+  private samplePath(
+    node: SVGGeometryElement & SVGGraphicsElement,
+    host: Element,
+  ): Omit<FlattenedShape, 'groupKey'> | null {
+    const d = node.getAttribute('d');
+    if (!d) {
+      return null;
+    }
+
+    const commands = parsePathCommands(d);
+    if (commands.length === 0) {
+      return null;
+    }
+
+    const curveSampler = document.createElementNS(
+      'http://www.w3.org/2000/svg',
+      'path',
+    ) as SVGPathElement;
+    host.appendChild(curveSampler);
+
+    try {
+      const localPoints: { x: number; y: number }[] = [];
+      let current = { x: 0, y: 0 };
+      let subpathStart = { x: 0, y: 0 };
+      let prevCubicControl: { x: number; y: number } | null = null;
+      let prevQuadControl: { x: number; y: number } | null = null;
+
+      const resolve = (x: number, y: number, relative: boolean): { x: number; y: number } =>
+        relative ? { x: current.x + x, y: current.y + y } : { x, y };
+
+      const sampleCurve = (subPathD: string) => {
+        curveSampler.setAttribute('d', subPathD);
+        let totalLength: number;
+        try {
+          totalLength = curveSampler.getTotalLength();
+        } catch {
+          return;
+        }
+        if (!Number.isFinite(totalLength) || totalLength <= 0) {
+          return;
+        }
+        const stepCount = Math.max(1, Math.ceil(totalLength / SAMPLE_STEP_PX));
+        for (let i = 1; i <= stepCount; i++) {
+          const length = (i / stepCount) * totalLength;
+          const point = curveSampler.getPointAtLength(length);
+          localPoints.push({ x: point.x, y: point.y });
+        }
+      };
+
+      for (const command of commands) {
+        const relative = command.code === command.code.toLowerCase();
+        const upper = command.code.toUpperCase();
+
+        switch (upper) {
+          case 'M': {
+            const point = resolve(command.args[0], command.args[1], relative);
+            current = point;
+            subpathStart = point;
+            localPoints.push(point);
+            prevCubicControl = null;
+            prevQuadControl = null;
+            break;
+          }
+          case 'L': {
+            current = resolve(command.args[0], command.args[1], relative);
+            localPoints.push(current);
+            prevCubicControl = null;
+            prevQuadControl = null;
+            break;
+          }
+          case 'H': {
+            current = { x: relative ? current.x + command.args[0] : command.args[0], y: current.y };
+            localPoints.push(current);
+            prevCubicControl = null;
+            prevQuadControl = null;
+            break;
+          }
+          case 'V': {
+            current = { x: current.x, y: relative ? current.y + command.args[0] : command.args[0] };
+            localPoints.push(current);
+            prevCubicControl = null;
+            prevQuadControl = null;
+            break;
+          }
+          case 'C': {
+            const c1 = resolve(command.args[0], command.args[1], relative);
+            const c2 = resolve(command.args[2], command.args[3], relative);
+            const end = resolve(command.args[4], command.args[5], relative);
+            sampleCurve(`M ${current.x} ${current.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${end.x} ${end.y}`);
+            current = end;
+            prevCubicControl = c2;
+            prevQuadControl = null;
+            break;
+          }
+          case 'S': {
+            const c1: { x: number; y: number } = prevCubicControl
+              ? { x: 2 * current.x - prevCubicControl.x, y: 2 * current.y - prevCubicControl.y }
+              : current;
+            const c2 = resolve(command.args[0], command.args[1], relative);
+            const end = resolve(command.args[2], command.args[3], relative);
+            sampleCurve(`M ${current.x} ${current.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${end.x} ${end.y}`);
+            current = end;
+            prevCubicControl = c2;
+            prevQuadControl = null;
+            break;
+          }
+          case 'Q': {
+            const c1 = resolve(command.args[0], command.args[1], relative);
+            const end = resolve(command.args[2], command.args[3], relative);
+            sampleCurve(`M ${current.x} ${current.y} Q ${c1.x} ${c1.y} ${end.x} ${end.y}`);
+            current = end;
+            prevQuadControl = c1;
+            prevCubicControl = null;
+            break;
+          }
+          case 'T': {
+            const c1: { x: number; y: number } = prevQuadControl
+              ? { x: 2 * current.x - prevQuadControl.x, y: 2 * current.y - prevQuadControl.y }
+              : current;
+            const end = resolve(command.args[0], command.args[1], relative);
+            sampleCurve(`M ${current.x} ${current.y} Q ${c1.x} ${c1.y} ${end.x} ${end.y}`);
+            current = end;
+            prevQuadControl = c1;
+            prevCubicControl = null;
+            break;
+          }
+          case 'A': {
+            const [rx, ry, rotation, largeArc, sweep] = command.args;
+            const end = resolve(command.args[5], command.args[6], relative);
+            sampleCurve(
+              `M ${current.x} ${current.y} A ${rx} ${ry} ${rotation} ${largeArc} ${sweep} ${end.x} ${end.y}`,
+            );
+            current = end;
+            prevCubicControl = null;
+            prevQuadControl = null;
+            break;
+          }
+          case 'Z': {
+            localPoints.push(subpathStart);
+            current = subpathStart;
+            prevCubicControl = null;
+            prevQuadControl = null;
+            break;
+          }
+        }
+      }
+
+      if (localPoints.length < 2) {
+        return null;
+      }
+
+      const ctm = node.getCTM();
+      const points = localPoints.map((point) => (ctm ? this.applyMatrix(point, ctm) : point));
+
+      return { points };
+    } finally {
+      curveSampler.remove();
+    }
+  }
+
+  private applyMatrix(point: { x: number; y: number }, matrix: DOMMatrix): { x: number; y: number } {
+    return {
+      x: matrix.a * point.x + matrix.c * point.y + matrix.e,
+      y: matrix.b * point.x + matrix.d * point.y + matrix.f,
+    };
   }
 
   private resolveDimensions(svgRoot: Element): { width: number; height: number } {

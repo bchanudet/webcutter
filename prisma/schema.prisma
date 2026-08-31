@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Material {
+  id          Int       @id @default(autoincrement())
+  name        String
+  thicknessMm Float
+  profiles    Profile[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("material")
+}
+
+enum ProfileMode {
+  LINE
+  FILL
+}
+
+model Profile {
+  id            Int         @id @default(autoincrement())
+  material      Material    @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  materialId    Int
+  name          String
+  color         String
+  mode          ProfileMode
+  powerPercent  Float
+  speedMmPerSec Float
+  passes        Int         @default(1)
+  lineSpacingMm Float?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("profile")
+}

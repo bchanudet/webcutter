@@ -1,0 +1,65 @@
+<p-dialog
+  [(visible)]="visible"
+  [modal]="true"
+  [header]="isEditing ? 'Edit profile' : 'New profile'"
+  [style]="{ width: '26rem' }"
+>
+  <form [formGroup]="form" class="form-stack">
+    <div class="field">
+      <label for="profile-name">Name</label>
+      <input id="profile-name" type="text" pInputText formControlName="name" />
+    </div>
+
+    <div class="field">
+      <label for="profile-color">Color</label>
+      <input id="profile-color" type="color" class="color-input" formControlName="color" />
+    </div>
+
+    <div class="field">
+      <label for="profile-mode">Mode</label>
+      <p-select
+        inputId="profile-mode"
+        formControlName="mode"
+        [options]="modeOptions"
+        optionLabel="label"
+        optionValue="value"
+      />
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="profile-power">Laser power (%)</label>
+        <p-inputnumber inputId="profile-power" formControlName="powerPercent" [min]="0" [max]="100" suffix=" %" />
+      </div>
+      <div class="field">
+        <label for="profile-speed">Speed (mm/s)</label>
+        <p-inputnumber inputId="profile-speed" formControlName="speedMmPerSec" [min]="0" suffix=" mm/s" />
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="profile-passes">Passes</label>
+        <p-inputnumber inputId="profile-passes" formControlName="passes" [min]="1" />
+      </div>
+      @if (isFillMode) {
+        <div class="field">
+          <label for="profile-line-spacing">Line spacing (mm)</label>
+          <p-inputnumber
+            inputId="profile-line-spacing"
+            formControlName="lineSpacingMm"
+            [min]="0"
+            [step]="0.05"
+            [minFractionDigits]="2"
+            suffix=" mm"
+          />
+        </div>
+      }
+    </div>
+  </form>
+
+  <ng-template pTemplate="footer">
+    <p-button [text]="true" (onClick)="cancel()">Cancel</p-button>
+    <p-button [disabled]="form.invalid" (onClick)="submit()">Save</p-button>
+  </ng-template>
+</p-dialog>

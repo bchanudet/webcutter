@@ -6,5 +6,8 @@ module.exports = {
     '^.+\\.[tj]s$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.spec.json' }],
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
+  moduleNameMapper: {
+    '^@webcutter/prisma-client$': '<rootDir>/../../generated/prisma',
+  },
   coverageDirectory: '../../coverage/apps/backend',
 };

@@ -14,7 +14,11 @@ export type TablerIconName =
   | 'code'
   | 'building-factory-2'
   | 'settings'
-  | 'file-scissors';
+  | 'file-scissors'
+  | 'plus'
+  | 'pencil'
+  | 'chevron-right'
+  | 'chevron-down';
 
 export type TablerIconVariant = 'outline' | 'filled';
 
@@ -111,6 +115,32 @@ export const TABLER_ICON_PATHS: Record<TablerIconName, TablerIconDefinition> = {
     paths: `
       <path d="M12 2l.117 .007a1 1 0 0 1 .876 .876l.007 .117v4l.005 .15a2 2 0 0 0 1.838 1.844l.157 .006h4l.117 .007a1 1 0 0 1 .876 .876l.007 .117v9a3 3 0 0 1 -2.824 2.995l-.176 .005h-10a3 3 0 0 1 -2.995 -2.824l-.005 -.176v-14a3 3 0 0 1 2.824 -2.995l.176 -.005zm-2.293 9.293a1 1 0 1 0 -1.414 1.414l2.292 2.293l-1.068 1.067a2.003 2.003 0 0 0 -2.512 1.784l-.005 .149a2 2 0 1 0 3.933 -.516l1.067 -1.069l1.067 1.068a2 2 0 0 0 -.062 .368l-.005 .149a2 2 0 1 0 1.484 -1.933l-1.069 -1.067l2.292 -2.293a1 1 0 0 0 -1.414 -1.414l-2.293 2.292z" />
       <path d="M19 7h-4l-.001 -4.001z" />
+    `,
+  },
+  plus: {
+    variant: 'outline',
+    paths: `
+      <path d="M12 5l0 14" />
+      <path d="M5 12l14 0" />
+    `,
+  },
+  pencil: {
+    variant: 'outline',
+    paths: `
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+    `,
+  },
+  'chevron-right': {
+    variant: 'outline',
+    paths: `
+      <path d="M9 6l6 6l-6 6" />
+    `,
+  },
+  'chevron-down': {
+    variant: 'outline',
+    paths: `
+      <path d="M6 9l6 6l6 -6" />
     `,
   },
 };

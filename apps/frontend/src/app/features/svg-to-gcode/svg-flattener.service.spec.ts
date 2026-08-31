@@ -86,7 +86,7 @@ describe('SvgFlattenerService', () => {
   it('skips zero-length shapes', () => {
     const result = service.flatten(
       'doc-1',
-      '<svg viewBox="0 0 10 10"><path data-length="0" d="M0 0" /></svg>',
+      '<svg viewBox="0 0 10 10"><rect data-length="0" /></svg>',
       'fallback.svg',
     );
     expect(result.shapes).toHaveLength(0);
@@ -150,7 +150,7 @@ describe('SvgFlattenerService', () => {
     it('creates one child node per top-level group, labelled from its own title', () => {
       const result = service.flatten(
         'doc-1',
-        '<svg><g><title>Outline</title><path d="M0 0"/></g><g><rect/></g></svg>',
+        '<svg><g><title>Outline</title><path d="M0 0 L1 1"/></g><g><rect/></g></svg>',
         'fallback.svg',
       );
 
@@ -170,7 +170,7 @@ describe('SvgFlattenerService', () => {
     it('nests groups within groups recursively', () => {
       const result = service.flatten(
         'doc-1',
-        '<svg><g><title>Outer</title><g><title>Inner</title><path d="M0 0"/></g></g></svg>',
+        '<svg><g><title>Outer</title><g><title>Inner</title><path d="M0 0 L1 1"/></g></g></svg>',
         'fallback.svg',
       );
 
@@ -221,20 +221,75 @@ describe('SvgFlattenerService', () => {
     });
 
     it('tags a shape with its immediately enclosing group key', () => {
-      const result = service.flatten('doc-1', '<svg><g><title>Outline</title><path d="M0 0"/></g></svg>', 'fallback.svg');
+      const result = service.flatten('doc-1', '<svg><g><title>Outline</title><path d="M0 0 L1 1"/></g></svg>', 'fallback.svg');
       expect(result.shapes[0].groupKey).toBe(result.tree.children?.[0].key);
     });
 
     it('tags a shape in a nested group with the innermost group key', () => {
       const result = service.flatten(
         'doc-1',
-        '<svg><g><title>Outer</title><g><title>Inner</title><path d="M0 0"/></g></g></svg>',
+        '<svg><g><title>Outer</title><g><title>Inner</title><path d="M0 0 L1 1"/></g></g></svg>',
         'fallback.svg',
       );
       const outer = result.tree.children?.[0];
       const inner = outer?.children?.[0];
       expect(result.shapes[0].groupKey).toBe(inner?.key);
       expect(result.shapes[0].groupKey).not.toBe(outer?.key);
+    });
+  });
+
+  describe('path line/curve sampling', () => {
+    it('keeps straight-line commands (M/L/H/V/Z) exact, with no interpolation', () => {
+      const result = service.flatten(
+        'doc-1',
+        '<svg><path d="M0,0 L10,0 L10,10 H0 V0 Z" /></svg>',
+        'fallback.svg',
+      );
+
+      // M, L, L, H, V, Z -> exactly one point per command, corners preserved as authored.
+      // (+100 on x: the shared stub's CTM offsets <path> elements by e:100.)
+      expect(result.shapes[0].points).toEqual([
+        { x: 100, y: 0 },
+        { x: 110, y: 0 },
+        { x: 110, y: 10 },
+        { x: 100, y: 10 },
+        { x: 100, y: 0 },
+        { x: 100, y: 0 },
+      ]);
+    });
+
+    it('interpolates curve commands (C) into several points instead of a single corner', () => {
+      const result = service.flatten(
+        'doc-1',
+        '<svg><path d="M0,0 C1,1 2,2 3,3 L4,4" /></svg>',
+        'fallback.svg',
+      );
+
+      // M contributes 1 point, the stubbed 10-length curve is sampled into several more
+      // (step 1.5 -> ceil(10/1.5) = 7), then L contributes exactly 1 more point.
+      expect(result.shapes[0].points.length).toBeGreaterThan(3);
+      expect(result.shapes[0].points[result.shapes[0].points.length - 1]).toEqual({ x: 104, y: 4 });
+    });
+
+    it('interpolates S/Q/T the same way as C', () => {
+      for (const d of ['M0,0 S1,1 2,2', 'M0,0 Q1,1 2,2', 'M0,0 Q1,1 2,2 T4,4']) {
+        const result = service.flatten('doc-1', `<svg><path d="${d}" /></svg>`, 'fallback.svg');
+        expect(result.shapes[0].points.length).toBeGreaterThan(2);
+      }
+    });
+
+    it('applies the CTM to both line and curve points alike', () => {
+      const result = service.flatten('doc-1', '<svg><path d="M0,0 L1,1 C2,2 3,3 4,4" /></svg>', 'fallback.svg');
+      // The stub offsets <path> elements by e:100 — every point, line or curve, must carry it.
+      expect(result.shapes[0].points.every((p) => p.x >= 100)).toBe(true);
+    });
+
+    it('returns null for a path with no d attribute or a degenerate single-point path', () => {
+      const noD = service.flatten('doc-1', '<svg><path /></svg>', 'fallback.svg');
+      expect(noD.shapes).toHaveLength(0);
+
+      const singlePoint = service.flatten('doc-1', '<svg><path d="M0,0" /></svg>', 'fallback.svg');
+      expect(singlePoint.shapes).toHaveLength(0);
     });
   });
 });

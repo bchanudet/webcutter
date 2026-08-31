@@ -1,0 +1,126 @@
+<p-card header="Materials" class="materials-card">
+  <div class="section-toolbar">
+    <p-button (onClick)="openCreateMaterial()">
+      <span class="button-content"><app-tabler-icon name="plus" [size]="18" />Add material</span>
+    </p-button>
+  </div>
+
+  @if (errorMessage(); as message) {
+    <p-message severity="error" [closable]="false" class="section-message">{{ message }}</p-message>
+  }
+
+  <p-table [value]="materials()" dataKey="id" [loading]="loading()" [expandedRowKeys]="expandedRowKeys()">
+    <ng-template pTemplate="header">
+      <tr>
+        <th class="col-toggle"></th>
+        <th>Name</th>
+        <th>Thickness</th>
+        <th>Profiles</th>
+        <th class="col-actions"></th>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="emptymessage">
+      <tr>
+        <td colspan="5" class="empty-cell">No materials yet. Add one to get started.</td>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="body" let-material>
+      <tr>
+        <td class="col-toggle">
+          <button type="button" class="toggle-button" (click)="toggleExpanded(material)">
+            <app-tabler-icon [name]="isExpanded(material) ? 'chevron-down' : 'chevron-right'" [size]="16" />
+          </button>
+        </td>
+        <td>{{ material.name }}</td>
+        <td>{{ material.thicknessMm }} mm</td>
+        <td>{{ material.profiles.length }}</td>
+        <td class="col-actions">
+          <p-button [text]="true" [rounded]="true" title="Edit material" (onClick)="openEditMaterial(material)">
+            <app-tabler-icon name="pencil" [size]="16" />
+          </p-button>
+          <p-button
+            [text]="true"
+            [rounded]="true"
+            severity="danger"
+            title="Delete material"
+            (onClick)="confirmDeleteMaterial(material)"
+          >
+            <app-tabler-icon name="trash-x" [size]="16" />
+          </p-button>
+        </td>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="expandedrow" let-material>
+      <tr>
+        <td colspan="5" class="profiles-cell">
+          <div class="profiles-panel">
+            <div class="profiles-panel__header">
+              <span>Profiles</span>
+              <p-button [text]="true" size="small" (onClick)="openCreateProfile(material)">
+                <span class="button-content"><app-tabler-icon name="plus" [size]="16" />Add profile</span>
+              </p-button>
+            </div>
+
+            @if (material.profiles.length === 0) {
+              <p class="profiles-panel__empty">No profiles for this material yet.</p>
+            } @else {
+              <table class="profiles-table">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>Name</th>
+                    <th>Mode</th>
+                    <th>Power</th>
+                    <th>Speed</th>
+                    <th>Passes</th>
+                    <th>Line spacing</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (profile of material.profiles; track profile.id) {
+                    <tr>
+                      <td><span class="color-swatch" [style.background]="profile.color"></span></td>
+                      <td>{{ profile.name }}</td>
+                      <td>{{ profile.mode === 'FILL' ? 'Fill' : 'Line' }}</td>
+                      <td>{{ profile.powerPercent }}%</td>
+                      <td>{{ profile.speedMmPerSec }} mm/s</td>
+                      <td>{{ profile.passes }}</td>
+                      <td>{{ profile.mode === 'FILL' ? profile.lineSpacingMm + ' mm' : '—' }}</td>
+                      <td class="col-actions">
+                        <p-button
+                          [text]="true"
+                          [rounded]="true"
+                          title="Edit profile"
+                          (onClick)="openEditProfile(material, profile)"
+                        >
+                          <app-tabler-icon name="pencil" [size]="16" />
+                        </p-button>
+                        <p-button
+                          [text]="true"
+                          [rounded]="true"
+                          severity="danger"
+                          title="Delete profile"
+                          (onClick)="confirmDeleteProfile(profile)"
+                        >
+                          <app-tabler-icon name="trash-x" [size]="16" />
+                        </p-button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            }
+          </div>
+        </td>
+      </tr>
+    </ng-template>
+  </p-table>
+</p-card>
+
+<app-material-form-dialog (save)="onMaterialSave($event)" />
+<app-profile-form-dialog (save)="onProfileSave($event)" />
+<p-confirmDialog />

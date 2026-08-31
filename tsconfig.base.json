@@ -17,7 +17,8 @@
     "paths": {
       "@webcutter/cutter-communication": [
         "./libs/cutter-communication/src/index.ts"
-      ]
+      ],
+      "@webcutter/prisma-client": ["./generated/prisma"]
     }
   },
   "exclude": ["node_modules", "tmp"]

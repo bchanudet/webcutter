@@ -1,0 +1,22 @@
+<p-dialog
+  [(visible)]="visible"
+  [modal]="true"
+  [header]="isEditing ? 'Edit material' : 'New material'"
+  [style]="{ width: '24rem' }"
+>
+  <form [formGroup]="form" class="form-stack">
+    <div class="field">
+      <label for="material-name">Name</label>
+      <input id="material-name" type="text" pInputText formControlName="name" />
+    </div>
+    <div class="field">
+      <label for="material-thickness">Thickness (mm)</label>
+      <p-inputnumber inputId="material-thickness" formControlName="thicknessMm" [min]="0" [step]="0.1" [minFractionDigits]="1" suffix=" mm" />
+    </div>
+  </form>
+
+  <ng-template pTemplate="footer">
+    <p-button [text]="true" (onClick)="cancel()">Cancel</p-button>
+    <p-button [disabled]="form.invalid" (onClick)="submit()">Save</p-button>
+  </ng-template>
+</p-dialog>
