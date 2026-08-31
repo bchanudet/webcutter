@@ -1,0 +1,40 @@
+<p-dialog
+  [(visible)]="visible"
+  [modal]="true"
+  [header]="isEditing ? 'Edit custom G-code' : 'New custom G-code'"
+  [style]="{ width: '28rem' }"
+>
+  <form [formGroup]="form" class="form-stack">
+    <div class="field">
+      <label for="gcode-name">Name</label>
+      <input id="gcode-name" type="text" pInputText formControlName="name" maxlength="255" />
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="gcode-hook">Hook</label>
+        <p-select
+          inputId="gcode-hook"
+          formControlName="hook"
+          [options]="hookOptions"
+          optionLabel="label"
+          optionValue="value"
+        />
+      </div>
+      <div class="field">
+        <label for="gcode-order">Order</label>
+        <p-inputnumber inputId="gcode-order" formControlName="order" [min]="-2147483648" [max]="2147483647" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="gcode-code">G-code</label>
+      <textarea id="gcode-code" pTextarea formControlName="code" rows="8" class="code-input"></textarea>
+    </div>
+  </form>
+
+  <ng-template pTemplate="footer">
+    <p-button [text]="true" (onClick)="cancel()">Cancel</p-button>
+    <p-button [disabled]="form.invalid" (onClick)="submit()">Save</p-button>
+  </ng-template>
+</p-dialog>

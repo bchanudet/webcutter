@@ -1,0 +1,55 @@
+<p-card header="Custom G-code" class="gcode-card">
+  <div class="section-toolbar">
+    <p-button (onClick)="openCreate()">
+      <span class="button-content"><app-tabler-icon name="plus" [size]="18" />Add G-code</span>
+    </p-button>
+  </div>
+
+  @if (errorMessage(); as message) {
+    <p-message severity="error" [closable]="false" class="section-message">{{ message }}</p-message>
+  }
+
+  <p-table [value]="gcodes()" dataKey="id" [loading]="loading()">
+    <ng-template pTemplate="header">
+      <tr>
+        <th>Name</th>
+        <th>Hook</th>
+        <th>Order</th>
+        <th>G-code</th>
+        <th class="col-actions">&nbsp;</th>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="emptymessage">
+      <tr>
+        <td colspan="5" class="empty-cell">No custom G-code yet. Add one to get started.</td>
+      </tr>
+    </ng-template>
+
+    <ng-template pTemplate="body" let-gcode>
+      <tr>
+        <td>{{ gcode.name }}</td>
+        <td>{{ gcode.hook === 'start' ? 'Start of document' : 'End of document' }}</td>
+        <td>{{ gcode.order }}</td>
+        <td class="col-code"><code>{{ gcode.code }}</code></td>
+        <td class="col-actions">
+          <p-button [text]="true" [rounded]="true" title="Edit G-code" (onClick)="openEdit(gcode)">
+            <app-tabler-icon name="pencil" [size]="16" />
+          </p-button>
+          <p-button
+            [text]="true"
+            [rounded]="true"
+            severity="danger"
+            title="Delete G-code"
+            (onClick)="confirmDelete(gcode)"
+          >
+            <app-tabler-icon name="trash-x" [size]="16" />
+          </p-button>
+        </td>
+      </tr>
+    </ng-template>
+  </p-table>
+</p-card>
+
+<app-gcode-form-dialog (save)="onSave($event)" />
+<p-confirmDialog />

@@ -1,0 +1,44 @@
+.gcode-card {
+  width: 100%;
+}
+
+.section-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+.section-message {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.button-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.col-actions {
+  width: 6rem;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.col-code {
+  max-width: 20rem;
+
+  code {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.8125rem;
+  }
+}
+
+.empty-cell {
+  text-align: center;
+  color: var(--p-text-muted-color, #6b7280);
+  padding: 1.5rem;
+}
