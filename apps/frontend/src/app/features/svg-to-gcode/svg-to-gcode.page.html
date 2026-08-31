@@ -1,0 +1,157 @@
+<div class="workspace">
+  <p-toolbar class="workspace__toolbar">
+    <ng-template pTemplate="start">
+      <div class="toolbar-actions">
+        <p-button [text]="true" [rounded]="true" title="Load SVG" (onClick)="openFilePicker()">
+          <app-tabler-icon name="file-upload" [size]="20" />
+        </p-button>
+        <p-button
+          [text]="true"
+          [rounded]="true"
+          title="Save workspace SVG"
+          [disabled]="documents().length === 0"
+          (onClick)="saveSvg()"
+        >
+          <app-tabler-icon name="file-download" [size]="20" />
+        </p-button>
+        <p-button
+          [text]="true"
+          [rounded]="true"
+          severity="danger"
+          title="Clear project"
+          [disabled]="documents().length === 0"
+          (onClick)="reset()"
+        >
+          <app-tabler-icon name="trash-x" [size]="20" />
+        </p-button>
+      </div>
+    </ng-template>
+  </p-toolbar>
+
+  <input
+    #fileInput
+    type="file"
+    accept=".svg,image/svg+xml"
+    hidden
+    (change)="onFileInputChange($event)"
+  />
+
+  <p-splitter class="workspace__splitter" layout="horizontal" [panelSizes]="[25, 75]" [minSizes]="[220, 320]">
+    <ng-template pTemplate="panel">
+      <aside class="sidebar">
+        <p-tree
+          class="workspace-tree"
+          [value]="treeNodes()"
+          selectionMode="checkbox"
+          [(selection)]="selectedNodes"
+          [filter]="true"
+          filterBy="label"
+          filterPlaceholder="Search layers or files..."
+          emptyMessage="No SVG loaded yet."
+        />
+
+        @if (skippedTags().length > 0) {
+          <p-message severity="warn" [closable]="false">
+            Skipped element(s), not supported for cutting: {{ skippedTags().join(', ') }}.
+          </p-message>
+        }
+
+        @if (errorMessage(); as message) {
+          <p-message severity="error" [closable]="false">{{ message }}</p-message>
+        }
+
+        @if (documents().length > 0) {
+          <p-card header="Cutting parameters">
+            <form [formGroup]="form" class="params-stack">
+              <div class="field">
+                <label for="targetWidthMm">Target width (mm)</label>
+                <p-inputnumber inputId="targetWidthMm" formControlName="targetWidthMm" [min]="1" [step]="1" suffix=" mm" />
+              </div>
+              <div class="field">
+                <label for="feedRateMmMin">Cutting speed (mm/min)</label>
+                <p-inputnumber inputId="feedRateMmMin" formControlName="feedRateMmMin" [min]="1" [step]="50" suffix=" mm/min" />
+              </div>
+              <div class="field">
+                <label for="laserPower">Laser power (0-1000)</label>
+                <p-inputnumber inputId="laserPower" formControlName="laserPower" [min]="0" [max]="1000" [step]="10" />
+              </div>
+              <div class="field">
+                <label for="passes">Number of passes</label>
+                <p-inputnumber inputId="passes" formControlName="passes" [min]="1" [max]="20" [step]="1" />
+              </div>
+            </form>
+
+            <div class="actions">
+              <p-button [disabled]="form.invalid" (onClick)="generate()">
+                <span class="button-content"><app-tabler-icon name="route" [size]="18" />Generate G-code</span>
+              </p-button>
+            </div>
+          </p-card>
+        }
+
+        @if (gcode(); as code) {
+          <p-card header="Generated G-code">
+            <pre class="gcode-output">{{ code }}</pre>
+            <div class="actions">
+              <p-button (onClick)="downloadGcode()">
+                <span class="button-content"><app-tabler-icon name="download" [size]="18" />Download .gcode</span>
+              </p-button>
+            </div>
+          </p-card>
+        }
+      </aside>
+    </ng-template>
+
+    <ng-template pTemplate="panel">
+      <section class="viewer">
+        <svg
+          class="viewer__canvas"
+          [attr.viewBox]="'0 0 ' + surfaceWidthMm + ' ' + surfaceHeightMm"
+          [style.aspect-ratio]="surfaceWidthMm + ' / ' + surfaceHeightMm"
+          preserveAspectRatio="xMidYMid meet"
+        >
+          <defs>
+            <pattern id="grid-minor" width="1" height="1" patternUnits="userSpaceOnUse">
+              <path d="M 1 0 L 0 0 0 1" fill="none" stroke="var(--p-surface-300, #cbd5e1)" stroke-width="0.05" />
+            </pattern>
+            <pattern id="grid-major" width="10" height="10" patternUnits="userSpaceOnUse">
+              <rect width="10" height="10" fill="url(#grid-minor)" />
+              <path d="M 10 0 L 0 0 0 10" fill="none" stroke="var(--p-surface-400, #94a3b8)" stroke-width="0.15" />
+            </pattern>
+            <clipPath id="surface-clip">
+              <rect [attr.width]="surfaceWidthMm" [attr.height]="surfaceHeightMm" />
+            </clipPath>
+          </defs>
+
+          <rect
+            [attr.width]="surfaceWidthMm"
+            [attr.height]="surfaceHeightMm"
+            fill="url(#grid-major)"
+            stroke="var(--p-surface-400, #94a3b8)"
+            stroke-width="0.3"
+          />
+
+          <g clip-path="url(#surface-clip)">
+            @for (doc of documents(); track doc.id) {
+              <g [attr.transform]="'scale(' + previewScaleFor(doc) + ')'">
+                @for (shape of doc.shapes; track $index) {
+                  <polyline
+                    [attr.points]="toPolylinePoints(shape)"
+                    fill="none"
+                    [attr.stroke]="isShapeSelected(shape) ? 'var(--selected-stroke)' : 'var(--p-primary-color, #FF7300)'"
+                    stroke-width="0.3"
+                    stroke-linejoin="round"
+                  />
+                }
+              </g>
+            }
+          </g>
+        </svg>
+
+        @if (documents().length === 0) {
+          <p class="viewer__empty">Load an SVG to preview it here.</p>
+        }
+      </section>
+    </ng-template>
+  </p-splitter>
+</div>

@@ -1,0 +1,20 @@
+{
+  "name": "cutter-communication",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/cutter-communication/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/cutter-communication",
+        "tsConfig": "libs/cutter-communication/tsconfig.lib.json",
+        "packageJson": "libs/cutter-communication/package.json",
+        "main": "libs/cutter-communication/src/index.ts",
+        "assets": ["libs/cutter-communication/*.md"]
+      }
+    }
+  }
+}

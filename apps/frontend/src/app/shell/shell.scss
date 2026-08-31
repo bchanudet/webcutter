@@ -1,0 +1,35 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.shell__menubar {
+  flex: 0 0 auto;
+  border-radius: 0;
+  border-width: 0 0 1px;
+}
+
+.shell__content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline: 0.5rem;
+  font-weight: 700;
+  color: var(--p-primary-color, #ff7300);
+}
+
+.shell__brand-name {
+  font-size: 1.05rem;
+}
+
+.p-menubar-item-icon {
+  display: inline-flex;
+}

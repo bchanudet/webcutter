@@ -1,0 +1,24 @@
+<p-menubar [model]="menuItems" class="shell__menubar">
+  <ng-template pTemplate="start">
+    <span class="shell__brand">
+      <app-tabler-icon name="file-scissors" [size]="24" />
+      <span class="shell__brand-name">WebCutter</span>
+    </span>
+  </ng-template>
+
+  <ng-template #item let-item>
+    <a
+      [routerLink]="item.routerLink"
+      routerLinkActive="p-menubar-item-link-active"
+      [routerLinkActiveOptions]="{ exact: false }"
+      class="p-menubar-item-link"
+    >
+      <app-tabler-icon [name]="item.iconName" [size]="18" class="p-menubar-item-icon" />
+      <span class="p-menubar-item-label">{{ item.label }}</span>
+    </a>
+  </ng-template>
+</p-menubar>
+
+<main class="shell__content">
+  <router-outlet />
+</main>

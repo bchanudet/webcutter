@@ -1,0 +1,14 @@
+{
+  "name": "@webcutter/cutter-communication",
+  "version": "0.0.1",
+  "private": true,
+  "type": "commonjs",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "dependencies": {
+    "tslib": "^2.3.0",
+    "@nestjs/common": "^11.0.0",
+    "serialport": "^13.0.0",
+    "@serialport/parser-readline": "13.0.0"
+  }
+}
