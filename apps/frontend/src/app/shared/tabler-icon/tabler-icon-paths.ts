@@ -21,7 +21,13 @@ export type TablerIconName =
   | 'plus'
   | 'pencil'
   | 'chevron-right'
-  | 'chevron-down';
+  | 'chevron-down'
+  | 'plug-connected'
+  | 'home'
+  | 'player-pause'
+  | 'player-stop'
+  | 'arrow-badge-right'
+  | 'arrow-badge-left';
 
 export type TablerIconVariant = 'outline' | 'filled';
 
@@ -171,6 +177,50 @@ export const TABLER_ICON_PATHS: Record<TablerIconName, TablerIconDefinition> = {
     variant: 'outline',
     paths: `
       <path d="M6 9l6 6l6 -6" />
+    `,
+  },
+  'plug-connected': {
+    variant: 'outline',
+    paths: `
+      <path d="M7 12l5 5l-1.5 1.5a3.536 3.536 0 1 1 -5 -5l1.5 -1.5z" />
+      <path d="M17 12l-5 -5l1.5 -1.5a3.536 3.536 0 1 1 5 5l-1.5 1.5z" />
+      <path d="M3 21l2.5 -2.5" />
+      <path d="M18.5 5.5l2.5 -2.5" />
+      <path d="M10 11l-2 2" />
+      <path d="M13 14l-2 2" />
+    `,
+  },
+  home: {
+    variant: 'outline',
+    paths: `
+      <path d="M5 12l-2 0l9 -9l9 9l-2 0" />
+      <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+      <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+    `,
+  },
+  'player-pause': {
+    variant: 'outline',
+    paths: `
+      <path d="M6 5m0 1a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z" />
+      <path d="M14 5m0 1a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z" />
+    `,
+  },
+  'player-stop': {
+    variant: 'outline',
+    paths: `
+      <path d="M6 6m0 1a1 1 0 0 1 1 -1h10a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-10a1 1 0 0 1 -1 -1z" />
+    `,
+  },
+  'arrow-badge-right': {
+    variant: 'outline',
+    paths: `
+      <path d="M13 7h-6l4 5l-4 5h6l4 -5l-4 -5" />
+    `,
+  },
+  'arrow-badge-left': {
+    variant: 'outline',
+    paths: `
+      <path d="M11 17h6l-4 -5l4 -5h-6l-4 5l4 5" />
     `,
   },
 };

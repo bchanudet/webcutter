@@ -8,5 +8,6 @@ import { MachineService } from './machine.service';
   imports: [TypeOrmModule.forFeature([Machine])],
   controllers: [MachineController],
   providers: [MachineService],
+  exports: [MachineService],
 })
 export class MachineModule {}

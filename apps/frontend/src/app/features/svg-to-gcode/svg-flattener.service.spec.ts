@@ -1,4 +1,4 @@
-import { FlattenedShape, SvgFlattenerService } from './svg-flattener.service';
+import { FlattenedShape, FlattenedSubpath, SvgFlattenerService, groupSubpathsIntoEntities } from './svg-flattener.service';
 
 /** Flattens every subpath's points into one array — enough for tests that only care about the
  * overall point set, not the subpath boundaries themselves. */
@@ -271,6 +271,28 @@ describe('SvgFlattenerService', () => {
       expect(result.shapes.map((s) => s.groupKey).sort()).toEqual([innerKey, outerKey].sort());
     });
 
+    it('flags a shape as explodable when it has two unrelated (non-nested) closed subpaths', () => {
+      const result = service.flatten(
+        'doc-1',
+        '<svg><path d="M0,0 L10,0 L10,10 Z M100,100 L110,100 L110,110 Z" /></svg>',
+        'fallback.svg',
+      );
+
+      expect(result.shapes).toHaveLength(1);
+      expect(result.shapes[0].explodable).toBe(true);
+    });
+
+    it('does not flag a genuine outer-contour-plus-hole shape as explodable', () => {
+      const result = service.flatten(
+        'doc-1',
+        '<svg><path d="M0,0 L0,20 L20,20 L20,0 Z M5,5 L5,15 L15,15 L15,5 Z" /></svg>',
+        'fallback.svg',
+      );
+
+      expect(result.shapes).toHaveLength(1);
+      expect(result.shapes[0].explodable).toBe(false);
+    });
+
     it('still merges mixed geometry tags (path + rect) in a leaf group', () => {
       const result = service.flatten(
         'doc-1',
@@ -357,6 +379,24 @@ describe('SvgFlattenerService', () => {
       expect(result.shapes[0].subpaths[0].closed).toBe(true);
     });
 
+    it('snaps an implicitly-closed subpath\'s last point to exactly match its first', () => {
+      // A curve's sampled endpoint lands only *approximately* back on the start point (here the
+      // stub returns (10, 0) for the curve's last sample, vs an M start of (10, 0.0005) — within
+      // the "same point" epsilon but not bit-identical). Left as-is, that tiny gap is enough to
+      // make polygon-offset's underlying Martinez clipping produce a badly corrupted ring (see
+      // the laser-offset "expand-fail" bug report) — so it must be snapped exactly closed here.
+      const result = service.flatten(
+        'doc-1',
+        '<svg><path d="M10,0.0005 Q5,5 5,5" /></svg>',
+        'fallback.svg',
+      );
+
+      const subpath = result.shapes[0].subpaths[0];
+      expect(subpath.closed).toBe(true);
+      const last = subpath.points[subpath.points.length - 1];
+      expect(last).toEqual(subpath.points[0]);
+    });
+
     it('splits multiple M...Z segments of a single <path> into separate subpaths', () => {
       const result = service.flatten(
         'doc-1',
@@ -381,5 +421,58 @@ describe('SvgFlattenerService', () => {
       expect(result.shapes[0].subpaths).toHaveLength(1);
       expect(result.shapes[0].subpaths[0].closed).toBe(true);
     });
+  });
+});
+
+describe('groupSubpathsIntoEntities', () => {
+  const square = (x: number, y: number, size: number, closed = true): FlattenedSubpath => ({
+    points: [
+      { x, y },
+      { x, y: y + size },
+      { x: x + size, y: y + size },
+      { x: x + size, y },
+      { x, y },
+    ],
+    closed,
+  });
+
+  it('keeps a single subpath as one entity', () => {
+    expect(groupSubpathsIntoEntities([square(0, 0, 10)])).toHaveLength(1);
+  });
+
+  it('groups a hole together with its outer contour as one entity', () => {
+    const outer = square(0, 0, 20);
+    const hole = square(5, 5, 5);
+    const entities = groupSubpathsIntoEntities([outer, hole]);
+
+    expect(entities).toHaveLength(1);
+    expect(entities[0]).toHaveLength(2);
+  });
+
+  it('treats two non-nested closed subpaths as separate entities', () => {
+    const a = square(0, 0, 10);
+    const b = square(100, 100, 10);
+    const entities = groupSubpathsIntoEntities([a, b]);
+
+    expect(entities).toHaveLength(2);
+    expect(entities.map((entity) => entity.length)).toEqual([1, 1]);
+  });
+
+  it('groups a nested island-within-hole-within-outer chain as one entity', () => {
+    const outer = square(0, 0, 30);
+    const hole = square(5, 5, 20);
+    const island = square(10, 10, 5);
+    const entities = groupSubpathsIntoEntities([outer, hole, island]);
+
+    expect(entities).toHaveLength(1);
+    expect(entities[0]).toHaveLength(3);
+  });
+
+  it('treats every open subpath as its own entity', () => {
+    const openA: FlattenedSubpath = { points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], closed: false };
+    const openB: FlattenedSubpath = { points: [{ x: 2, y: 2 }, { x: 3, y: 3 }], closed: false };
+    const entities = groupSubpathsIntoEntities([openA, openB]);
+
+    expect(entities).toHaveLength(2);
   });
 });

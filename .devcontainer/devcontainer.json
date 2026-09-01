@@ -11,6 +11,8 @@
 		"ghcr.io/devcontainers-extra/features/nx-npm:1": {},
 		"ghcr.io/devcontainers-extra/features/prek:1": {}
 	},
+	"privileged": true,
+	"runArgs": ["--device=/dev/ttyUSB0"],
 	
 	
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.

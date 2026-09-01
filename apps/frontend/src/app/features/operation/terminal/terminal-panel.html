@@ -1,0 +1,30 @@
+<div class="terminal">
+  <div class="terminal__log" #logContainer>
+    @for (message of messages(); track message.id) {
+      <div class="terminal__entry" [class.terminal__entry--sent]="message.direction === 'sent'">
+        <app-tabler-icon
+          class="terminal__direction-icon"
+          [name]="message.direction === 'sent' ? 'arrow-badge-right' : 'arrow-badge-left'"
+          [size]="16"
+        />
+        <span class="terminal__timestamp">{{ formatTimestamp(message.timestampMs) }}</span>
+        <span class="terminal__content">{{ formatMessageContent(message) }}</span>
+      </div>
+    } @empty {
+      <p class="terminal__empty">No message yet.</p>
+    }
+  </div>
+
+  <div class="terminal__input-row">
+    <input
+      type="text"
+      pInputText
+      class="terminal__input"
+      placeholder="Send a raw command..."
+      [ngModel]="draft()"
+      (ngModelChange)="draft.set($event)"
+      (keydown.enter)="send()"
+    />
+    <p-button label="Send" [disabled]="!draft().trim()" (onClick)="send()" />
+  </div>
+</div>

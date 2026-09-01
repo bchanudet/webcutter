@@ -13,6 +13,7 @@ describe('GcodeGeneratorService', () => {
 
   const square: FlattenedShape = {
     id: 'doc-1:shape:0',
+    explodable: false,
     subpaths: [
       {
         points: [
@@ -76,6 +77,7 @@ describe('GcodeGeneratorService', () => {
       [
         {
           id: 'doc-1:shape:1',
+          explodable: false,
           subpaths: [{ points: [{ x: 0, y: 0 }], closed: false }],
           groupKey: 'doc-1',
         },

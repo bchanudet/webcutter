@@ -4,6 +4,7 @@ import { CutterCommunicationModule } from '@webcutter/cutter-communication';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CutterController } from './cutter/cutter.controller';
+import { CutterGateway } from './cutter/cutter.gateway';
 import { GcodeModule } from './gcode/gcode.module';
 import { MachineModule } from './machine/machine.module';
 import { MaterialsModule } from './materials/materials.module';
@@ -22,6 +23,6 @@ import { MaterialsModule } from './materials/materials.module';
     GcodeModule,
   ],
   controllers: [AppController, CutterController],
-  providers: [AppService],
+  providers: [AppService, CutterGateway],
 })
 export class AppModule {}

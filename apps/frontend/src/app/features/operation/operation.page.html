@@ -1,10 +1,45 @@
-<main class="page">
-  <header class="page__header">
-    <h1>Operation</h1>
-    <p>Send G-code to the cutter and run manual operations.</p>
-  </header>
+<div class="workspace">
+  <p-toolbar class="workspace__toolbar">
+    <ng-template pTemplate="start">
+      <div class="toolbar-actions">
+        <p-button [text]="true" [rounded]="true" title="Connect to cutter">
+          <app-tabler-icon name="plug-connected" [size]="20" />
+        </p-button>
+        <p-divider layout="vertical" />
+        <p-button [text]="true" [rounded]="true" title="Home axes">
+          <app-tabler-icon name="home" [size]="20" />
+        </p-button>
+        <p-button [text]="true" [rounded]="true" title="Pause job">
+          <app-tabler-icon name="player-pause" [size]="20" />
+        </p-button>
+        <p-button [text]="true" [rounded]="true" severity="danger" title="Stop job">
+          <app-tabler-icon name="player-stop" [size]="20" />
+        </p-button>
+      </div>
+    </ng-template>
+  </p-toolbar>
 
-  <p-card>
-    <p>Not implemented yet. This page will let you send generated G-code to the cutter and run manual operations such as homing the X/Y axes.</p>
-  </p-card>
-</main>
+  <p-splitter class="workspace__splitter" layout="horizontal" [panelSizes]="[25, 75]">
+    <ng-template pTemplate="panel">
+      <aside class="sidebar">
+        <app-machine-status-card />
+
+        <p-card header="Console">
+          <p class="hint">Not implemented yet.</p>
+        </p-card>
+      </aside>
+    </ng-template>
+
+    <ng-template pTemplate="panel">
+      <section class="viewer">
+        <p-tabs [value]="activeTab()" class="viewer__tabs-nav">
+          <p-tablist>
+            <p-tab value="gcode" (click)="navigateToTab('gcode')">G-code viewer</p-tab>
+            <p-tab value="terminal" (click)="navigateToTab('terminal')">Terminal</p-tab>
+          </p-tablist>
+        </p-tabs>
+        <router-outlet />
+      </section>
+    </ng-template>
+  </p-splitter>
+</div>

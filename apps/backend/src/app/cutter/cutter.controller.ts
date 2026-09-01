@@ -1,10 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Post } from '@nestjs/common';
 import { CutterCommunicationService, CutterPortInfo, GrblStatus } from '@webcutter/cutter-communication';
-
-interface ConnectDto {
-  path: string;
-  baudRate?: number;
-}
+import { MachineService } from '../machine/machine.service';
 
 interface CommandDto {
   command: string;
@@ -12,7 +8,10 @@ interface CommandDto {
 
 @Controller('cutter')
 export class CutterController {
-  constructor(private readonly cutterCommunication: CutterCommunicationService) {}
+  constructor(
+    private readonly cutterCommunication: CutterCommunicationService,
+    private readonly machineService: MachineService,
+  ) {}
 
   @Get('ports')
   listPorts(): Promise<CutterPortInfo[]> {
@@ -20,12 +19,15 @@ export class CutterController {
   }
 
   @Post('connect')
-  async connect(@Body() body: ConnectDto): Promise<{ connected: boolean }> {
-    if (!body?.path) {
-      throw new BadRequestException('Le champ "path" est requis (ex: /dev/ttyUSB0).');
-    }
-
-    await this.cutterCommunication.connect({ path: body.path, baudRate: body.baudRate });
+  async connect(): Promise<{ connected: boolean }> {
+    const machine = await this.machineService.get();
+    await this.cutterCommunication.connect({
+      path: machine.serialPortPath,
+      baudRate: machine.baudRate,
+      dataBits: machine.dataBits as 5 | 6 | 7 | 8,
+      stopBits: machine.stopBits as 1 | 1.5 | 2,
+      parity: machine.parity,
+    });
     return { connected: true };
   }
 

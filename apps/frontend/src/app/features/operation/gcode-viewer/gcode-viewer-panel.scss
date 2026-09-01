@@ -1,0 +1,14 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.gcode-viewer__empty {
+  margin: 0;
+  color: var(--p-text-muted-color, #6b7280);
+  font-size: 0.9rem;
+}

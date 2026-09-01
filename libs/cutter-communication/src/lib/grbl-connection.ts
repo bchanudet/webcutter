@@ -48,7 +48,14 @@ export class GrblConnection extends EventEmitter {
 
     return new Promise((resolve, reject) => {
       const port = new SerialPort(
-        { path: options.path, baudRate: options.baudRate ?? DEFAULT_BAUD_RATE, autoOpen: false },
+        {
+          path: options.path,
+          baudRate: options.baudRate ?? DEFAULT_BAUD_RATE,
+          dataBits: options.dataBits,
+          stopBits: options.stopBits,
+          parity: options.parity,
+          autoOpen: false,
+        },
         (error) => {
           if (error) {
             reject(error);

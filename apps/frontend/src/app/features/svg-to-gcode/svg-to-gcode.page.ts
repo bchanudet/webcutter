@@ -15,6 +15,7 @@ import { Button } from '@openng/optimus-ui/button';
 import { Card } from '@openng/optimus-ui/card';
 import { ContextMenu } from '@openng/optimus-ui/contextmenu';
 import { InputNumber } from '@openng/optimus-ui/inputnumber';
+import { DividerModule } from "@openng/optimus-ui/divider";
 import { Message } from '@openng/optimus-ui/message';
 import { Select } from '@openng/optimus-ui/select';
 import { Splitter } from '@openng/optimus-ui/splitter';
@@ -27,7 +28,13 @@ import { Material, Profile, ProfileMode } from '../configuration/materials/mater
 import { MaterialsApiService } from '../configuration/materials/materials-api.service';
 import { GcodeOrigin, Machine } from '../configuration/machine/machine.model';
 import { MachineApiService } from '../configuration/machine/machine-api.service';
-import { FlattenedShape, FlattenedSubpath, SvgFlattenerService, SvgTreeNodeData } from './svg-flattener.service';
+import {
+  FlattenedShape,
+  FlattenedSubpath,
+  SvgFlattenerService,
+  SvgTreeNodeData,
+  groupSubpathsIntoEntities,
+} from './svg-flattener.service';
 import { GcodeGeneratorService } from './gcode-generator.service';
 
 interface CuttingParamsForm {
@@ -139,6 +146,7 @@ interface PersistedWorkspaceState {
     Card,
     ContextMenu,
     InputNumber,
+    DividerModule,
     Message,
     Select,
     Splitter,
@@ -159,6 +167,7 @@ export class SvgToGcodePage {
   private readonly fileInput = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
   private readonly svgCanvas = viewChild.required<ElementRef<SVGSVGElement>>('svgCanvas');
   private nextDocumentId = 0;
+  private nextExplodeId = 0;
   private dragState: {
     pointerId: number;
     mode: 'move' | 'rotate';
@@ -268,6 +277,14 @@ export class SvgToGcodePage {
         }
       },
     },
+    {
+      label: 'Explode',
+      command: () => {
+        if (this.contextMenuNode) {
+          this.explodeNode(this.contextMenuNode);
+        }
+      },
+    },
   ];
 
   protected onTreeContextMenuSelect(event: TreeNodeContextMenuSelectEvent): void {
@@ -339,6 +356,86 @@ export class SvgToGcodePage {
         .filter((child) => child.key !== targetKey)
         .map((child) => this.removeNodeFromTree(child, targetKey)),
     };
+  }
+
+  /** Returns a copy of the tree with `newChildren` appended under the node matching `targetKey`. */
+  private addChildrenToNode(
+    node: TreeNode<SvgTreeNodeData>,
+    targetKey: string,
+    newChildren: TreeNode<SvgTreeNodeData>[],
+  ): TreeNode<SvgTreeNodeData> {
+    if (node.key === targetKey) {
+      return { ...node, children: [...(node.children ?? []), ...newChildren] };
+    }
+    if (!node.children) {
+      return node;
+    }
+    return {
+      ...node,
+      children: node.children.map((child) => this.addChildrenToNode(child, targetKey, newChildren)),
+    };
+  }
+
+  /** Splits every shape tagged with `node`'s key into its independent entities (see
+   * `groupSubpathsIntoEntities`), each becoming its own shape with a fresh tree line under
+   * `node` — a no-op for shapes that aren't actually explodable. */
+  protected explodeNode(node: TreeNode<SvgTreeNodeData>): void {
+    const targetKey = node.key as string;
+    let exploded = false;
+
+    this.documents.update((docs) =>
+      docs.map((doc) => {
+        const matching = doc.shapes.filter((shape) => shape.groupKey === targetKey);
+        if (matching.length === 0) {
+          return doc;
+        }
+
+        const newShapes: FlattenedShape[] = [];
+        const newChildren: TreeNode<SvgTreeNodeData>[] = [];
+        let docExploded = false;
+
+        for (const shape of matching) {
+          const entities = groupSubpathsIntoEntities(shape.subpaths);
+          if (entities.length <= 1) {
+            newShapes.push(shape);
+            continue;
+          }
+          docExploded = true;
+          entities.forEach((entitySubpaths, index) => {
+            const suffix = this.nextExplodeId++;
+            const groupKey = `${targetKey}:explode:${suffix}`;
+            newShapes.push({
+              id: `${groupKey}:shape`,
+              subpaths: entitySubpaths,
+              groupKey,
+              explodable: false,
+            });
+            newChildren.push({
+              key: groupKey,
+              label: `Path ${index + 1}`,
+              data: { documentId: doc.id, kind: 'group' },
+              children: [],
+            });
+          });
+        }
+
+        if (!docExploded) {
+          return doc;
+        }
+        exploded = true;
+
+        const remaining = doc.shapes.filter((shape) => shape.groupKey !== targetKey);
+        return {
+          ...doc,
+          shapes: [...remaining, ...newShapes],
+          treeNode: this.addChildrenToNode(doc.treeNode, targetKey, newChildren),
+        };
+      }),
+    );
+
+    if (exploded) {
+      this.persistState();
+    }
   }
 
   private readonly handleSizeMm = computed(() =>
@@ -463,9 +560,12 @@ export class SvgToGcodePage {
     this.machineApi.getMachine().subscribe((machine) => this.machine.set(machine));
 
     // Re-anchors the selection frame whenever the set of selected groups actually changes
-    // (selecting/deselecting), not while dragging — dragging never touches `selectedNodes`.
+    // (selecting/deselecting), not while dragging — dragging never touches `selectedNodes`. Also
+    // re-anchors when a laser offset is applied, since the frame should hug whichever geometry
+    // (original or offset) is now the interactive one.
     effect(() => {
       const keys = this.selectedGroupKeys();
+      this.shapeOffsets();
       this.selectionBaseFrame.set(this.computeBaseFrame(keys));
       this.selectionFrameTransform.set(IDENTITY_MATRIX);
       this.persistState();
@@ -709,14 +809,11 @@ export class SvgToGcodePage {
     return this.pathDataForSubpaths(this.shapeOffsets().get(shape.id) ?? []);
   }
 
-  /** The original outline turns into a faint dashed reference once it has an offset version —
-   * the offset path (rendered separately) carries the real profile styling instead. */
-  protected renderStroke(shape: FlattenedShape): string {
-    return this.hasOffset(shape) ? 'var(--p-text-muted-color, #94a3b8)' : this.strokeForShape(shape);
-  }
-
-  protected renderFill(shape: FlattenedShape): string {
-    return this.hasOffset(shape) ? 'none' : this.fillForShape(shape);
+  /** The subpaths actually shown as interactive content: the kerf-compensated ones once an
+   * offset has been applied, otherwise the shape's own — bounding boxes (selection frame, drag
+   * clamping) should track whichever of the two is really on screen and clickable. */
+  private effectiveSubpaths(shape: FlattenedShape): FlattenedSubpath[] {
+    return this.shapeOffsets().get(shape.id) ?? shape.subpaths;
   }
 
   /** Kerf-compensates every path in the workspace by `laserOffsetMm()`: outer contours grow,
@@ -1130,7 +1227,7 @@ export class SvgToGcodePage {
           this.groupTransforms().get(shape.groupKey) ?? IDENTITY_MATRIX,
           scaleMatrix(scale),
         );
-        for (const subpath of shape.subpaths) {
+        for (const subpath of this.effectiveSubpaths(shape)) {
           for (const point of subpath.points) {
             found = true;
             const p = applyMatrix(matrix, point);
@@ -1163,7 +1260,7 @@ export class SvgToGcodePage {
         if (shape.groupKey !== groupKey) {
           continue;
         }
-        for (const subpath of shape.subpaths) {
+        for (const subpath of this.effectiveSubpaths(shape)) {
           for (const point of subpath.points) {
             found = true;
             const x = point.x * scale;

@@ -20,6 +20,88 @@ export interface FlattenedShape {
   subpaths: FlattenedSubpath[];
   /** Key of the nearest enclosing <g> tree node, or the document's own key if ungrouped. */
   groupKey: string;
+  /** True when this shape's subpaths actually form more than one independent entity (see
+   * `groupSubpathsIntoEntities`) — e.g. two unrelated cutouts a generator merged into one <path>,
+   * as opposed to a genuine outer-contour-plus-hole. Drives the tree's "Explode" command. */
+  explodable: boolean;
+}
+
+/** Point-in-polygon test (ray casting), shared by hole/entity detection and the laser-offset
+ * nesting-depth calculation. */
+function isPointInPolygon(point: { x: number; y: number }, polygon: { x: number; y: number }[]): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[i];
+    const b = polygon[j];
+    const intersects =
+      a.y > point.y !== b.y > point.y && point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x;
+    if (intersects) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/**
+ * Groups a shape's subpaths into independent "entities": a closed subpath and everything nested
+ * inside it (its holes, islands inside those holes, and so on) form one entity together, found
+ * via connected components over the (undirected) "one contains the other" relation — two closed
+ * subpaths that neither contains the other are different entities, even if they share a <path>.
+ * Open subpaths have no well-defined inside/outside, so each is always its own entity.
+ */
+export function groupSubpathsIntoEntities(subpaths: FlattenedSubpath[]): FlattenedSubpath[][] {
+  const closedIndices = subpaths
+    .map((subpath, index) => index)
+    .filter((index) => subpaths[index].closed && subpaths[index].points.length >= 3);
+
+  const parent = new Map<number, number>(closedIndices.map((index) => [index, index]));
+  const find = (index: number): number => {
+    while (parent.get(index) !== index) {
+      parent.set(index, parent.get(parent.get(index) as number) as number);
+      index = parent.get(index) as number;
+    }
+    return index;
+  };
+  const union = (a: number, b: number): void => {
+    const rootA = find(a);
+    const rootB = find(b);
+    if (rootA !== rootB) {
+      parent.set(rootA, rootB);
+    }
+  };
+
+  for (const i of closedIndices) {
+    for (const j of closedIndices) {
+      if (i >= j) {
+        continue;
+      }
+      const nested =
+        isPointInPolygon(subpaths[i].points[0], subpaths[j].points) ||
+        isPointInPolygon(subpaths[j].points[0], subpaths[i].points);
+      if (nested) {
+        union(i, j);
+      }
+    }
+  }
+
+  const clustersByRoot = new Map<number, FlattenedSubpath[]>();
+  for (const index of closedIndices) {
+    const root = find(index);
+    if (!clustersByRoot.has(root)) {
+      clustersByRoot.set(root, []);
+    }
+    clustersByRoot.get(root)?.push(subpaths[index]);
+  }
+
+  const entities = [...clustersByRoot.values()];
+  const closedIndexSet = new Set(closedIndices);
+  subpaths.forEach((subpath, index) => {
+    if (!closedIndexSet.has(index)) {
+      entities.push([subpath]);
+    }
+  });
+
+  return entities;
 }
 
 export interface SvgTreeNodeData {
@@ -100,7 +182,12 @@ export class SvgFlattenerService {
             if (isLeafGroup) {
               const subpaths = this.collectLeafGeometry(child, host, skippedTags);
               if (subpaths.length > 0) {
-                shapes.push({ id: nextShapeId(), subpaths, groupKey: key });
+                shapes.push({
+                  id: nextShapeId(),
+                  subpaths,
+                  groupKey: key,
+                  explodable: groupSubpathsIntoEntities(subpaths).length > 1,
+                });
               }
               childNodes.push({ key, label, data: { documentId, kind: 'group' }, children: [] });
             } else {
@@ -119,7 +206,12 @@ export class SvgFlattenerService {
                 ? this.samplePath(child as unknown as SVGGeometryElement & SVGGraphicsElement, host)
                 : this.sampleShape(child as unknown as SVGGeometryElement & SVGGraphicsElement);
             if (shape) {
-              shapes.push({ id: nextShapeId(), ...shape, groupKey });
+              shapes.push({
+                id: nextShapeId(),
+                ...shape,
+                groupKey,
+                explodable: groupSubpathsIntoEntities(shape.subpaths).length > 1,
+              });
             }
             continue;
           }
@@ -213,7 +305,7 @@ export class SvgFlattenerService {
 
   private sampleShape(
     node: SVGGeometryElement & SVGGraphicsElement,
-  ): Omit<FlattenedShape, 'groupKey' | 'id'> | null {
+  ): Omit<FlattenedShape, 'groupKey' | 'id' | 'explodable'> | null {
     let totalLength: number;
     try {
       totalLength = node.getTotalLength();
@@ -239,14 +331,26 @@ export class SvgFlattenerService {
     // line/polyline don't — this is exactly the "closed" distinction we need, read straight off
     // the sampled geometry instead of hard-coding it per tag.
     const closed = this.isSamePoint(points[0], points[points.length - 1]);
+    if (closed) {
+      this.snapClosingPoint(points);
+    }
 
     return { subpaths: [{ points, closed }] };
   }
 
   private isSamePoint(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
-    const same = Math.abs(a.x - b.x) < 1e-3 && Math.abs(a.y - b.y) < 1e-3;
-    console.log("sameP", a, b, Math.abs(a.x - b.x), Math.abs(a.y - b.y), same);
-    return same;
+    return Math.abs(a.x - b.x) < 1e-3 && Math.abs(a.y - b.y) < 1e-3;
+  }
+
+  /** Makes a subpath's last point an exact copy of its first — sampling (getPointAtLength on an
+   * arc, in particular) lands only *approximately* back on the start, and that tiny gap is enough
+   * to make polygon-offset's underlying Martinez clipping produce a badly corrupted ring (a point
+   * flung far outside the shape). Harmless for rendering either way, since SVG fill/stroke already
+   * treats a closed subpath's endpoints as coincident. */
+  private snapClosingPoint(points: { x: number; y: number }[]): void {
+    if (points.length >= 2) {
+      points[points.length - 1] = { x: points[0].x, y: points[0].y };
+    }
   }
 
   /**
@@ -259,7 +363,7 @@ export class SvgFlattenerService {
   private samplePath(
     node: SVGGeometryElement & SVGGraphicsElement,
     host: Element,
-  ): Omit<FlattenedShape, 'groupKey' | 'id'> | null {
+  ): Omit<FlattenedShape, 'groupKey' | 'id' | 'explodable'> | null {
     const d = node.getAttribute('d');
     if (!d) {
       return null;
@@ -297,7 +401,11 @@ export class SvgFlattenerService {
             currentPoints[0],
             currentPoints[currentPoints.length - 1],
           );
-          subpaths.push({ points: currentPoints, closed: currentClosed || implicitlyClosed });
+          const closed = currentClosed || implicitlyClosed;
+          if (closed) {
+            this.snapClosingPoint(currentPoints);
+          }
+          subpaths.push({ points: currentPoints, closed });
         }
         currentPoints = [];
         currentClosed = false;

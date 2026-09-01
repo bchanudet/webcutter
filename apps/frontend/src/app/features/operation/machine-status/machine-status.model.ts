@@ -1,11 +1,3 @@
-export interface GrblConnectionOptions {
-  path: string;
-  baudRate?: number;
-  dataBits?: 5 | 6 | 7 | 8;
-  stopBits?: 1 | 1.5 | 2;
-  parity?: 'none' | 'even' | 'odd';
-}
-
 export type GrblMachineState =
   | 'Idle'
   | 'Run'
@@ -30,8 +22,10 @@ export interface GrblStatus {
   raw: string;
 }
 
-export interface CutterPortInfo {
-  path: string;
-  manufacturer?: string;
-  serialNumber?: string;
+/** Mirrors the backend's `MachineStatusPayload` (apps/backend/src/app/cutter/cutter-ws.types.ts) —
+ * broadcast over the `/api/ws/cutter` WebSocket whenever the machine's connection or GRBL-reported
+ * state changes. */
+export interface MachineStatusPayload {
+  connected: boolean;
+  grbl: GrblStatus | null;
 }

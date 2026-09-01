@@ -24,9 +24,11 @@
         >
           <app-tabler-icon name="trash-x" [size]="20" />
         </p-button>
+        <p-divider layout="vertical"/>
         <p-button [text]="true" [rounded]="true" title="Reset zoom" (onClick)="resetView()">
           <app-tabler-icon name="zoom-scan" [size]="20" />
         </p-button>
+        <p-divider layout="vertical"/>
         <p-button [text]="true" [rounded]="true" title="Undo" [disabled]="!canUndo()" (onClick)="undo()">
           <app-tabler-icon name="arrow-left-dashed" [size]="20" />
         </p-button>
@@ -208,12 +210,11 @@
                 <path
                   class="shape"
                   [class.shape--movable]="isShapeSelected(shape)"
-                  [class.shape--ghost]="hasOffset(shape)"
-                  [attr.d]="shapePathData(shape)"
+                  [attr.d]="hasOffset(shape) ? offsetPathData(shape) : shapePathData(shape)"
                   fill-rule="evenodd"
                   [attr.transform]="shapeTransform(shape, doc)"
-                  [attr.fill]="renderFill(shape)"
-                  [attr.stroke]="renderStroke(shape)"
+                  [attr.fill]="fillForShape(shape)"
+                  [attr.stroke]="strokeForShape(shape)"
                   stroke-width="0.3"
                   stroke-linejoin="round"
                   (click)="onShapeClick($event, shape)"
@@ -222,14 +223,20 @@
                   (pointerup)="onShapePointerUp($event)"
                   (pointercancel)="onShapePointerUp($event)"
                 />
+              }
+            }
+          </g>
+          <g id="ghost" clip-path="url(#surface-clip)">
+            @for (doc of documents(); track doc.id) {
+              @for (shape of doc.shapes; track shape.id) {
                 @if (hasOffset(shape)) {
                   <path
-                    class="shape shape--offset"
-                    [attr.d]="offsetPathData(shape)"
+                    class="shape shape--ghost"
+                    [attr.d]="shapePathData(shape)"
                     fill-rule="evenodd"
                     [attr.transform]="shapeTransform(shape, doc)"
-                    [attr.fill]="fillForShape(shape)"
-                    [attr.stroke]="strokeForShape(shape)"
+                    fill="none"
+                    stroke="var(--p-text-muted-color, #94a3b8)"
                     stroke-width="0.3"
                     stroke-linejoin="round"
                   />
