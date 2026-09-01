@@ -11,6 +11,8 @@ export type TablerIconName =
   | 'file-download'
   | 'trash-x'
   | 'zoom-scan'
+  | 'arrow-left-dashed'
+  | 'arrow-right-dashed'
   | 'adjustments-horizontal'
   | 'code'
   | 'building-factory-2'
@@ -81,6 +83,22 @@ export const TABLER_ICON_PATHS: Record<TablerIconName, TablerIconDefinition> = {
       <path d="M3 17v2a2 2 0 0 0 2 2h2" />
       <path d="M17 3h2a2 2 0 0 1 2 2v2" />
       <path d="M17 21h2a2 2 0 0 0 2 -2v-2" />
+    `,
+  },
+  'arrow-left-dashed': {
+    variant: 'outline',
+    paths: `
+      <path d="M5 12h6m3 0h1.5m3 0h.5" />
+      <path d="M5 12l6 6" />
+      <path d="M5 12l6 -6" />
+    `,
+  },
+  'arrow-right-dashed': {
+    variant: 'outline',
+    paths: `
+      <path d="M5 12h.5m3 0h1.5m3 0h6" />
+      <path d="M13 18l6 -6" />
+      <path d="M13 6l6 6" />
     `,
   },
   'adjustments-horizontal': {

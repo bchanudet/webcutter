@@ -1,4 +1,10 @@
-import { SvgFlattenerService } from './svg-flattener.service';
+import { FlattenedShape, SvgFlattenerService } from './svg-flattener.service';
+
+/** Flattens every subpath's points into one array — enough for tests that only care about the
+ * overall point set, not the subpath boundaries themselves. */
+function shapePoints(shape: FlattenedShape) {
+  return shape.subpaths.flatMap((subpath) => subpath.points);
+}
 
 /**
  * jsdom does not implement SVGGeometryElement (getTotalLength/getPointAtLength) nor
@@ -79,8 +85,8 @@ describe('SvgFlattenerService', () => {
     );
 
     expect(result.shapes).toHaveLength(2);
-    expect(result.shapes[0].points.every((p) => p.x >= 100)).toBe(true);
-    expect(result.shapes[1].points.every((p) => p.x <= 10)).toBe(true);
+    expect(shapePoints(result.shapes[0]).every((p) => p.x >= 100)).toBe(true);
+    expect(shapePoints(result.shapes[1]).every((p) => p.x <= 10)).toBe(true);
   });
 
   it('skips zero-length shapes', () => {
@@ -238,6 +244,45 @@ describe('SvgFlattenerService', () => {
     });
   });
 
+  describe('leaf-group merging (independent "hole" <path> siblings)', () => {
+    it('merges every element of a group with no nested groups into a single shape', () => {
+      const result = service.flatten(
+        'doc-1',
+        '<svg><g><path d="M0,0 L10,0 L10,10 Z" /><path d="M20,20 L30,20 L30,30 Z" /></g></svg>',
+        'fallback.svg',
+      );
+
+      expect(result.shapes).toHaveLength(1);
+      expect(result.shapes[0].subpaths).toHaveLength(2);
+      expect(result.shapes[0].groupKey).toBe(result.tree.children?.[0].key);
+    });
+
+    it('does not merge a group that has a nested group of its own', () => {
+      const result = service.flatten(
+        'doc-1',
+        '<svg><g><path d="M0,0 L10,0 L10,10 Z" /><g><path d="M20,20 L30,20 L30,30 Z" /></g></g></svg>',
+        'fallback.svg',
+      );
+
+      // The outer path and the inner group's path stay two separate shapes.
+      expect(result.shapes).toHaveLength(2);
+      const outerKey = result.tree.children?.[0].key;
+      const innerKey = result.tree.children?.[0].children?.[0].key;
+      expect(result.shapes.map((s) => s.groupKey).sort()).toEqual([innerKey, outerKey].sort());
+    });
+
+    it('still merges mixed geometry tags (path + rect) in a leaf group', () => {
+      const result = service.flatten(
+        'doc-1',
+        '<svg><g><path d="M0,0 L10,0 L10,10 Z" /><rect x="0" y="0" width="5" height="5" /></g></svg>',
+        'fallback.svg',
+      );
+
+      expect(result.shapes).toHaveLength(1);
+      expect(result.shapes[0].subpaths).toHaveLength(2);
+    });
+  });
+
   describe('path line/curve sampling', () => {
     it('keeps straight-line commands (M/L/H/V/Z) exact, with no interpolation', () => {
       const result = service.flatten(
@@ -248,13 +293,18 @@ describe('SvgFlattenerService', () => {
 
       // M, L, L, H, V, Z -> exactly one point per command, corners preserved as authored.
       // (+100 on x: the shared stub's CTM offsets <path> elements by e:100.)
-      expect(result.shapes[0].points).toEqual([
-        { x: 100, y: 0 },
-        { x: 110, y: 0 },
-        { x: 110, y: 10 },
-        { x: 100, y: 10 },
-        { x: 100, y: 0 },
-        { x: 100, y: 0 },
+      expect(result.shapes[0].subpaths).toEqual([
+        {
+          closed: true,
+          points: [
+            { x: 100, y: 0 },
+            { x: 110, y: 0 },
+            { x: 110, y: 10 },
+            { x: 100, y: 10 },
+            { x: 100, y: 0 },
+            { x: 100, y: 0 },
+          ],
+        },
       ]);
     });
 
@@ -267,21 +317,22 @@ describe('SvgFlattenerService', () => {
 
       // M contributes 1 point, the stubbed 10-length curve is sampled into several more
       // (step 1.5 -> ceil(10/1.5) = 7), then L contributes exactly 1 more point.
-      expect(result.shapes[0].points.length).toBeGreaterThan(3);
-      expect(result.shapes[0].points[result.shapes[0].points.length - 1]).toEqual({ x: 104, y: 4 });
+      const points = result.shapes[0].subpaths[0].points;
+      expect(points.length).toBeGreaterThan(3);
+      expect(points[points.length - 1]).toEqual({ x: 104, y: 4 });
     });
 
     it('interpolates S/Q/T the same way as C', () => {
       for (const d of ['M0,0 S1,1 2,2', 'M0,0 Q1,1 2,2', 'M0,0 Q1,1 2,2 T4,4']) {
         const result = service.flatten('doc-1', `<svg><path d="${d}" /></svg>`, 'fallback.svg');
-        expect(result.shapes[0].points.length).toBeGreaterThan(2);
+        expect(result.shapes[0].subpaths[0].points.length).toBeGreaterThan(2);
       }
     });
 
     it('applies the CTM to both line and curve points alike', () => {
       const result = service.flatten('doc-1', '<svg><path d="M0,0 L1,1 C2,2 3,3 4,4" /></svg>', 'fallback.svg');
       // The stub offsets <path> elements by e:100 — every point, line or curve, must carry it.
-      expect(result.shapes[0].points.every((p) => p.x >= 100)).toBe(true);
+      expect(result.shapes[0].subpaths[0].points.every((p) => p.x >= 100)).toBe(true);
     });
 
     it('returns null for a path with no d attribute or a degenerate single-point path', () => {
@@ -290,6 +341,45 @@ describe('SvgFlattenerService', () => {
 
       const singlePoint = service.flatten('doc-1', '<svg><path d="M0,0" /></svg>', 'fallback.svg');
       expect(singlePoint.shapes).toHaveLength(0);
+    });
+
+    it('treats a subpath as closed when it repeats its start point via "L" instead of using "Z"', () => {
+      // Some generators (FreeCAD, notably) close a loop by repeating the start point as a plain
+      // line-to instead of emitting "Z" — this must still be recognized as closed, otherwise
+      // fill-rule holes and laser-offset inward/outward both silently no-op on such a subpath.
+      const result = service.flatten(
+        'doc-1',
+        '<svg><path d="M10,10 L20,10 L20,20 L10,20 L10,10" /></svg>',
+        'fallback.svg',
+      );
+
+      expect(result.shapes[0].subpaths).toHaveLength(1);
+      expect(result.shapes[0].subpaths[0].closed).toBe(true);
+    });
+
+    it('splits multiple M...Z segments of a single <path> into separate subpaths', () => {
+      const result = service.flatten(
+        'doc-1',
+        '<svg><path d="M0,0 L10,0 L10,10 Z M20,20 L30,20 L30,30 Z" /></svg>',
+        'fallback.svg',
+      );
+
+      expect(result.shapes).toHaveLength(1);
+      expect(result.shapes[0].subpaths).toHaveLength(2);
+      expect(result.shapes[0].subpaths[0].closed).toBe(true);
+      expect(result.shapes[0].subpaths[1].closed).toBe(true);
+      expect(result.shapes[0].subpaths[1].points[0]).toEqual({ x: 120, y: 20 });
+    });
+
+    it('drops a degenerate (single-point) subpath but keeps the others in the same path', () => {
+      const result = service.flatten(
+        'doc-1',
+        '<svg><path d="M0,0 M5,5 L10,10 L10,0 Z" /></svg>',
+        'fallback.svg',
+      );
+
+      expect(result.shapes[0].subpaths).toHaveLength(1);
+      expect(result.shapes[0].subpaths[0].closed).toBe(true);
     });
   });
 });

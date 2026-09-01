@@ -12,10 +12,16 @@ describe('GcodeGeneratorService', () => {
   };
 
   const square: FlattenedShape = {
-    points: [
-      { x: 0, y: 0 },
-      { x: 10, y: 0 },
-      { x: 10, y: 10 },
+    id: 'doc-1:shape:0',
+    subpaths: [
+      {
+        points: [
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+          { x: 10, y: 10 },
+        ],
+        closed: false,
+      },
     ],
     groupKey: 'doc-1',
   };
@@ -65,9 +71,16 @@ describe('GcodeGeneratorService', () => {
     expect(gcode.match(/M4 S300/g)).toHaveLength(3);
   });
 
-  it('skips shapes with fewer than two points', () => {
+  it('skips subpaths with fewer than two points', () => {
     const gcode = service.generate(
-      [{ points: [{ x: 0, y: 0 }], groupKey: 'doc-1' }, square],
+      [
+        {
+          id: 'doc-1:shape:1',
+          subpaths: [{ points: [{ x: 0, y: 0 }], closed: false }],
+          groupKey: 'doc-1',
+        },
+        square,
+      ],
       100,
       50,
       baseParams,

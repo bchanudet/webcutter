@@ -43,16 +43,18 @@ export class GcodeGeneratorService {
     for (let pass = 1; pass <= params.passes; pass++) {
       lines.push(`; Pass ${pass}/${params.passes}`);
       for (const shape of shapes) {
-        const [start, ...rest] = shape.points.map(toMachine);
-        if (!start || rest.length === 0) {
-          continue;
+        for (const subpath of shape.subpaths) {
+          const [start, ...rest] = subpath.points.map(toMachine);
+          if (!start || rest.length === 0) {
+            continue;
+          }
+          lines.push(`G0 X${format(start.x)} Y${format(start.y)}`);
+          lines.push(`M4 S${params.laserPower}`);
+          for (const point of rest) {
+            lines.push(`G1 X${format(point.x)} Y${format(point.y)} F${params.feedRateMmMin}`);
+          }
+          lines.push('M5');
         }
-        lines.push(`G0 X${format(start.x)} Y${format(start.y)}`);
-        lines.push(`M4 S${params.laserPower}`);
-        for (const point of rest) {
-          lines.push(`G1 X${format(point.x)} Y${format(point.y)} F${params.feedRateMmMin}`);
-        }
-        lines.push('M5');
       }
     }
 

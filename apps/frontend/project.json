@@ -21,7 +21,8 @@
             "input": "apps/frontend/public"
           }
         ],
-        "styles": ["apps/frontend/src/styles.scss"]
+        "styles": ["apps/frontend/src/styles.scss"],
+        "allowedCommonJsDependencies": ["polygon-offset", "martinez-polygon-clipping"]
       },
       "configurations": {
         "production": {

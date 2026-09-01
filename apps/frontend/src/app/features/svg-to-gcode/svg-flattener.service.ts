@@ -3,8 +3,21 @@ import { TreeNode } from '@openng/optimus-ui/api';
 import { IGNORED_TAGS, REFERENCE_ONLY_CONTAINER_TAGS } from './svg-container-tags';
 import { parsePathCommands } from './svg-path-data';
 
-export interface FlattenedShape {
+/** One contiguous contour of a shape — a <path> can have several (e.g. an outer outline plus an
+ * inner hole), each rendered as its own "M ... [Z]" segment within the shape's single <path d>,
+ * so a fill-rule can turn overlapping ones into actual holes. */
+export interface FlattenedSubpath {
   points: { x: number; y: number }[];
+  /** Whether the subpath was explicitly closed (Z / an inherently closed shape like a circle). */
+  closed: boolean;
+}
+
+export interface FlattenedShape {
+  /** Stable within a document — same source SVG re-flattened with the same documentId always
+   * produces the same ids, in the same order, so shape-keyed state (e.g. a laser offset) survives
+   * a sessionStorage restore, which re-flattens from the raw source instead of deserializing it. */
+  id: string;
+  subpaths: FlattenedSubpath[];
   /** Key of the nearest enclosing <g> tree node, or the document's own key if ungrouped. */
   groupKey: string;
 }
@@ -59,7 +72,9 @@ export class SvgFlattenerService {
       const skippedTags = new Set<string>();
       let layerCount = 0;
       let nodeCount = 0;
+      let shapeCount = 0;
       const nextKey = () => `${documentId}:${nodeCount++}`;
+      const nextShapeId = () => `${documentId}:shape:${shapeCount++}`;
 
       const walk = (node: Element, groupKey: string): TreeNode<SvgTreeNodeData>[] => {
         const childNodes: TreeNode<SvgTreeNodeData>[] = [];
@@ -76,12 +91,26 @@ export class SvgFlattenerService {
           if (tag === 'g') {
             const key = nextKey();
             const label = this.directTitle(child) ?? `Layer ${++layerCount}`;
-            childNodes.push({
-              key,
-              label,
-              data: { documentId, kind: 'group' },
-              children: walk(child, key),
-            });
+            // Some generators (FreeCAD, notably) emit a "hole" as its own independent sibling
+            // <path> instead of a second subpath inside one <path d="...">. A group with no
+            // nested groups of its own can't be split further by the user anyway, so merge all
+            // of its geometry into a single shape — its subpaths can then get fill-rule="evenodd"
+            // holes exactly like a single multi-subpath <path> would.
+            const isLeafGroup = !this.containsGroup(child);
+            if (isLeafGroup) {
+              const subpaths = this.collectLeafGeometry(child, host, skippedTags);
+              if (subpaths.length > 0) {
+                shapes.push({ id: nextShapeId(), subpaths, groupKey: key });
+              }
+              childNodes.push({ key, label, data: { documentId, kind: 'group' }, children: [] });
+            } else {
+              childNodes.push({
+                key,
+                label,
+                data: { documentId, kind: 'group' },
+                children: walk(child, key),
+              });
+            }
             continue;
           }
           if (GEOMETRY_TAGS.has(tag)) {
@@ -90,7 +119,7 @@ export class SvgFlattenerService {
                 ? this.samplePath(child as unknown as SVGGeometryElement & SVGGraphicsElement, host)
                 : this.sampleShape(child as unknown as SVGGeometryElement & SVGGraphicsElement);
             if (shape) {
-              shapes.push({ ...shape, groupKey });
+              shapes.push({ id: nextShapeId(), ...shape, groupKey });
             }
             continue;
           }
@@ -113,6 +142,60 @@ export class SvgFlattenerService {
     }
   }
 
+  /** Whether `node` has a <g> among its children, looking through transparent <a>/<svg>
+   * wrappers — a group without one is a "leaf" whose geometry gets merged into one shape. */
+  private containsGroup(node: Element): boolean {
+    for (const child of Array.from(node.children)) {
+      const tag = child.tagName.toLowerCase();
+      if (IGNORED_TAGS.has(tag) || REFERENCE_ONLY_CONTAINER_TAGS.has(tag)) {
+        continue;
+      }
+      if (tag === 'g') {
+        return true;
+      }
+      if (TRANSPARENT_CONTAINER_TAGS.has(tag) && this.containsGroup(child)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Samples every geometry element directly inside a leaf group (through transparent <a>/<svg>
+   * wrappers) and concatenates all of their subpaths into one list, so the whole group becomes
+   * a single <path> — letting fill-rule="evenodd" turn independently-authored "hole" elements
+   * into actual holes, the same way multiple subpaths within one source <path> already do. */
+  private collectLeafGeometry(
+    node: Element,
+    host: Element,
+    skippedTags: Set<string>,
+  ): FlattenedSubpath[] {
+    const subpaths: FlattenedSubpath[] = [];
+
+    for (const child of Array.from(node.children)) {
+      const tag = child.tagName.toLowerCase();
+      if (IGNORED_TAGS.has(tag) || REFERENCE_ONLY_CONTAINER_TAGS.has(tag)) {
+        continue;
+      }
+      if (TRANSPARENT_CONTAINER_TAGS.has(tag)) {
+        subpaths.push(...this.collectLeafGeometry(child, host, skippedTags));
+        continue;
+      }
+      if (GEOMETRY_TAGS.has(tag)) {
+        const shape =
+          tag === 'path'
+            ? this.samplePath(child as unknown as SVGGeometryElement & SVGGraphicsElement, host)
+            : this.sampleShape(child as unknown as SVGGeometryElement & SVGGraphicsElement);
+        if (shape) {
+          subpaths.push(...shape.subpaths);
+        }
+        continue;
+      }
+      skippedTags.add(tag);
+    }
+
+    return subpaths;
+  }
+
   private directTitle(element: Element): string | null {
     for (const child of Array.from(element.children)) {
       if (child.tagName.toLowerCase() === 'title') {
@@ -130,7 +213,7 @@ export class SvgFlattenerService {
 
   private sampleShape(
     node: SVGGeometryElement & SVGGraphicsElement,
-  ): Omit<FlattenedShape, 'groupKey'> | null {
+  ): Omit<FlattenedShape, 'groupKey' | 'id'> | null {
     let totalLength: number;
     try {
       totalLength = node.getTotalLength();
@@ -152,7 +235,18 @@ export class SvgFlattenerService {
       points.push({ x: point.x, y: point.y });
     }
 
-    return { points };
+    // rect/circle/ellipse/polygon report a total length that loops back to the start (closed);
+    // line/polyline don't — this is exactly the "closed" distinction we need, read straight off
+    // the sampled geometry instead of hard-coding it per tag.
+    const closed = this.isSamePoint(points[0], points[points.length - 1]);
+
+    return { subpaths: [{ points, closed }] };
+  }
+
+  private isSamePoint(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
+    const same = Math.abs(a.x - b.x) < 1e-3 && Math.abs(a.y - b.y) < 1e-3;
+    console.log("sameP", a, b, Math.abs(a.x - b.x), Math.abs(a.y - b.y), same);
+    return same;
   }
 
   /**
@@ -165,7 +259,7 @@ export class SvgFlattenerService {
   private samplePath(
     node: SVGGeometryElement & SVGGraphicsElement,
     host: Element,
-  ): Omit<FlattenedShape, 'groupKey'> | null {
+  ): Omit<FlattenedShape, 'groupKey' | 'id'> | null {
     const d = node.getAttribute('d');
     if (!d) {
       return null;
@@ -183,11 +277,31 @@ export class SvgFlattenerService {
     host.appendChild(curveSampler);
 
     try {
-      const localPoints: { x: number; y: number }[] = [];
+      // Each "M" starts a new subpath (e.g. an outer outline plus an inner hole, both within
+      // the same <path>); keeping them separate — instead of one flat point list — is what lets
+      // the caller render a single <path> with fill-rule="evenodd" and get real holes.
+      const subpaths: FlattenedSubpath[] = [];
+      let currentPoints: { x: number; y: number }[] = [];
+      let currentClosed = false;
       let current = { x: 0, y: 0 };
       let subpathStart = { x: 0, y: 0 };
       let prevCubicControl: { x: number; y: number } | null = null;
       let prevQuadControl: { x: number; y: number } | null = null;
+
+      const flushSubpath = () => {
+        if (currentPoints.length >= 2) {
+          // Some generators (FreeCAD included) close a subpath by repeating its start point as a
+          // plain "L" instead of using "Z" — without this, such a subpath is silently treated as
+          // open by everything downstream (fill-rule holes, laser-offset inward/outward, etc).
+          const implicitlyClosed = this.isSamePoint(
+            currentPoints[0],
+            currentPoints[currentPoints.length - 1],
+          );
+          subpaths.push({ points: currentPoints, closed: currentClosed || implicitlyClosed });
+        }
+        currentPoints = [];
+        currentClosed = false;
+      };
 
       const resolve = (x: number, y: number, relative: boolean): { x: number; y: number } =>
         relative ? { x: current.x + x, y: current.y + y } : { x, y };
@@ -207,7 +321,7 @@ export class SvgFlattenerService {
         for (let i = 1; i <= stepCount; i++) {
           const length = (i / stepCount) * totalLength;
           const point = curveSampler.getPointAtLength(length);
-          localPoints.push({ x: point.x, y: point.y });
+          currentPoints.push({ x: point.x, y: point.y });
         }
       };
 
@@ -217,31 +331,32 @@ export class SvgFlattenerService {
 
         switch (upper) {
           case 'M': {
+            flushSubpath();
             const point = resolve(command.args[0], command.args[1], relative);
             current = point;
             subpathStart = point;
-            localPoints.push(point);
+            currentPoints.push(point);
             prevCubicControl = null;
             prevQuadControl = null;
             break;
           }
           case 'L': {
             current = resolve(command.args[0], command.args[1], relative);
-            localPoints.push(current);
+            currentPoints.push(current);
             prevCubicControl = null;
             prevQuadControl = null;
             break;
           }
           case 'H': {
             current = { x: relative ? current.x + command.args[0] : command.args[0], y: current.y };
-            localPoints.push(current);
+            currentPoints.push(current);
             prevCubicControl = null;
             prevQuadControl = null;
             break;
           }
           case 'V': {
             current = { x: current.x, y: relative ? current.y + command.args[0] : command.args[0] };
-            localPoints.push(current);
+            currentPoints.push(current);
             prevCubicControl = null;
             prevQuadControl = null;
             break;
@@ -300,7 +415,8 @@ export class SvgFlattenerService {
             break;
           }
           case 'Z': {
-            localPoints.push(subpathStart);
+            currentPoints.push(subpathStart);
+            currentClosed = true;
             current = subpathStart;
             prevCubicControl = null;
             prevQuadControl = null;
@@ -308,15 +424,19 @@ export class SvgFlattenerService {
           }
         }
       }
+      flushSubpath();
 
-      if (localPoints.length < 2) {
+      if (subpaths.length === 0) {
         return null;
       }
 
       const ctm = node.getCTM();
-      const points = localPoints.map((point) => (ctm ? this.applyMatrix(point, ctm) : point));
+      const transformedSubpaths = subpaths.map((subpath) => ({
+        points: subpath.points.map((point) => (ctm ? this.applyMatrix(point, ctm) : point)),
+        closed: subpath.closed,
+      }));
 
-      return { points };
+      return { subpaths: transformedSubpaths };
     } finally {
       curveSampler.remove();
     }

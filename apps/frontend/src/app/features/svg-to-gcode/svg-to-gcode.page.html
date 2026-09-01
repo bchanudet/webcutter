@@ -27,6 +27,12 @@
         <p-button [text]="true" [rounded]="true" title="Reset zoom" (onClick)="resetView()">
           <app-tabler-icon name="zoom-scan" [size]="20" />
         </p-button>
+        <p-button [text]="true" [rounded]="true" title="Undo" [disabled]="!canUndo()" (onClick)="undo()">
+          <app-tabler-icon name="arrow-left-dashed" [size]="20" />
+        </p-button>
+        <p-button [text]="true" [rounded]="true" title="Redo" [disabled]="!canRedo()" (onClick)="redo()">
+          <app-tabler-icon name="arrow-right-dashed" [size]="20" />
+        </p-button>
         </div>
     </ng-template>
     <ng-template pTemplate="end">
@@ -57,13 +63,17 @@
         <p-tree
           class="workspace-tree"
           [value]="treeNodes()"
-          selectionMode="checkbox"
+          selectionMode="multiple"
           [(selection)]="selectedNodes"
+          [contextMenu]="treeContextMenu"
+          (onNodeContextMenuSelect)="onTreeContextMenuSelect($event)"
           [filter]="true"
           filterBy="label"
           filterPlaceholder="Search layers or files..."
           emptyMessage="No SVG loaded yet."
+          metaKeySelection="true"
         />
+        <p-contextMenu #treeContextMenu [model]="treeContextMenuItems" />
 
         @if (skippedTags().length > 0) {
           <p-message severity="warn" [closable]="false">
@@ -104,6 +114,24 @@
           <p-message severity="warn">Select a material first.</p-message>
         }
         </p-card>
+
+        <p-card header="Laser Offset">
+          <div class="field">
+            <label for="laser-offset">Offset (mm)</label>
+            <p-inputnumber
+              inputId="laser-offset"
+              [ngModel]="laserOffsetMm()"
+              (ngModelChange)="laserOffsetMm.set($event)"
+              [step]="0.1"
+              [minFractionDigits]="0"
+              [maxFractionDigits]="2"
+              suffix=" mm"
+            />
+          </div>
+          <div class="actions">
+            <p-button [disabled]="documents().length === 0" (onClick)="applyLaserOffset()">Apply</p-button>
+          </div>
+        </p-card>
       </aside>
     </ng-template>
 
@@ -139,50 +167,53 @@
               <path d="M0,0 L2.4,1.2 L0,2.4 Z" fill="#16a34a" />
             </marker>
           </defs>
+          <g id="metadata">
+            <rect
+              [attr.width]="surfaceWidthMm()"
+              [attr.height]="surfaceHeightMm()"
+              fill="url(#grid-major)"
+              stroke="var(--p-surface-400, #94a3b8)"
+              stroke-width="0.3"
+              (click)="onBackgroundClick($event)"
+            />
 
-          <rect
-            [attr.width]="surfaceWidthMm()"
-            [attr.height]="surfaceHeightMm()"
-            fill="url(#grid-major)"
-            stroke="var(--p-surface-400, #94a3b8)"
-            stroke-width="0.3"
-          />
+            @for (tick of gridLegendX(); track tick.pos) {
+              <text class="grid-legend" [attr.x]="tick.pos + 0.4" [attr.y]="surfaceHeightMm() - 0.6">{{ tick.label }}</text>
+            }
+            @for (tick of gridLegendY(); track tick.pos) {
+              <text class="grid-legend" x="0.4" [attr.y]="tick.pos - 0.4">{{ tick.label }}</text>
+            }
 
-          @for (tick of gridLegendX(); track tick.pos) {
-            <text class="grid-legend" [attr.x]="tick.pos + 0.4" [attr.y]="surfaceHeightMm() - 0.6">{{ tick.label }}</text>
-          }
-          @for (tick of gridLegendY(); track tick.pos) {
-            <text class="grid-legend" x="0.4" [attr.y]="tick.pos - 0.4">{{ tick.label }}</text>
-          }
-
-          <line
-            class="axis axis--x"
-            [attr.x1]="originPoint().x"
-            [attr.y1]="originPoint().y"
-            [attr.x2]="xAxisEnd().x"
-            [attr.y2]="xAxisEnd().y"
-            marker-end="url(#arrow-x)"
-          />
-          <line
-            class="axis axis--y"
-            [attr.x1]="originPoint().x"
-            [attr.y1]="originPoint().y"
-            [attr.x2]="yAxisEnd().x"
-            [attr.y2]="yAxisEnd().y"
-            marker-end="url(#arrow-y)"
-          />
-          <circle class="origin-point" [attr.cx]="originPoint().x" [attr.cy]="originPoint().y" r="1" />
-
-          <g clip-path="url(#surface-clip)">
+            <line
+              class="axis axis--x"
+              [attr.x1]="originPoint().x"
+              [attr.y1]="originPoint().y"
+              [attr.x2]="xAxisEnd().x"
+              [attr.y2]="xAxisEnd().y"
+              marker-end="url(#arrow-x)"
+            />
+            <line
+              class="axis axis--y"
+              [attr.x1]="originPoint().x"
+              [attr.y1]="originPoint().y"
+              [attr.x2]="yAxisEnd().x"
+              [attr.y2]="yAxisEnd().y"
+              marker-end="url(#arrow-y)"
+            />
+            <circle class="origin-point" [attr.cx]="originPoint().x" [attr.cy]="originPoint().y" r="1" />
+          </g>
+          <g id="content" clip-path="url(#surface-clip)">
             @for (doc of documents(); track doc.id) {
-              @for (shape of doc.shapes; track $index) {
-                <polyline
+              @for (shape of doc.shapes; track shape.id) {
+                <path
                   class="shape"
                   [class.shape--movable]="isShapeSelected(shape)"
-                  [attr.points]="toPolylinePoints(shape)"
+                  [class.shape--ghost]="hasOffset(shape)"
+                  [attr.d]="shapePathData(shape)"
+                  fill-rule="evenodd"
                   [attr.transform]="shapeTransform(shape, doc)"
-                  fill="none"
-                  [attr.stroke]="colorForShape(shape)"
+                  [attr.fill]="renderFill(shape)"
+                  [attr.stroke]="renderStroke(shape)"
                   stroke-width="0.3"
                   stroke-linejoin="round"
                   (click)="onShapeClick($event, shape)"
@@ -191,11 +222,23 @@
                   (pointerup)="onShapePointerUp($event)"
                   (pointercancel)="onShapePointerUp($event)"
                 />
+                @if (hasOffset(shape)) {
+                  <path
+                    class="shape shape--offset"
+                    [attr.d]="offsetPathData(shape)"
+                    fill-rule="evenodd"
+                    [attr.transform]="shapeTransform(shape, doc)"
+                    [attr.fill]="fillForShape(shape)"
+                    [attr.stroke]="strokeForShape(shape)"
+                    stroke-width="0.3"
+                    stroke-linejoin="round"
+                  />
+                }
               }
             }
           </g>
-
-          @if (selectionFrame(); as frame) {
+          <g id="selection">
+            @if (selectionFrame(); as frame) {
             <polygon class="selection-frame selection-frame--black" [attr.points]="frame.points" />
             <polygon class="selection-frame selection-frame--white" [attr.points]="frame.points" />
             <g
@@ -215,6 +258,7 @@
               />
             </g>
           }
+          </g>
         </svg>
 
         @if (documents().length === 0) {

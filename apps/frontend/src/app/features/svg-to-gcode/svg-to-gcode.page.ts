@@ -8,21 +8,26 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { PrimeTemplate, TreeNode } from '@openng/optimus-ui/api';
+import { MenuItem, PrimeTemplate, TreeNode } from '@openng/optimus-ui/api';
 import { Button } from '@openng/optimus-ui/button';
 import { Card } from '@openng/optimus-ui/card';
+import { ContextMenu } from '@openng/optimus-ui/contextmenu';
+import { InputNumber } from '@openng/optimus-ui/inputnumber';
 import { Message } from '@openng/optimus-ui/message';
 import { Select } from '@openng/optimus-ui/select';
 import { Splitter } from '@openng/optimus-ui/splitter';
 import { Toolbar } from '@openng/optimus-ui/toolbar';
 import { Tree } from '@openng/optimus-ui/tree';
+import type { TreeNodeContextMenuSelectEvent } from '@openng/optimus-ui/types/tree';
+import Offset from 'polygon-offset';
 import { TablerIcon } from '../../shared/tabler-icon/tabler-icon';
-import { Material, Profile } from '../configuration/materials/material.model';
+import { Material, Profile, ProfileMode } from '../configuration/materials/material.model';
 import { MaterialsApiService } from '../configuration/materials/materials-api.service';
 import { GcodeOrigin, Machine } from '../configuration/machine/machine.model';
 import { MachineApiService } from '../configuration/machine/machine-api.service';
-import { FlattenedShape, SvgFlattenerService, SvgTreeNodeData } from './svg-flattener.service';
+import { FlattenedShape, FlattenedSubpath, SvgFlattenerService, SvgTreeNodeData } from './svg-flattener.service';
 import { GcodeGeneratorService } from './gcode-generator.service';
 
 interface CuttingParamsForm {
@@ -91,6 +96,39 @@ interface WorkspaceDocument {
   treeNode: TreeNode<SvgTreeNodeData>;
 }
 
+const WORKSPACE_STORAGE_KEY = 'webcutter.svg-to-gcode.workspace';
+const MAX_HISTORY_ENTRIES = 20;
+
+/** A profile's color + cutting mode, as assigned to a group — the mode decides whether the
+ * shape is rendered as a filled area (FILL) or an outlined path (LINE). */
+interface GroupProfileAssignment {
+  color: string;
+  mode: ProfileMode;
+}
+
+/** The part of the workspace that move/rotate/profile-assignment can undo — everything else
+ * (selection, loaded documents, material, camera...) is left alone by undo/redo. */
+interface WorkspaceSnapshot {
+  groupTransforms: Map<string, AffineMatrix>;
+  groupProfileAssignments: Map<string, GroupProfileAssignment>;
+  shapeOffsets: Map<string, FlattenedSubpath[]>;
+}
+
+/** What actually gets persisted to sessionStorage — only the raw SVG source per document is
+ * kept, not its derived shapes/tree, which are deterministically rebuilt via `flatten()` on
+ * restore (same id/source/fileName in, same shapes/groupKeys out). */
+interface PersistedWorkspaceState {
+  nextDocumentId?: number;
+  documents?: { id: string; fileName: string; source: string }[];
+  selectedGroupKeys?: string[];
+  selectedMaterialId?: number | null;
+  groupProfileAssignments?: [string, GroupProfileAssignment][];
+  groupTransforms?: [string, AffineMatrix][];
+  shapeOffsets?: [string, FlattenedSubpath[]][];
+  gcode?: string | null;
+  form?: { targetWidthMm: number; feedRateMmMin: number; laserPower: number; passes: number };
+}
+
 @Component({
   selector: 'app-svg-to-gcode-page',
   imports: [
@@ -99,6 +137,8 @@ interface WorkspaceDocument {
     PrimeTemplate,
     Button,
     Card,
+    ContextMenu,
+    InputNumber,
     Message,
     Select,
     Splitter,
@@ -135,6 +175,14 @@ export class SvgToGcodePage {
   private dragMoved = false;
   private ignoreNextClick = false;
 
+  private undoStack: WorkspaceSnapshot[] = [];
+  private redoStack: WorkspaceSnapshot[] = [];
+  /** Snapshot taken when a move/rotate drag starts, committed to `undoStack` on pointer-up only
+   * if the drag actually changed anything. */
+  private pendingDragSnapshot: WorkspaceSnapshot | null = null;
+  protected readonly canUndo = signal(false);
+  protected readonly canRedo = signal(false);
+
   private panState: {
     pointerId: number;
     startClientX: number;
@@ -165,17 +213,22 @@ export class SvgToGcodePage {
 
   protected readonly materials = signal<Material[]>([]);
   protected readonly selectedMaterialId = signal<number | null>(null);
-  /** Colors assigned to tree node keys (documents/groups) by clicking a profile. */
-  protected readonly groupProfileColors = signal<Map<string, string>>(new Map());
+  /** Profile (color + mode) assigned to tree node keys (documents/groups) by clicking a profile. */
+  protected readonly groupProfileAssignments = signal<Map<string, GroupProfileAssignment>>(new Map());
   /** Move/rotate transform, in mm, keyed by tree node key — applied on top of a shape's own points. */
   protected readonly groupTransforms = signal<Map<string, AffineMatrix>>(new Map());
+  /** Kerf-compensated subpaths per shape id, from the last "Apply" in the Laser Offset section. */
+  protected readonly shapeOffsets = signal<Map<string, FlattenedSubpath[]>>(new Map());
+  /** Live value of the Laser Offset input field (mm), not itself undoable — only "Apply" is. */
+  protected readonly laserOffsetMm = signal(0);
 
   protected readonly treeNodes = computed(() => this.documents().map((doc) => doc.treeNode));
   protected readonly skippedTags = computed(() =>
     Array.from(new Set(this.documents().flatMap((doc) => doc.skippedTags))),
   );
-  /** Checkbox-selected tree node keys (documents and groups) — Optimus Tree propagates checks
-   * up/down by default, so a checked ancestor's descendants are already included here too. */
+  /** Selected tree node keys (documents and groups). Multiple-selection mode doesn't propagate
+   * to ancestors/descendants on its own — the "Select" context-menu command does that manually
+   * via `selectNodeAndDescendants()`. */
   protected readonly selectedGroupKeys = computed(
     () => new Set(this.selectedNodes().map((node) => node.key as string)),
   );
@@ -194,6 +247,99 @@ export class SvgToGcodePage {
     walk(this.treeNodes());
     return map;
   });
+
+  /** Node the user right-clicked, captured by the tree's context-menu event so the "select"/
+   * "delete" commands below know which node (and its descendants) to act on. */
+  private contextMenuNode: TreeNode<SvgTreeNodeData> | null = null;
+  protected readonly treeContextMenuItems: MenuItem[] = [
+    {
+      label: 'Select',
+      command: () => {
+        if (this.contextMenuNode) {
+          this.selectNodeAndDescendants(this.contextMenuNode);
+        }
+      },
+    },
+    {
+      label: 'Delete',
+      command: () => {
+        if (this.contextMenuNode) {
+          this.deleteNodeAndDescendants(this.contextMenuNode);
+        }
+      },
+    },
+  ];
+
+  protected onTreeContextMenuSelect(event: TreeNodeContextMenuSelectEvent): void {
+    this.contextMenuNode = event.node as TreeNode<SvgTreeNodeData>;
+  }
+
+  /** Every node in the subtree rooted at `node`, `node` itself included. */
+  private collectNodesRecursively(node: TreeNode<SvgTreeNodeData>): TreeNode<SvgTreeNodeData>[] {
+    const nodes = [node];
+    for (const child of node.children ?? []) {
+      nodes.push(...this.collectNodesRecursively(child));
+    }
+    return nodes as TreeNode<SvgTreeNodeData>[];
+  }
+
+  /** Selects `node` and every one of its descendants in the SVG visualizer. */
+  protected selectNodeAndDescendants(node: TreeNode<SvgTreeNodeData>): void {
+    this.selectedNodes.set(this.collectNodesRecursively(node));
+  }
+
+  /** Removes `node` and every one of its descendants from the workspace: the whole document if
+   * `node` is a document root, or just the matching shapes/tree-nodes if it's a group. */
+  protected deleteNodeAndDescendants(node: TreeNode<SvgTreeNodeData>): void {
+    const keys = new Set(
+      this.collectNodesRecursively(node).map((n) => n.key as string).filter(Boolean),
+    );
+
+    if (node.data?.kind === 'document') {
+      this.documents.update((docs) => docs.filter((doc) => doc.id !== node.data?.documentId));
+    } else {
+      this.documents.update((docs) =>
+        docs.map((doc) => ({
+          ...doc,
+          shapes: doc.shapes.filter((shape) => !keys.has(shape.groupKey)),
+          treeNode: this.removeNodeFromTree(doc.treeNode, node.key as string),
+        })),
+      );
+    }
+
+    this.selectedNodes.update((nodes) => nodes.filter((n) => !keys.has(n.key as string)));
+    this.groupProfileAssignments.update((assignments) => {
+      const next = new Map(assignments);
+      for (const key of keys) {
+        next.delete(key);
+      }
+      return next;
+    });
+    this.groupTransforms.update((transforms) => {
+      const next = new Map(transforms);
+      for (const key of keys) {
+        next.delete(key);
+      }
+      return next;
+    });
+    this.persistState();
+  }
+
+  /** Returns a copy of the tree with the node matching `targetKey` removed, wherever it is. */
+  private removeNodeFromTree(
+    node: TreeNode<SvgTreeNodeData>,
+    targetKey: string,
+  ): TreeNode<SvgTreeNodeData> {
+    if (!node.children) {
+      return node;
+    }
+    return {
+      ...node,
+      children: node.children
+        .filter((child) => child.key !== targetKey)
+        .map((child) => this.removeNodeFromTree(child, targetKey)),
+    };
+  }
 
   private readonly handleSizeMm = computed(() =>
     Math.min(Math.max(Math.min(this.surfaceWidthMm(), this.surfaceHeightMm()) * 0.03, 2), 6),
@@ -227,6 +373,7 @@ export class SvgToGcodePage {
 
     return {
       groupKeys: [...keys],
+      corners,
       points: corners.map((p) => `${p.x},${p.y}`).join(' '),
       handle: corners[1],
       center,
@@ -310,6 +457,8 @@ export class SvgToGcodePage {
   });
 
   constructor() {
+    this.restoreState();
+
     this.materialsApi.listMaterials().subscribe((materials) => this.materials.set(materials));
     this.machineApi.getMachine().subscribe((machine) => this.machine.set(machine));
 
@@ -319,6 +468,7 @@ export class SvgToGcodePage {
       const keys = this.selectedGroupKeys();
       this.selectionBaseFrame.set(this.computeBaseFrame(keys));
       this.selectionFrameTransform.set(IDENTITY_MATRIX);
+      this.persistState();
     });
 
     // Frames the whole bed once its real dimensions load (only fires again if they later change).
@@ -327,6 +477,92 @@ export class SvgToGcodePage {
       const height = this.surfaceHeightMm();
       this.viewBox.set({ x: 0, y: 0, width, height });
     });
+
+    this.form.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.persistState());
+  }
+
+  /** Restores the workspace saved by `persistState()`, if any — SVG sources are re-flattened
+   * rather than deserialized, so the derived shapes/tree are always fresh and consistent. */
+  private restoreState(): void {
+    let raw: string | null;
+    try {
+      raw = sessionStorage.getItem(WORKSPACE_STORAGE_KEY);
+    } catch {
+      return;
+    }
+    if (!raw) {
+      return;
+    }
+
+    let state: PersistedWorkspaceState;
+    try {
+      state = JSON.parse(raw);
+    } catch {
+      return;
+    }
+
+    const restoredDocuments: WorkspaceDocument[] = [];
+    for (const persisted of state.documents ?? []) {
+      try {
+        const result = this.flattener.flatten(persisted.id, persisted.source, persisted.fileName);
+        restoredDocuments.push({
+          id: persisted.id,
+          fileName: persisted.fileName,
+          source: persisted.source,
+          width: result.width,
+          height: result.height,
+          shapes: result.shapes,
+          skippedTags: result.skippedTags,
+          treeNode: result.tree,
+        });
+      } catch {
+        // Skip documents that fail to re-parse; the rest of the workspace still restores.
+      }
+    }
+
+    this.nextDocumentId = state.nextDocumentId ?? restoredDocuments.length;
+    this.documents.set(restoredDocuments);
+    this.groupProfileAssignments.set(new Map(state.groupProfileAssignments ?? []));
+    this.groupTransforms.set(new Map(state.groupTransforms ?? []));
+    this.shapeOffsets.set(new Map(state.shapeOffsets ?? []));
+    this.selectedMaterialId.set(state.selectedMaterialId ?? null);
+    this.gcode.set(state.gcode ?? null);
+
+    if (state.form) {
+      this.form.reset(state.form);
+    }
+
+    if (state.selectedGroupKeys?.length) {
+      const keys = new Set(state.selectedGroupKeys);
+      this.selectedNodes.set(
+        [...this.nodeByKey().values()].filter((node) => keys.has(node.key as string)),
+      );
+    }
+  }
+
+  /** Saves everything needed to rebuild the workspace after an abrupt page change. */
+  private persistState(): void {
+    const state: PersistedWorkspaceState = {
+      nextDocumentId: this.nextDocumentId,
+      documents: this.documents().map((doc) => ({
+        id: doc.id,
+        fileName: doc.fileName,
+        source: doc.source,
+      })),
+      selectedGroupKeys: [...this.selectedGroupKeys()],
+      selectedMaterialId: this.selectedMaterialId(),
+      groupProfileAssignments: [...this.groupProfileAssignments().entries()],
+      groupTransforms: [...this.groupTransforms().entries()],
+      shapeOffsets: [...this.shapeOffsets().entries()],
+      gcode: this.gcode(),
+      form: this.form.getRawValue(),
+    };
+
+    try {
+      sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(state));
+    } catch (error) {
+      console.warn('Could not save the workspace to sessionStorage.', error);
+    }
   }
 
   private computeBaseFrame(
@@ -426,6 +662,7 @@ export class SvgToGcodePage {
       if (result.shapes.length === 0) {
         this.errorMessage.set(`No cuttable shape (path, rect, circle...) found in "${file.name}".`);
       }
+      this.persistState();
     } catch (error) {
       this.errorMessage.set(
         error instanceof Error ? error.message : 'Could not read this SVG file.',
@@ -441,8 +678,105 @@ export class SvgToGcodePage {
     return this.form.controls.targetWidthMm.value / document.width;
   }
 
-  protected toPolylinePoints(shape: FlattenedShape): string {
-    return shape.points.map((point) => `${point.x},${point.y}`).join(' ');
+  /** Builds a single <path d> covering every subpath of the shape (e.g. an outer outline plus
+   * an inner hole), so it can be rendered with fill-rule="evenodd" and get real holes. */
+  protected shapePathData(shape: FlattenedShape): string {
+    return this.pathDataForSubpaths(shape.subpaths);
+  }
+
+  private pathDataForSubpaths(subpaths: FlattenedSubpath[]): string {
+    return subpaths
+      .map((subpath) => {
+        const [first, ...rest] = subpath.points;
+        if (!first) {
+          return '';
+        }
+        const segments = [`M ${first.x} ${first.y}`, ...rest.map((point) => `L ${point.x} ${point.y}`)];
+        if (subpath.closed) {
+          segments.push('Z');
+        }
+        return segments.join(' ');
+      })
+      .join(' ');
+  }
+
+  protected hasOffset(shape: FlattenedShape): boolean {
+    return this.shapeOffsets().has(shape.id);
+  }
+
+  /** <path d> for the kerf-compensated version of the shape, once "Apply" has produced one. */
+  protected offsetPathData(shape: FlattenedShape): string {
+    return this.pathDataForSubpaths(this.shapeOffsets().get(shape.id) ?? []);
+  }
+
+  /** The original outline turns into a faint dashed reference once it has an offset version —
+   * the offset path (rendered separately) carries the real profile styling instead. */
+  protected renderStroke(shape: FlattenedShape): string {
+    return this.hasOffset(shape) ? 'var(--p-text-muted-color, #94a3b8)' : this.strokeForShape(shape);
+  }
+
+  protected renderFill(shape: FlattenedShape): string {
+    return this.hasOffset(shape) ? 'none' : this.fillForShape(shape);
+  }
+
+  /** Kerf-compensates every path in the workspace by `laserOffsetMm()`: outer contours grow,
+   * holes shrink (or the reverse, for a negative value) — see `computeOffsetForShape`. */
+  protected applyLaserOffset(): void {
+    const value = this.laserOffsetMm();
+    if (value === 0) {
+      return;
+    }
+
+    this.pushUndoSnapshot(this.takeSnapshot());
+
+    const next = new Map<string, FlattenedSubpath[]>();
+    for (const document of this.documents()) {
+      for (const shape of document.shapes) {
+        next.set(shape.id, this.computeOffsetForShape(shape, value));
+      }
+    }
+    this.shapeOffsets.set(next);
+    this.persistState();
+  }
+
+  /** Offsets every closed subpath of a shape by `offsetMm`, using the subpath's nesting depth
+   * (how many *other* closed subpaths of the same shape contain it) to tell an outer contour
+   * from a hole: even depth grows (outward), odd depth shrinks (inward) — exactly reversed for a
+   * negative `offsetMm`. Open subpaths (no well-defined inside) pass through unchanged. */
+  private computeOffsetForShape(shape: FlattenedShape, offsetMm: number): FlattenedSubpath[] {
+    const closedSubpaths = shape.subpaths.filter((subpath) => subpath.closed && subpath.points.length >= 3);
+    const result: FlattenedSubpath[] = [];
+
+    for (const subpath of shape.subpaths) {
+      if (!subpath.closed || subpath.points.length < 3) {
+        result.push(subpath);
+        continue;
+      }
+
+      const depth = closedSubpaths.filter(
+        (other) => other !== subpath && this.isPointInPolygon(subpath.points[0], other.points),
+      ).length;
+      const effectiveDelta = depth % 2 === 0 ? offsetMm : -offsetMm;
+
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- shape depends on the untyped library's runtime output
+        const rings: any = new Offset().data(subpath.points.map((point) => [point.x, point.y])).offset(effectiveDelta);
+        const isSingleRing = typeof rings[0]?.[0] === 'number';
+        const normalizedRings: number[][][] = isSingleRing ? [rings] : rings;
+        for (const ring of normalizedRings) {
+          if (ring.length < 3) {
+            continue;
+          }
+          result.push({ points: ring.map(([x, y]) => ({ x, y })), closed: true });
+        }
+      } catch {
+        // Offsetting can fail on degenerate input (e.g. a delta larger than the shape itself) —
+        // keep the original subpath rather than losing it or crashing the whole operation.
+        result.push(subpath);
+      }
+    }
+
+    return result;
   }
 
   protected isShapeSelected(shape: FlattenedShape): boolean {
@@ -471,6 +805,34 @@ export class SvgToGcodePage {
     }
   }
 
+  /** Clears the selection when clicking empty canvas — but not when clicking inside the
+   * marching-ants selection frame, even on the small margin around the shape itself. */
+  protected onBackgroundClick(event: MouseEvent): void {
+    const frame = this.selectionFrame();
+    if (frame) {
+      const point = this.clientToSvgPoint(event.clientX, event.clientY);
+      if (this.isPointInPolygon(point, frame.corners)) {
+        return;
+      }
+    }
+    this.selectedNodes.set([]);
+  }
+
+  private isPointInPolygon(point: { x: number; y: number }, polygon: { x: number; y: number }[]): boolean {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const a = polygon[i];
+      const b = polygon[j];
+      const intersects =
+        a.y > point.y !== b.y > point.y &&
+        point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x;
+      if (intersects) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  }
+
   /** Combines a shape's own document scale with its group's current move/rotate transform. */
   protected shapeTransform(shape: FlattenedShape, document: WorkspaceDocument): string {
     const group = this.groupTransforms().get(shape.groupKey) ?? IDENTITY_MATRIX;
@@ -492,6 +854,7 @@ export class SvgToGcodePage {
 
     event.preventDefault();
     this.dragMoved = false;
+    this.pendingDragSnapshot = this.takeSnapshot();
     this.dragState = {
       pointerId: event.pointerId,
       mode: 'move',
@@ -521,6 +884,7 @@ export class SvgToGcodePage {
 
     const start = this.clientToSvgPoint(event.clientX, event.clientY);
     this.dragMoved = false;
+    this.pendingDragSnapshot = this.takeSnapshot();
     this.dragState = {
       pointerId: event.pointerId,
       mode: 'rotate',
@@ -579,7 +943,65 @@ export class SvgToGcodePage {
     if (this.dragState?.pointerId === event.pointerId) {
       this.ignoreNextClick = this.dragMoved;
       this.dragState = null;
+      if (this.dragMoved && this.pendingDragSnapshot) {
+        this.pushUndoSnapshot(this.pendingDragSnapshot);
+        this.persistState();
+      }
+      this.pendingDragSnapshot = null;
     }
+  }
+
+  /** Takes a snapshot of the undo/redo-tracked part of the workspace. */
+  private takeSnapshot(): WorkspaceSnapshot {
+    return {
+      groupTransforms: new Map(this.groupTransforms()),
+      groupProfileAssignments: new Map(this.groupProfileAssignments()),
+      shapeOffsets: new Map(this.shapeOffsets()),
+    };
+  }
+
+  private applySnapshot(snapshot: WorkspaceSnapshot): void {
+    this.groupTransforms.set(new Map(snapshot.groupTransforms));
+    this.groupProfileAssignments.set(new Map(snapshot.groupProfileAssignments));
+    this.shapeOffsets.set(new Map(snapshot.shapeOffsets));
+  }
+
+  /** Records `snapshot` (the state *before* the change that just happened) onto the undo stack,
+   * capped at the last `MAX_HISTORY_ENTRIES` manipulations, and clears the redo stack. */
+  private pushUndoSnapshot(snapshot: WorkspaceSnapshot): void {
+    this.undoStack.push(snapshot);
+    if (this.undoStack.length > MAX_HISTORY_ENTRIES) {
+      this.undoStack.shift();
+    }
+    this.redoStack = [];
+    this.updateUndoRedoAvailability();
+  }
+
+  private updateUndoRedoAvailability(): void {
+    this.canUndo.set(this.undoStack.length > 0);
+    this.canRedo.set(this.redoStack.length > 0);
+  }
+
+  protected undo(): void {
+    const previous = this.undoStack.pop();
+    if (!previous) {
+      return;
+    }
+    this.redoStack.push(this.takeSnapshot());
+    this.applySnapshot(previous);
+    this.updateUndoRedoAvailability();
+    this.persistState();
+  }
+
+  protected redo(): void {
+    const next = this.redoStack.pop();
+    if (!next) {
+      return;
+    }
+    this.undoStack.push(this.takeSnapshot());
+    this.applySnapshot(next);
+    this.updateUndoRedoAvailability();
+    this.persistState();
   }
 
   /** Clamps a drag delta so the dragged bounding box [min, max] stays within [0, limit]. */
@@ -708,13 +1130,15 @@ export class SvgToGcodePage {
           this.groupTransforms().get(shape.groupKey) ?? IDENTITY_MATRIX,
           scaleMatrix(scale),
         );
-        for (const point of shape.points) {
-          found = true;
-          const p = applyMatrix(matrix, point);
-          minX = Math.min(minX, p.x);
-          minY = Math.min(minY, p.y);
-          maxX = Math.max(maxX, p.x);
-          maxY = Math.max(maxY, p.y);
+        for (const subpath of shape.subpaths) {
+          for (const point of subpath.points) {
+            found = true;
+            const p = applyMatrix(matrix, point);
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
+          }
         }
       }
     }
@@ -739,14 +1163,16 @@ export class SvgToGcodePage {
         if (shape.groupKey !== groupKey) {
           continue;
         }
-        for (const point of shape.points) {
-          found = true;
-          const x = point.x * scale;
-          const y = point.y * scale;
-          minX = Math.min(minX, x);
-          minY = Math.min(minY, y);
-          maxX = Math.max(maxX, x);
-          maxY = Math.max(maxY, y);
+        for (const subpath of shape.subpaths) {
+          for (const point of subpath.points) {
+            found = true;
+            const x = point.x * scale;
+            const y = point.y * scale;
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+          }
         }
       }
 
@@ -757,27 +1183,43 @@ export class SvgToGcodePage {
     return null;
   }
 
-  protected colorForShape(shape: FlattenedShape): string {
-    return this.groupProfileColors().get(shape.groupKey) ?? 'var(--p-primary-color, #FF7300)';
+  /** Outline color: transparent for a FILL-mode profile (so the fill itself carries the color
+   * and doesn't get muddied by a visible border), otherwise the profile's color (or default). */
+  protected strokeForShape(shape: FlattenedShape): string {
+    const assignment = this.groupProfileAssignments().get(shape.groupKey);
+    if (assignment?.mode === 'FILL') {
+      return 'transparent';
+    }
+    return assignment?.color ?? 'var(--p-primary-color, #FF7300)';
   }
 
-  /** Applies a profile's color to the tree nodes currently checked in the workspace tree. */
+  /** Fill color: the profile's color for a FILL-mode profile, otherwise none — shapes without a
+   * FILL profile stay outline-only, exactly as before. */
+  protected fillForShape(shape: FlattenedShape): string {
+    const assignment = this.groupProfileAssignments().get(shape.groupKey);
+    return assignment?.mode === 'FILL' ? assignment.color : 'none';
+  }
+
+  /** Applies a profile's color/mode to the tree nodes currently checked in the workspace tree. */
   protected applyProfile(profile: Profile): void {
     const keys = this.selectedGroupKeys();
     if (keys.size === 0) {
       return;
     }
-    this.groupProfileColors.update((colors) => {
-      const next = new Map(colors);
+    this.pushUndoSnapshot(this.takeSnapshot());
+    this.groupProfileAssignments.update((assignments) => {
+      const next = new Map(assignments);
       for (const key of keys) {
-        next.set(key, profile.color);
+        next.set(key, { color: profile.color, mode: profile.mode });
       }
       return next;
     });
+    this.persistState();
   }
 
   protected onMaterialChange(materialId: number | null): void {
     this.selectedMaterialId.set(materialId);
+    this.persistState();
   }
 
   generate(): void {
@@ -799,6 +1241,7 @@ export class SvgToGcodePage {
       );
       this.gcode.set(outputs.join('\n\n'));
       this.errorMessage.set(null);
+      this.persistState();
     } catch (error) {
       this.errorMessage.set(
         error instanceof Error ? error.message : 'Could not generate the G-code.',
@@ -829,8 +1272,13 @@ export class SvgToGcodePage {
     this.selectedNodes.set([]);
     this.gcode.set(null);
     this.errorMessage.set(null);
-    this.groupProfileColors.set(new Map());
+    this.groupProfileAssignments.set(new Map());
     this.groupTransforms.set(new Map());
+    this.shapeOffsets.set(new Map());
+    this.laserOffsetMm.set(0);
+    this.undoStack = [];
+    this.redoStack = [];
+    this.updateUndoRedoAvailability();
     this.form.reset({ targetWidthMm: 100, feedRateMmMin: 600, laserPower: 300, passes: 1 });
   }
 
