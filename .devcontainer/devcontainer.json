@@ -12,7 +12,7 @@
 		"ghcr.io/devcontainers-extra/features/prek:1": {}
 	},
 	"privileged": true,
-	"runArgs": ["--device=/dev/ttyUSB0"],
+	"runArgs": ["--device=/dev/ttyUSB0", "--network=host"],
 	
 	
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
@@ -21,8 +21,8 @@
 	// Use 'postCreateCommand' to run commands after the container is created.
 	"postCreateCommand": {
 		"claude:folder": "sudo chown node /home/node/.claude",
-		"dep": "sudo chown node node_modules && npm ci",
-		"install:prek": "prek install --prepare-hooks"
+		"dep": "sudo chown node node_modules && npm ci"//,
+		//"install:prek": "prek install --prepare-hooks"
 	}, 
 	
 	"mounts": [
@@ -36,15 +36,10 @@
 			"extensions": [
 				"Angular.ng-template",
 				"nrwl.angular-console",
-				"gencer.html-slim-scss-css-class-completion",
-				"anthropic.claude-code",
-				"eamodio.gitlens"
+				"anthropic.claude-code"
 			],
 			"settings": {
-				"telemetry.feedback.enabled": false, // Disable VSCode Telemetry
-				"gitlens.plusFeatures.enabled": false, // Disable Gitlens premium features
-				"gitlens.telemetry.enabled" : false,
-				"gitlens.ai.enabled" : false
+				"telemetry.feedback.enabled": false // Disable VSCode Telemetry
 			}
 		}
 	}
