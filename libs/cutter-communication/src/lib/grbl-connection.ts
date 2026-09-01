@@ -18,7 +18,8 @@ interface QueuedCommand {
  * the ok/error command queue GRBL's simple send-response protocol requires,
  * and real-time status queries.
  *
- * Emits: 'status' (GrblStatus), 'alarm' (string), 'data' (string), 'error' (Error), 'disconnected'.
+ * Emits: 'status' (GrblStatus), 'alarm' (string), 'data' (string), 'error' (Error), 'disconnected',
+ * 'sent' (string, raw bytes written), 'received' (string, raw line read).
  */
 export class GrblConnection extends EventEmitter {
   private port: SerialPort | null = null;
@@ -138,7 +139,7 @@ export class GrblConnection extends EventEmitter {
       };
 
       this.once('status', onStatus);
-      this.port?.write('?');
+      this.write('?');
     });
   }
 
@@ -148,10 +149,18 @@ export class GrblConnection extends EventEmitter {
     }
 
     this.awaitingResponse = true;
-    this.port.write(`${this.queue[0].command}\n`);
+    this.write(`${this.queue[0].command}\n`);
+  }
+
+  /** Writes raw bytes to the serial port and emits them on 'sent' — the single funnel every
+   * outgoing write goes through, so listeners (e.g. a terminal UI) see the exact wire traffic. */
+  private write(data: string): void {
+    this.port?.write(data);
+    this.emit('sent', data);
   }
 
   private handleLine(line: string): void {
+    this.emit('received', line);
     const trimmed = line.trim();
 
     if (trimmed.startsWith('<') && trimmed.endsWith('>')) {

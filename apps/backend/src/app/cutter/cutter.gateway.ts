@@ -1,5 +1,6 @@
 import { Logger, OnModuleDestroy } from '@nestjs/common';
 import {
+  MessageBody,
   OnGatewayConnection,
   OnGatewayInit,
   SubscribeMessage,
@@ -9,15 +10,17 @@ import {
 import { CutterCommunicationService } from '@webcutter/cutter-communication';
 import { Server, WebSocket } from 'ws';
 import { MachineService } from '../machine/machine.service';
-import { MachineStatusPayload } from './cutter-ws.types';
+import { MachineStatusPayload, SerialMessageDirection, SerialMessagePayload } from './cutter-ws.types';
 
 /** How often GRBL's own status ("Idle"/"Run"/"Home"/...) is polled and re-broadcast while the
  * machine is connected — no-op (and no serial traffic) while disconnected. */
 const STATUS_POLL_INTERVAL_MS = 1000;
 
-/** Real-time channel for the cutter's connection lifecycle and status, alongside the existing
- * REST endpoints on `CutterController`. Client -> server: `connect`, `disconnect`.
- * Server -> client: `status`, broadcast to every connected client whenever it changes. */
+/** Real-time channel for the cutter's connection lifecycle, status and raw serial traffic,
+ * alongside the existing REST endpoints on `CutterController`.
+ * Client -> server: `connect`, `disconnect`, `sendCommand`.
+ * Server -> client: `status` (broadcast whenever it changes), `serial` (broadcast for every byte
+ * sequence written to or read from the cutter — feeds the Operation page's Terminal tab). */
 @WebSocketGateway({ path: '/api/ws/cutter' })
 export class CutterGateway
   implements OnGatewayInit<Server>, OnGatewayConnection<WebSocket>, OnModuleDestroy
@@ -33,7 +36,12 @@ export class CutterGateway
   constructor(
     private readonly cutterCommunication: CutterCommunicationService,
     private readonly machineService: MachineService,
-  ) {}
+  ) {
+    this.cutterCommunication.on('sent', (raw: string) => this.broadcastSerialMessage('sent', raw));
+    this.cutterCommunication.on('received', (raw: string) =>
+      this.broadcastSerialMessage('received', raw),
+    );
+  }
 
   afterInit(): void {
     this.pollInterval = setInterval(() => void this.pollAndBroadcastStatus(), STATUS_POLL_INTERVAL_MS);
@@ -79,6 +87,32 @@ export class CutterGateway
   async handleDisconnectMessage(): Promise<void> {
     await this.cutterCommunication.disconnect();
     await this.pollAndBroadcastStatus(true);
+  }
+
+  /** Sends a raw, user-typed command (Operation page Terminal tab). The command and GRBL's
+   * response reach every client through the regular `sent`/`received` -> `serial` broadcast, so
+   * there's nothing else to do here beyond not letting a rejected command (GRBL "error:N") crash
+   * the gateway. */
+  @SubscribeMessage('sendCommand')
+  async handleSendCommandMessage(@MessageBody() data: { command?: string }): Promise<void> {
+    const command = data?.command?.trim();
+    if (!command) {
+      return;
+    }
+    try {
+      await this.cutterCommunication.sendCommand(command);
+    } catch (error) {
+      this.logger.warn(`Command "${command}" failed: ${error instanceof Error ? error.message : error}`);
+    }
+  }
+
+  private broadcastSerialMessage(direction: SerialMessageDirection, raw: string): void {
+    const payload: SerialMessagePayload = {
+      direction,
+      timestampMs: Date.now(),
+      dataBase64: Buffer.from(raw, 'utf-8').toString('base64'),
+    };
+    this.broadcast(JSON.stringify({ event: 'serial', data: payload }));
   }
 
   private async pollAndBroadcastStatus(force = false): Promise<void> {

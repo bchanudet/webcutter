@@ -1,16 +1,25 @@
+import { EventEmitter } from 'events';
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { GrblConnection } from './grbl-connection';
 import { CutterPortInfo, GrblConnectionOptions, GrblStatus } from './grbl.types';
 
+/**
+ * Emits (in addition to lifecycle logging): 'sent' (string, raw bytes written to the cutter),
+ * 'received' (string, raw line read back) — forwarded from the underlying `GrblConnection` so
+ * consumers (e.g. the WebSocket gateway) don't need to reach into connection internals.
+ */
 @Injectable()
-export class CutterCommunicationService implements OnModuleDestroy {
+export class CutterCommunicationService extends EventEmitter implements OnModuleDestroy {
   private readonly logger = new Logger(CutterCommunicationService.name);
   private readonly connection = new GrblConnection();
 
   constructor() {
+    super();
     this.connection.on('error', (error: Error) => this.logger.error(error.message, error.stack));
     this.connection.on('alarm', (message: string) => this.logger.warn(message));
     this.connection.on('disconnected', () => this.logger.log('Découpeuse déconnectée.'));
+    this.connection.on('sent', (raw: string) => this.emit('sent', raw));
+    this.connection.on('received', (raw: string) => this.emit('received', raw));
   }
 
   listAvailablePorts(): Promise<CutterPortInfo[]> {

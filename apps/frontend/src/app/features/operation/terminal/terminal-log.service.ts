@@ -1,31 +1,35 @@
-import { Injectable, signal } from '@angular/core';
-import { TerminalMessage, TerminalMessageDirection } from './terminal-message.model';
+import { Injectable, inject, signal } from '@angular/core';
+import { CutterSocketService } from '../machine-status/cutter-socket.service';
+import { SerialMessagePayload } from '../machine-status/machine-status.model';
+import { TerminalMessage } from './terminal-message.model';
 
-/** Provided in root so the log survives navigating away from and back to the Operation page —
- * it will later be fed by the serial connection's WebSocket stream. */
+/** Provided in root so the log survives navigating away from and back to the Operation page.
+ * Fed entirely by `CutterSocketService.serialMessages$` — the real bytes written to and read from
+ * the cutter's serial port, broadcast by the backend gateway. */
 @Injectable({ providedIn: 'root' })
 export class TerminalLogService {
+  private readonly cutterSocket = inject(CutterSocketService);
   private nextMessageId = 0;
 
   private readonly _messages = signal<TerminalMessage[]>([]);
   readonly messages = this._messages.asReadonly();
 
-  recordSent(data: string | Uint8Array): void {
-    this.record('sent', data);
+  constructor() {
+    this.cutterSocket.serialMessages$.subscribe((payload) => this.append(payload));
   }
 
-  recordReceived(data: string | Uint8Array): void {
-    this.record('received', data);
-  }
-
-  private record(direction: TerminalMessageDirection, data: string | Uint8Array): void {
-    const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+  private append(payload: SerialMessagePayload): void {
     const message: TerminalMessage = {
       id: this.nextMessageId++,
-      direction,
-      timestampMs: Date.now(),
-      bytes,
+      direction: payload.direction,
+      timestampMs: payload.timestampMs,
+      bytes: this.decodeBase64(payload.dataBase64),
     };
     this._messages.update((messages) => [...messages, message]);
+  }
+
+  private decodeBase64(base64: string): Uint8Array {
+    const binary = atob(base64);
+    return Uint8Array.from(binary, (char) => char.charCodeAt(0));
   }
 }

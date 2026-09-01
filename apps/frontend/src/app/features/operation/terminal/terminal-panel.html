@@ -1,5 +1,5 @@
 <div class="terminal">
-  <div class="terminal__log" #logContainer>
+  <div class="terminal__log" #logContainer (scroll)="onLogScroll()">
     @for (message of messages(); track message.id) {
       <div class="terminal__entry" [class.terminal__entry--sent]="message.direction === 'sent'">
         <app-tabler-icon
@@ -26,5 +26,10 @@
       (keydown.enter)="send()"
     />
     <p-button label="Send" [disabled]="!draft().trim()" (onClick)="send()" />
+  </div>
+
+  <div class="terminal__autoscroll">
+    <p-toggleswitch inputId="terminal-autoscroll" [ngModel]="autoscroll()" (ngModelChange)="autoscroll.set($event)" />
+    <label for="terminal-autoscroll">Autoscroll</label>
   </div>
 </div>

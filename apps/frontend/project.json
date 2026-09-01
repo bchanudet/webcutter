@@ -57,7 +57,8 @@
         },
         "development": {
           "buildTarget": "frontend:build:development",
-          "host": "127.0.0.1",
+          "host": "0.0.0.0",
+          "allowedHosts": true,
           "proxyConfig": "apps/frontend/proxy.conf.json"
         }
       }

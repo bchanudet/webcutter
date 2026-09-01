@@ -20,8 +20,11 @@ export function parseGrblStatus(line: string): GrblStatus {
   }
 
   const [, state, fields] = match;
+  // Hold and Door report a numeric sub-state after a colon (e.g. "Door:1" while the door is
+  // open, "Hold:0"/"Hold:1") — strip it, the sub-state isn't modeled here.
+  const [stateName] = state.split(':');
   const status: GrblStatus = {
-    state: state as GrblMachineState,
+    state: stateName as GrblMachineState,
     raw: line,
   };
 

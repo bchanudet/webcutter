@@ -29,3 +29,13 @@ export interface MachineStatusPayload {
   connected: boolean;
   grbl: GrblStatus | null;
 }
+
+export type SerialMessageDirection = 'sent' | 'received';
+
+/** Mirrors the backend's `SerialMessagePayload` — broadcast over `/api/ws/cutter` for every byte
+ * sequence written to or read from the cutter's serial port. */
+export interface SerialMessagePayload {
+  direction: SerialMessageDirection;
+  timestampMs: number;
+  dataBase64: string;
+}

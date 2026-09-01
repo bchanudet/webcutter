@@ -1,5 +1,6 @@
 import { Injectable, OnDestroy, signal } from '@angular/core';
-import { MachineStatusPayload } from './machine-status.model';
+import { Subject } from 'rxjs';
+import { MachineStatusPayload, SerialMessagePayload } from './machine-status.model';
 
 const RECONNECT_DELAY_MS = 2000;
 
@@ -8,9 +9,10 @@ interface IncomingMessage {
   data: unknown;
 }
 
-/** Client for the `/api/ws/cutter` WebSocket: keeps `status` in sync with the backend's broadcasts
- * and sends the `connect`/`disconnect` commands. Reconnects automatically (e.g. after a backend
- * restart) so the page doesn't need to be reloaded to recover. */
+/** Client for the `/api/ws/cutter` WebSocket: keeps `status` in sync with the backend's broadcasts,
+ * streams raw serial traffic via `serialMessages$`, and sends the `connect`/`disconnect`/
+ * `sendCommand` commands. Reconnects automatically (e.g. after a backend restart) so the page
+ * doesn't need to be reloaded to recover. */
 @Injectable({ providedIn: 'root' })
 export class CutterSocketService implements OnDestroy {
   private socket: WebSocket | null = null;
@@ -18,6 +20,7 @@ export class CutterSocketService implements OnDestroy {
   private destroyed = false;
 
   readonly status = signal<MachineStatusPayload>({ connected: false, grbl: null });
+  readonly serialMessages$ = new Subject<SerialMessagePayload>();
 
   constructor() {
     this.open();
@@ -31,12 +34,17 @@ export class CutterSocketService implements OnDestroy {
     this.send('disconnect');
   }
 
+  sendCommand(command: string): void {
+    this.send('sendCommand', { command });
+  }
+
   ngOnDestroy(): void {
     this.destroyed = true;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
     }
     this.socket?.close();
+    this.serialMessages$.complete();
   }
 
   private open(): void {
@@ -64,12 +72,14 @@ export class CutterSocketService implements OnDestroy {
     }
     if (message.event === 'status') {
       this.status.set(message.data as MachineStatusPayload);
+    } else if (message.event === 'serial') {
+      this.serialMessages$.next(message.data as SerialMessagePayload);
     }
   }
 
-  private send(event: string): void {
+  private send(event: string, data: unknown = {}): void {
     if (this.socket?.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify({ event, data: {} }));
+      this.socket.send(JSON.stringify({ event, data }));
     }
   }
 }

@@ -75,3 +75,15 @@
 .terminal__input {
   flex: 1;
 }
+
+.terminal__autoscroll {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+  font-size: 0.875rem;
+
+  label {
+    cursor: pointer;
+  }
+}

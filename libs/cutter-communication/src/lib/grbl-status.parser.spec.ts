@@ -19,6 +19,12 @@ describe('parseGrblStatus', () => {
     expect(status.workPosition).toBeUndefined();
   });
 
+  it('strips the numeric sub-state from Door/Hold reports', () => {
+    const status = parseGrblStatus('<Door:1|MPos:0.000,0.000,0.000|FS:0,0>');
+
+    expect(status.state).toBe('Door');
+  });
+
   it('throws on a malformed report', () => {
     expect(() => parseGrblStatus('Idle|MPos:0,0,0')).toThrow("Rapport d'état GRBL invalide");
   });
