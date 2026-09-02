@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
-import { CheckWorkspaceDto } from './dto/check-workspace.dto';
+import { WorkspaceSvgDto } from './dto/workspace-svg.dto';
 import { WorkspaceCheckError, WorkspaceCheckService } from './workspace-check.service';
 
 @Controller('workspace')
@@ -7,7 +7,7 @@ export class WorkspaceCheckController {
   constructor(private readonly workspaceCheck: WorkspaceCheckService) {}
 
   @Post('check')
-  check(@Body() dto: CheckWorkspaceDto): { errors: WorkspaceCheckError[] } {
+  check(@Body() dto: WorkspaceSvgDto): { errors: WorkspaceCheckError[] } {
     try {
       return { errors: this.workspaceCheck.check(dto.svg) };
     } catch (error) {

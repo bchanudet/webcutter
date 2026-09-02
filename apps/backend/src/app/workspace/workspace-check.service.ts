@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { isWithinSurface, pathsIntersect } from './path-geometry';
-import { ParsedPath, parseWorkspaceSvg, Subpath } from './workspace-svg-parser';
+import { ParsedPath, ParsedWorkspace, parseWorkspaceSvg, Subpath } from './workspace-svg-parser';
 
 export type WorkspaceCheckErrorCode =
   | 'MISSING_PROFILE'
@@ -9,7 +9,10 @@ export type WorkspaceCheckErrorCode =
   | 'NO_MATERIAL_SELECTED'
   | 'PROFILE_MATERIAL_MISMATCH'
   | 'OUT_OF_BOUNDS'
-  | 'PATH_INTERSECTION';
+  | 'PATH_INTERSECTION'
+  /** Only ever emitted by `WorkspaceGcodeGeneratorService`, not by `check()` — a FILL-mode
+   * profile with no usable `lineSpacingMm` can't produce a hatch fill. */
+  | 'INVALID_LINE_SPACING';
 
 export interface WorkspaceCheckError {
   code: WorkspaceCheckErrorCode;
@@ -18,7 +21,7 @@ export interface WorkspaceCheckError {
   pathIds: string[];
 }
 
-type PathWithGeometry = ParsedPath & { subpaths: Subpath[] };
+export type PathWithGeometry = ParsedPath & { subpaths: Subpath[] };
 
 @Injectable()
 export class WorkspaceCheckService {
@@ -26,7 +29,12 @@ export class WorkspaceCheckService {
    * rule violation found — an empty array means the file is ready for g-code generation. Throws
    * (caller turns it into a 400) only when the SVG itself can't be parsed at all. */
   check(svgText: string): WorkspaceCheckError[] {
-    const workspace = parseWorkspaceSvg(svgText);
+    return this.checkParsed(parseWorkspaceSvg(svgText));
+  }
+
+  /** Same rules as `check()`, on an already-parsed workspace — reused by
+   * `WorkspaceGcodeGeneratorService` so it doesn't parse the SVG twice. */
+  checkParsed(workspace: ParsedWorkspace): WorkspaceCheckError[] {
     const errors: WorkspaceCheckError[] = [];
     const pathIdsMissingMaterial: string[] = [];
 

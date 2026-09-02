@@ -124,7 +124,7 @@ d'interface, pas du contenu du document de travail.
 ## Point d'entrée de vérification (`POST /api/workspace/check`)
 
 Avant de générer un G-code, ce SVG peut être envoyé à `POST /api/workspace/check`
-(`apps/backend/src/app/workspace-check/`) avec le corps `{ "svg": "<...>" }`. La réponse est
+(`apps/backend/src/app/workspace/`) avec le corps `{ "svg": "<...>" }`. La réponse est
 `{ "errors": [...] }` — un tableau vide signifie que le document est prêt pour la génération.
 Chaque erreur a la forme :
 
@@ -149,3 +149,48 @@ Le serveur ne renvoie une erreur HTTP (400) que si le SVG lui-même est structur
 (XML illisible, `viewBox` absente, `<g id="content">` introuvable...) — les 7 règles ci-dessus
 sont, elles, retournées en 200 sous forme de liste, puisqu'il s'agit de constats sur le contenu
 et non d'une requête invalide.
+
+## Point d'entrée de génération (`POST /api/workspace/generate`)
+
+Même corps que `/check` (`{ "svg": "<...>" }`), même parsing et mêmes règles de validation —
+`WorkspaceGcodeGeneratorService.generate()` (`apps/backend/src/app/workspace/`) commence par
+appeler `WorkspaceCheckService.checkParsed()` sur le SVG déjà parsé, plus une règle
+supplémentaire, propre à la génération :
+
+| Code                  | Condition                                                                          |
+|-----------------------|-----------------------------------------------------------------------------------|
+| `INVALID_LINE_SPACING`| Un `<path>` utilise un profil `type="FILL"` dont `lineSpacingMm` est absent ou ≤ 0. |
+
+La réponse est `{ "errors": [...], "gcode": "..." }` : si `errors` n'est pas vide, `gcode` vaut
+`null` et rien n'est généré. Sinon, `gcode` contient le programme complet, structuré ainsi :
+
+1. `$H` — homing, pour garantir que la tête est à l'origine avant de commencer.
+2. Le code des hooks `start` (table `gcode`, `apps/backend/src/app/gcode/`), triés par leur champ
+   `order` croissant.
+3. Pour chaque `<path>`, dans l'ordre du document, le G-code de découpe/gravure (voir plus bas).
+4. Le code des hooks `end`, triés par `order` croissant.
+5. `M5` final, pour garantir que le laser est coupé même si un hook `end` a oublié de le faire.
+
+### G-code par path
+
+Pour chaque `<path>`, le profil résolu via son attribut `profile` fournit `powerPercent`,
+`speedMmPerSec`, `passes` et (en mode `FILL`) `lineSpacingMm` :
+
+- La puissance devient une valeur `S` : `S = round(powerPercent / 100 * machine.sMax)`
+  (`sMax`, la config machine — voir la configuration de la machine dans l'UI).
+- La vitesse devient un feed rate `F = round(speedMmPerSec * 60)` (mm/s → mm/min).
+- Tout est répété `passes` fois.
+
+**Profil `type="LINE"`** : chaque sous-tracé du path est suivi tel quel (`G0` jusqu'au premier
+point, `M4 S<power>`, un `G1 ... F<feed>` par point suivant, puis `M5`) ; un sous-tracé fermé
+reçoit un point de retour final identique à son point de départ, pour que la découpe boucle
+réellement (la liste de points elle-même ne répète jamais le premier point).
+
+**Profil `type="FILL"`** : la surface de la forme est remplie par des segments orientés à 45°,
+espacés de `lineSpacingMm`, calculés par un algorithme de balayage (scanline) classique appliqué
+dans un repère tourné de -45° : chaque ligne de balayage est intersectée avec tous les bords de
+tous les sous-tracés du path, et les intersections triées sont appariées deux à deux
+(pair = "dedans", impair = "dehors") — exactement la règle `evenodd` déjà utilisée pour l'affichage,
+ce qui exclut nativement les trous (sous-tracés imbriqués) sans traitement particulier. Chaque
+segment de hachurage est parcouru comme une ligne indépendante (`G0`/`M4`/`G1`/`M5`), et les
+lignes de balayage successives alternent de sens pour limiter les déplacements à vide.

@@ -8,5 +8,6 @@ import { GcodeService } from './gcode.service';
   imports: [TypeOrmModule.forFeature([Gcode])],
   controllers: [GcodeController],
   providers: [GcodeService],
+  exports: [GcodeService],
 })
 export class GcodeModule {}

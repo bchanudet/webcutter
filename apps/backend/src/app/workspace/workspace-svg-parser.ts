@@ -14,6 +14,12 @@ export interface ParsedProfile {
   id: number;
   materialId: number;
   name: string;
+  mode: 'LINE' | 'FILL';
+  powerPercent: number;
+  speedMmPerSec: number;
+  passes: number;
+  /** `null` when absent — only meaningful (and required) for a `FILL`-mode profile. */
+  lineSpacingMm: number | null;
 }
 
 export interface ParsedMaterial {
@@ -155,10 +161,17 @@ export function parseWorkspaceSvg(svgText: string): ParsedWorkspace {
     const profilesEl = findChild(webcutter, 'profiles');
     for (const profileEl of profilesEl?.children ?? []) {
       if (profileEl.tagName !== 'profile') continue;
+      const lineSpacingAttr = profileEl.attributes['lineSpacingMm'];
+      const lineSpacingMm = lineSpacingAttr != null && lineSpacingAttr !== '' ? Number(lineSpacingAttr) : null;
       profiles.push({
         id: parseNumberAttr(profileEl, 'id'),
         materialId: parseNumberAttr(profileEl, 'materialId'),
         name: profileEl.attributes['name'] ?? '',
+        mode: profileEl.attributes['type'] === 'FILL' ? 'FILL' : 'LINE',
+        powerPercent: parseNumberAttr(profileEl, 'powerPercent'),
+        speedMmPerSec: parseNumberAttr(profileEl, 'speedMmPerSec'),
+        passes: parseNumberAttr(profileEl, 'passes'),
+        lineSpacingMm: lineSpacingMm != null && Number.isFinite(lineSpacingMm) ? lineSpacingMm : null,
       });
     }
 
