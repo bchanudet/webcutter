@@ -102,6 +102,17 @@
   gap: 0.375rem;
 }
 
+.error-list {
+  list-style: disc;
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  color: var(--p-red-500, #ef4444);
+}
+
 .profile-item {
   display: flex;
   align-items: center;

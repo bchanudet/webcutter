@@ -13,6 +13,13 @@ interface QueuedCommand {
   reject: (error: Error) => void;
 }
 
+/** Whether `command` is GRBL's home ($H) or unlock ($X) command — the only two commands allowed
+ * to go through while the connection is alarm-locked, and the ones that clear the lock. */
+function isUnlockCommand(command: string): boolean {
+  const normalized = command.trim().toUpperCase();
+  return normalized === '$H' || normalized === '$X';
+}
+
 /**
  * Manages a serial connection to a GRBL-based cutter: connection lifecycle,
  * the ok/error command queue GRBL's simple send-response protocol requires,
@@ -25,6 +32,11 @@ export class GrblConnection extends EventEmitter {
   private port: SerialPort | null = null;
   private queue: QueuedCommand[] = [];
   private awaitingResponse = false;
+  /** Software-side alarm latch: some boards (e.g. this Atomstack clone) silently reset and
+   * report "Idle" again after a hard-limit alarm without the user ever sending $H/$X — this
+   * flag keeps the connection locked down regardless of what `?` reports until one of those two
+   * commands actually succeeds, so the rest of the app can't be misled into thinking it's safe. */
+  private alarmed = false;
 
   static listPorts(): Promise<CutterPortInfo[]> {
     return SerialPort.list().then((ports) =>
@@ -40,12 +52,18 @@ export class GrblConnection extends EventEmitter {
     return this.port?.isOpen ?? false;
   }
 
+  get isAlarmed(): boolean {
+    return this.alarmed;
+  }
+
   connect(options: GrblConnectionOptions): Promise<void> {
     if (this.isOpen) {
       return Promise.reject(
         new Error('Une connexion est déjà ouverte, appelez disconnect() avant de reconnecter.'),
       );
     }
+
+    this.alarmed = false;
 
     return new Promise((resolve, reject) => {
       const port = new SerialPort(
@@ -98,10 +116,20 @@ export class GrblConnection extends EventEmitter {
     });
   }
 
-  /** Queues a G-code/GRBL command and resolves once GRBL replies "ok" (rejects on "error:N"). */
+  /** Queues a G-code/GRBL command and resolves once GRBL replies "ok" (rejects on "error:N").
+   * Rejects immediately, without writing anything to the port, if the connection is alarm-locked
+   * and this isn't the $H/$X command that would clear it. */
   send(command: string): Promise<string> {
     if (!this.port?.isOpen) {
       return Promise.reject(new Error('Aucune connexion série ouverte.'));
+    }
+
+    if (this.alarmed && !isUnlockCommand(command)) {
+      return Promise.reject(
+        new Error(
+          'Machine en alarme : envoyez $H (home) ou $X (déverrouiller) avant toute autre commande.',
+        ),
+      );
     }
 
     return new Promise((resolve, reject) => {
@@ -169,7 +197,12 @@ export class GrblConnection extends EventEmitter {
     }
 
     if (trimmed === 'ok') {
-      this.settleCurrentCommand((command) => command.resolve(trimmed));
+      this.settleCurrentCommand((command) => {
+        if (isUnlockCommand(command.command)) {
+          this.alarmed = false;
+        }
+        command.resolve(trimmed);
+      });
       return;
     }
 
@@ -181,6 +214,7 @@ export class GrblConnection extends EventEmitter {
     }
 
     if (trimmed.startsWith('ALARM:')) {
+      this.alarmed = true;
       this.emit('alarm', trimmed);
       return;
     }

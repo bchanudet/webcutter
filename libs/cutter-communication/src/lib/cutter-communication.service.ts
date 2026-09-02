@@ -39,6 +39,13 @@ export class CutterCommunicationService extends EventEmitter implements OnModule
     return this.connection.isOpen;
   }
 
+  /** Whether the connection is software-alarm-locked (see `GrblConnection`) — stays true across
+   * `?` status reports until $H or $X actually succeeds, even if the board itself has silently
+   * reset out of its own alarm state. */
+  isAlarmed(): boolean {
+    return this.connection.isAlarmed;
+  }
+
   sendCommand(command: string): Promise<string> {
     return this.connection.send(command);
   }

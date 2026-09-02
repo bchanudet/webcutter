@@ -18,6 +18,12 @@ export class TerminalLogService {
     this.cutterSocket.serialMessages$.subscribe((payload) => this.append(payload));
   }
 
+  /** Empties the log — messages already broadcast are gone for good, this only clears the local
+   * copy (the backend doesn't keep any history of its own to resync from). */
+  clear(): void {
+    this._messages.set([]);
+  }
+
   private append(payload: SerialMessagePayload): void {
     const message: TerminalMessage = {
       id: this.nextMessageId++,

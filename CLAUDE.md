@@ -15,6 +15,8 @@ via USB : envoi de G-code, suivi temps réel, import SVG → G-code avec presets
 - **Stockage** : SQLite (Prisma ou TypeORM) — pas besoin de plus, usage local mono-utilisateur
 - **Temps réel** : WebSocket (`@nestjs/websockets`) pour diffuser statut/position à l'UI
 
+NOTE: n'utilise JAMAIS pnpm, seulement npm.
+
 ## Matériel cible
 
 - Découpeuse **Atomstack**, firmware **GRBL**

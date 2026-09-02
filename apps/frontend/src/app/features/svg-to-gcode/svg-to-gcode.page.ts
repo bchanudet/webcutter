@@ -35,13 +35,12 @@ import {
   SvgTreeNodeData,
   groupSubpathsIntoEntities,
 } from './svg-flattener.service';
-import { GcodeGeneratorService } from './gcode-generator.service';
+import { WorkspaceCheckApiService, WorkspaceCheckError } from './workspace-check-api.service';
 
-interface CuttingParamsForm {
+/** Just the display-scale control now — g-code generation moved to the backend, which will take
+ * the exported workspace SVG (see docs/workspace-svg-format.md) rather than live form params. */
+interface DisplayScaleForm {
   targetWidthMm: FormControl<number>;
-  feedRateMmMin: FormControl<number>;
-  laserPower: FormControl<number>;
-  passes: FormControl<number>;
 }
 
 /** A 2D affine transform, stored as the standard SVG `matrix(a b c d e f)` components. */
@@ -106,9 +105,19 @@ interface WorkspaceDocument {
 const WORKSPACE_STORAGE_KEY = 'webcutter.svg-to-gcode.workspace';
 const MAX_HISTORY_ENTRIES = 20;
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+/** Namespace for the <webcutter> export metadata block — see docs/workspace-svg-format.md. */
+const WEBCUTTER_NS = 'https://webcutter.infogones.com/ns/workspace';
+/** Stroke color for a shape with no assigned profile, in the exported SVG — the viewer instead
+ * uses `var(--p-primary-color, #FF7300)`, which a standalone file can't resolve. */
+const DEFAULT_SHAPE_COLOR = '#FF7300';
+
 /** A profile's color + cutting mode, as assigned to a group — the mode decides whether the
- * shape is rendered as a filled area (FILL) or an outlined path (LINE). */
+ * shape is rendered as a filled area (FILL) or an outlined path (LINE). `profileId` is kept
+ * alongside the copied color/mode so an exported SVG can reference the exact profile a shape
+ * was cut with, even after the profile's own color/mode changes later. */
 interface GroupProfileAssignment {
+  profileId: number;
   color: string;
   mode: ProfileMode;
 }
@@ -132,8 +141,7 @@ interface PersistedWorkspaceState {
   groupProfileAssignments?: [string, GroupProfileAssignment][];
   groupTransforms?: [string, AffineMatrix][];
   shapeOffsets?: [string, FlattenedSubpath[]][];
-  gcode?: string | null;
-  form?: { targetWidthMm: number; feedRateMmMin: number; laserPower: number; passes: number };
+  form?: { targetWidthMm: number };
 }
 
 @Component({
@@ -160,9 +168,9 @@ interface PersistedWorkspaceState {
 })
 export class SvgToGcodePage {
   private readonly flattener = inject(SvgFlattenerService);
-  private readonly gcodeGenerator = inject(GcodeGeneratorService);
   private readonly materialsApi = inject(MaterialsApiService);
   private readonly machineApi = inject(MachineApiService);
+  private readonly workspaceCheckApi = inject(WorkspaceCheckApiService);
 
   private readonly fileInput = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
   private readonly svgCanvas = viewChild.required<ElementRef<SVGSVGElement>>('svgCanvas');
@@ -217,8 +225,11 @@ export class SvgToGcodePage {
 
   protected readonly documents = signal<WorkspaceDocument[]>([]);
   protected readonly selectedNodes = signal<TreeNode<SvgTreeNodeData>[]>([]);
-  protected readonly gcode = signal<string | null>(null);
   protected readonly errorMessage = signal<string | null>(null);
+
+  protected readonly checking = signal(false);
+  protected readonly checkErrors = signal<WorkspaceCheckError[] | null>(null);
+  protected readonly checkFailureMessage = signal<string | null>(null);
 
   protected readonly materials = signal<Material[]>([]);
   protected readonly selectedMaterialId = signal<number | null>(null);
@@ -534,22 +545,10 @@ export class SvgToGcodePage {
   );
   protected readonly profiles = computed(() => this.selectedMaterial()?.profiles ?? []);
 
-  protected readonly form = new FormGroup<CuttingParamsForm>({
+  protected readonly form = new FormGroup<DisplayScaleForm>({
     targetWidthMm: new FormControl(100, {
       nonNullable: true,
       validators: [Validators.required, Validators.min(1)],
-    }),
-    feedRateMmMin: new FormControl(600, {
-      nonNullable: true,
-      validators: [Validators.required, Validators.min(1)],
-    }),
-    laserPower: new FormControl(300, {
-      nonNullable: true,
-      validators: [Validators.required, Validators.min(0), Validators.max(1000)],
-    }),
-    passes: new FormControl(1, {
-      nonNullable: true,
-      validators: [Validators.required, Validators.min(1), Validators.max(20)],
     }),
   });
 
@@ -626,7 +625,6 @@ export class SvgToGcodePage {
     this.groupTransforms.set(new Map(state.groupTransforms ?? []));
     this.shapeOffsets.set(new Map(state.shapeOffsets ?? []));
     this.selectedMaterialId.set(state.selectedMaterialId ?? null);
-    this.gcode.set(state.gcode ?? null);
 
     if (state.form) {
       this.form.reset(state.form);
@@ -654,7 +652,6 @@ export class SvgToGcodePage {
       groupProfileAssignments: [...this.groupProfileAssignments().entries()],
       groupTransforms: [...this.groupTransforms().entries()],
       shapeOffsets: [...this.shapeOffsets().entries()],
-      gcode: this.gcode(),
       form: this.form.getRawValue(),
     };
 
@@ -735,7 +732,6 @@ export class SvgToGcodePage {
     }
 
     this.errorMessage.set(null);
-    this.gcode.set(null);
 
     try {
       const source = await file.text();
@@ -1307,7 +1303,7 @@ export class SvgToGcodePage {
     this.groupProfileAssignments.update((assignments) => {
       const next = new Map(assignments);
       for (const key of keys) {
-        next.set(key, { color: profile.color, mode: profile.mode });
+        next.set(key, { profileId: profile.id, color: profile.color, mode: profile.mode });
       }
       return next;
     });
@@ -1319,56 +1315,44 @@ export class SvgToGcodePage {
     this.persistState();
   }
 
-  generate(): void {
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
-    }
-
-    const cuttableDocuments = this.documents().filter((doc) => doc.shapes.length > 0);
-    if (cuttableDocuments.length === 0) {
-      this.errorMessage.set('No cuttable shape found in the workspace.');
-      return;
-    }
-
-    try {
-      const params = this.form.getRawValue();
-      const outputs = cuttableDocuments.map((doc) =>
-        this.gcodeGenerator.generate(doc.shapes, doc.width, doc.height, params),
-      );
-      this.gcode.set(outputs.join('\n\n'));
-      this.errorMessage.set(null);
-      this.persistState();
-    } catch (error) {
-      this.errorMessage.set(
-        error instanceof Error ? error.message : 'Could not generate the G-code.',
-      );
-    }
-  }
-
-  downloadGcode(): void {
-    const gcode = this.gcode();
-    if (!gcode) {
-      return;
-    }
-
-    this.downloadTextFile(gcode, 'workspace.gcode', 'text/plain');
-  }
-
   saveSvg(): void {
-    const documents = this.documents();
-    if (documents.length === 0) {
+    if (this.documents().length === 0) {
       return;
     }
 
-    this.downloadTextFile(this.buildConcatenatedSvg(documents), 'workspace.svg', 'image/svg+xml');
+    this.downloadTextFile(this.buildWorkspaceSvg(), 'workspace.svg', 'image/svg+xml');
+  }
+
+  /** Builds the same SVG as `saveSvg()`, sends it to the backend's pre-flight check, and shows
+   * whatever rule violations come back (empty means the workspace is ready for g-code). */
+  protected checkWorkspace(): void {
+    if (this.documents().length === 0) {
+      return;
+    }
+
+    this.checking.set(true);
+    this.checkFailureMessage.set(null);
+    this.workspaceCheckApi.check(this.buildWorkspaceSvg()).subscribe({
+      next: ({ errors }) => {
+        this.checkErrors.set(errors);
+        this.checking.set(false);
+      },
+      error: (error: unknown) => {
+        this.checkErrors.set(null);
+        this.checkFailureMessage.set(
+          (error as { error?: { message?: string } })?.error?.message ?? 'La vérification a échoué.',
+        );
+        this.checking.set(false);
+      },
+    });
   }
 
   reset(): void {
     this.documents.set([]);
     this.selectedNodes.set([]);
-    this.gcode.set(null);
     this.errorMessage.set(null);
+    this.checkErrors.set(null);
+    this.checkFailureMessage.set(null);
     this.groupProfileAssignments.set(new Map());
     this.groupTransforms.set(new Map());
     this.shapeOffsets.set(new Map());
@@ -1376,23 +1360,123 @@ export class SvgToGcodePage {
     this.undoStack = [];
     this.redoStack = [];
     this.updateUndoRedoAvailability();
-    this.form.reset({ targetWidthMm: 100, feedRateMmMin: 600, laserPower: 300, passes: 1 });
+    this.form.reset({ targetWidthMm: 100 });
   }
 
-  /** Combines every loaded document into a single file, each kept in its own nested <svg>. */
-  private buildConcatenatedSvg(documents: WorkspaceDocument[]): string {
-    const serializer = new XMLSerializer();
-    const nested = documents
-      .map((doc) => {
-        const parsed = new DOMParser().parseFromString(doc.source, 'image/svg+xml');
-        const inner = Array.from(parsed.documentElement.children)
-          .map((child) => serializer.serializeToString(child))
-          .join('');
-        return `<svg viewBox="0 0 ${doc.width} ${doc.height}" width="${doc.width}" height="${doc.height}">${inner}</svg>`;
-      })
-      .join('\n');
+  /** Builds the workspace export SVG: sized to the machine bed, with a <metadata><webcutter>
+   * block describing the used profiles + material (see docs/workspace-svg-format.md), followed
+   * by an id="content" group with exactly the paths shown in the viewer's own id="content" group
+   * (same geometry, transform and colors), each tagged with its assigned profile id if any. */
+  private buildWorkspaceSvg(): string {
+    const width = this.surfaceWidthMm();
+    const height = this.surfaceHeightMm();
 
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${this.surfaceWidthMm()} ${this.surfaceHeightMm()}">\n${nested}\n</svg>`;
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('xmlns', SVG_NS);
+    svg.setAttribute('width', `${width}mm`);
+    svg.setAttribute('height', `${height}mm`);
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.appendChild(this.buildWorkspaceMetadata());
+    svg.appendChild(this.buildWorkspaceContentGroup());
+
+    return '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + new XMLSerializer().serializeToString(svg);
+  }
+
+  /** <metadata><webcutter>: format version, every profile referenced by the workspace (in full,
+   * regardless of which material is currently selected), and the currently selected material. */
+  private buildWorkspaceMetadata(): Element {
+    const metadata = document.createElementNS(SVG_NS, 'metadata');
+    const webcutter = document.createElementNS(WEBCUTTER_NS, 'webcutter');
+
+    const version = document.createElementNS(WEBCUTTER_NS, 'version');
+    version.textContent = '1';
+    webcutter.appendChild(version);
+
+    const profilesEl = document.createElementNS(WEBCUTTER_NS, 'profiles');
+    for (const profile of this.usedProfiles()) {
+      const profileEl = document.createElementNS(WEBCUTTER_NS, 'profile');
+      profileEl.setAttribute('id', String(profile.id));
+      profileEl.setAttribute('materialId', String(profile.materialId));
+      profileEl.setAttribute('name', profile.name);
+      profileEl.setAttribute('color', profile.color);
+      profileEl.setAttribute('type', profile.mode);
+      profileEl.setAttribute('powerPercent', String(profile.powerPercent));
+      profileEl.setAttribute('speedMmPerSec', String(profile.speedMmPerSec));
+      profileEl.setAttribute('passes', String(profile.passes));
+      if (profile.lineSpacingMm != null) {
+        profileEl.setAttribute('lineSpacingMm', String(profile.lineSpacingMm));
+      }
+      profilesEl.appendChild(profileEl);
+    }
+    webcutter.appendChild(profilesEl);
+
+    const material = this.selectedMaterial();
+    if (material) {
+      const materialEl = document.createElementNS(WEBCUTTER_NS, 'material');
+      materialEl.setAttribute('id', String(material.id));
+      materialEl.setAttribute('name', material.name);
+      materialEl.setAttribute('thicknessMm', String(material.thicknessMm));
+      webcutter.appendChild(materialEl);
+    }
+
+    metadata.appendChild(webcutter);
+    return metadata;
+  }
+
+  /** Every profile assigned to at least one group in the workspace, looked up across all
+   * materials (not just the currently selected one) since a profile can stay assigned to a
+   * group after the user switches the workspace to a different material. */
+  private usedProfiles(): Profile[] {
+    const usedIds = new Set(
+      Array.from(this.groupProfileAssignments().values()).map((assignment) => assignment.profileId),
+    );
+    return this.materials()
+      .flatMap((material) => material.profiles)
+      .filter((profile) => usedIds.has(profile.id));
+  }
+
+  /** Mirrors the viewer's own id="content" group (see the template): same shapes, same
+   * kerf-compensated geometry, same transform and colors — plus a profile="<id>" attribute on
+   * shapes whose group has an assigned profile. */
+  private buildWorkspaceContentGroup(): Element {
+    const group = document.createElementNS(SVG_NS, 'g');
+    group.setAttribute('id', 'content');
+    const assignments = this.groupProfileAssignments();
+
+    for (const doc of this.documents()) {
+      for (const shape of doc.shapes) {
+        const assignment = assignments.get(shape.groupKey);
+        const path = document.createElementNS(SVG_NS, 'path');
+        path.setAttribute('id', shape.id);
+        path.setAttribute('d', this.hasOffset(shape) ? this.offsetPathData(shape) : this.shapePathData(shape));
+        path.setAttribute('fill-rule', 'evenodd');
+        path.setAttribute('transform', this.shapeTransform(shape, doc));
+        path.setAttribute('fill', this.exportFillForShape(assignment));
+        path.setAttribute('stroke', this.exportStrokeForShape(assignment));
+        path.setAttribute('stroke-width', '0.3');
+        if (assignment) {
+          path.setAttribute('profile', String(assignment.profileId));
+        }
+        group.appendChild(path);
+      }
+    }
+
+    return group;
+  }
+
+  /** Same rule as `fillForShape`, for the exported file. */
+  private exportFillForShape(assignment: GroupProfileAssignment | undefined): string {
+    return assignment?.mode === 'FILL' ? assignment.color : 'none';
+  }
+
+  /** Same rule as `strokeForShape`, except the "no profile" fallback is a concrete color rather
+   * than the app's `var(--p-primary-color)` — a standalone file has no such CSS variable to
+   * resolve against. */
+  private exportStrokeForShape(assignment: GroupProfileAssignment | undefined): string {
+    if (assignment?.mode === 'FILL') {
+      return 'transparent';
+    }
+    return assignment?.color ?? DEFAULT_SHAPE_COLOR;
   }
 
   private downloadTextFile(content: string, fileName: string, mimeType: string): void {

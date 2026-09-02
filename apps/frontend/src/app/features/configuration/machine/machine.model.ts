@@ -24,6 +24,7 @@ export interface Machine {
   maxAccelerationYMmPerSec2: number;
   maxSpeedXMmPerSec: number;
   maxSpeedYMmPerSec: number;
+  sMax: number;
 }
 
 export interface MachinePayload {
@@ -41,4 +42,5 @@ export interface MachinePayload {
   maxAccelerationYMmPerSec2: number;
   maxSpeedXMmPerSec: number;
   maxSpeedYMmPerSec: number;
+  sMax: number;
 }

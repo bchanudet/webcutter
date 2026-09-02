@@ -7,7 +7,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { CutterCommunicationService } from '@webcutter/cutter-communication';
+import { CutterCommunicationService, GrblStatus } from '@webcutter/cutter-communication';
 import { Server, WebSocket } from 'ws';
 import { MachineService } from '../machine/machine.service';
 import { MachineStatusPayload, SerialMessageDirection, SerialMessagePayload } from './cutter-ws.types';
@@ -41,6 +41,9 @@ export class CutterGateway
     this.cutterCommunication.on('received', (raw: string) =>
       this.broadcastSerialMessage('received', raw),
     );
+    // Broadcasts the alarm-locked status immediately rather than waiting for the next poll tick
+    // (up to STATUS_POLL_INTERVAL_MS later) — this is safety-relevant feedback.
+    this.cutterCommunication.on('alarm', () => void this.pollAndBroadcastStatus(true));
   }
 
   afterInit(): void {
@@ -131,10 +134,23 @@ export class CutterGateway
     }
     try {
       const grbl = await this.cutterCommunication.getStatus();
-      return { connected: true, grbl };
+      return { connected: true, grbl: this.applyAlarmLatch(grbl) };
     } catch {
-      return { connected: true, grbl: null };
+      return {
+        connected: true,
+        grbl: this.cutterCommunication.isAlarmed() ? { state: 'Alarm', raw: '' } : null,
+      };
     }
+  }
+
+  /** Forces the reported state to "Alarm" while the software alarm latch is engaged, regardless
+   * of what GRBL's own `?` report says — see `GrblConnection`'s `alarmed` flag for why this is
+   * necessary on this board. */
+  private applyAlarmLatch(grbl: GrblStatus): GrblStatus {
+    if (!this.cutterCommunication.isAlarmed()) {
+      return grbl;
+    }
+    return { ...grbl, state: 'Alarm' };
   }
 
   private broadcast(json: string): void {

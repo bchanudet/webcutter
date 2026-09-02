@@ -119,6 +119,10 @@ export class MachineSection {
       nonNullable: true,
       validators: [Validators.required, Validators.min(0)],
     }),
+    sMax: new FormControl(1000, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(1)],
+    }),
   });
 
   constructor() {

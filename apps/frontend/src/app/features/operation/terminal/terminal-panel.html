@@ -1,19 +1,33 @@
 <div class="terminal">
-  <div class="terminal__log" #logContainer (scroll)="onLogScroll()">
-    @for (message of messages(); track message.id) {
-      <div class="terminal__entry" [class.terminal__entry--sent]="message.direction === 'sent'">
-        <app-tabler-icon
-          class="terminal__direction-icon"
-          [name]="message.direction === 'sent' ? 'arrow-badge-right' : 'arrow-badge-left'"
-          [size]="16"
-        />
-        <span class="terminal__timestamp">{{ formatTimestamp(message.timestampMs) }}</span>
-        <span class="terminal__content">{{ formatMessageContent(message) }}</span>
-      </div>
-    } @empty {
+  @if (messages().length === 0) {
+    <div class="terminal__log terminal__log--empty">
       <p class="terminal__empty">No message yet.</p>
-    }
-  </div>
+    </div>
+  } @else {
+    <p-scroller
+      class="terminal__log"
+      [items]="messages()"
+      [itemSize]="rowHeightPx"
+      scrollHeight="100%"
+      (onScroll)="onLogScroll($event)"
+    >
+      <ng-template pTemplate="item" let-message>
+        <div
+          class="terminal__entry"
+          [style.height.px]="rowHeightPx"
+          [class.terminal__entry--sent]="message.direction === 'sent'"
+        >
+          <app-tabler-icon
+            class="terminal__direction-icon"
+            [name]="message.direction === 'sent' ? 'arrow-badge-right' : 'arrow-badge-left'"
+            [size]="16"
+          />
+          <span class="terminal__timestamp">{{ formatTimestamp(message.timestampMs) }}</span>
+          <span class="terminal__content">{{ formatMessageContent(message) }}</span>
+        </div>
+      </ng-template>
+    </p-scroller>
+  }
 
   <div class="terminal__input-row">
     <input
@@ -28,8 +42,12 @@
     <p-button label="Send" [disabled]="!draft().trim()" (onClick)="send()" />
   </div>
 
-  <div class="terminal__autoscroll">
-    <p-toggleswitch inputId="terminal-autoscroll" [ngModel]="autoscroll()" (ngModelChange)="autoscroll.set($event)" />
-    <label for="terminal-autoscroll">Autoscroll</label>
+  <div class="terminal__toolbar">
+    <div class="terminal__autoscroll">
+      <p-toggleswitch inputId="terminal-autoscroll" [ngModel]="autoscroll()" (ngModelChange)="autoscroll.set($event)" />
+      <label for="terminal-autoscroll">Autoscroll</label>
+    </div>
+    <p-button label="Clear" [text]="true" [disabled]="messages().length === 0" (onClick)="clear()" />
+    <p-button label="Export" [text]="true" [disabled]="messages().length === 0" (onClick)="export()" />
   </div>
 </div>

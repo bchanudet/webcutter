@@ -63,6 +63,11 @@ export class Machine {
   @Column({ type: 'float', default: 10})
   maxSpeedYMmPerSec!: number;
 
+  // GRBL's own max spindle/laser value (its $30 setting) — powerPercent from a cutting profile
+  // is scaled against this to produce the actual S value sent in G-code (e.g. M4 S<value>).
+  @Column({ type: 'int', default: 1000 })
+  sMax!: number;
+
   @CreateDateColumn()
   createdAt!: Date;
 

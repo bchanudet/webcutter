@@ -11,6 +11,7 @@ import { Tab, TabList, Tabs } from '@openng/optimus-ui/tabs';
 import { Toolbar } from '@openng/optimus-ui/toolbar';
 import { TablerIcon } from '../../shared/tabler-icon/tabler-icon';
 import { MachineStatusCard } from './machine-status/machine-status-card';
+import { PositionCard } from './position/position-card';
 
 type OperationTab = 'gcode' | 'terminal';
 
@@ -22,6 +23,7 @@ type OperationTab = 'gcode' | 'terminal';
     Card,
     DividerModule,
     MachineStatusCard,
+    PositionCard,
     RouterOutlet,
     Splitter,
     Tab,

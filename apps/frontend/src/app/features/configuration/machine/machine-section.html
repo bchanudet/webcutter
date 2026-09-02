@@ -90,6 +90,11 @@
               />
             </div>
 
+            <div class="field">
+              <label for="machine-s-max">Puissance laser max (S max)</label>
+              <p-inputnumber inputId="machine-s-max" formControlName="sMax" [min]="1" [useGrouping]="false" />
+            </div>
+
             <div class="field-row">
               <div class="field">
                 <label for="machine-max-accel-x">Accélération max. X (mm/s²)</label>

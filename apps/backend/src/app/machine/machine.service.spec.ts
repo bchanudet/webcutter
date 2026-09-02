@@ -55,6 +55,7 @@ describe('MachineService', () => {
       maxAccelerationYMmPerSec2: 500,
       maxSpeedXMmPerSec: 200,
       maxSpeedYMmPerSec: 200,
+      sMax: 1000,
     };
     repo.findOne.mockResolvedValue(machine);
 

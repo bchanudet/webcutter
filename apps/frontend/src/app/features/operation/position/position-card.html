@@ -1,0 +1,89 @@
+<p-card header="Position" class="position-card">
+  @if (position(); as pos) {
+    <div class="position-card__row">
+      <span class="position-card__axis">X</span>
+      <span class="position-card__value">{{ pos.x.toFixed(3) }} mm</span>
+    </div>
+    <div class="position-card__row">
+      <span class="position-card__axis">Y</span>
+      <span class="position-card__value">{{ pos.y.toFixed(3) }} mm</span>
+    </div>
+  } @else {
+    <p class="hint">No position data.</p>
+  }
+
+  <div class="jog-pad">
+    <p-button
+      class="jog-pad__button jog-pad__button--up"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      title="Y+"
+      [disabled]="!connected()"
+      (onClick)="jog('Y', 1)"
+    >
+      <app-tabler-icon name="arrow-up" [size]="18" />
+    </p-button>
+
+    <p-button
+      class="jog-pad__button jog-pad__button--left"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      title="X-"
+      [disabled]="!connected()"
+      (onClick)="jog('X', -1)"
+    >
+      <app-tabler-icon name="arrow-left" [size]="18" />
+    </p-button>
+
+    <p-button
+      class="jog-pad__button jog-pad__button--home"
+      [rounded]="true"
+      size="small"
+      title="Home ($H)"
+      [disabled]="!connected()"
+      (onClick)="home()"
+    >
+      H
+    </p-button>
+
+    <p-button
+      class="jog-pad__button jog-pad__button--right"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      title="X+"
+      [disabled]="!connected()"
+      (onClick)="jog('X', 1)"
+    >
+      <app-tabler-icon name="arrow-right" [size]="18" />
+    </p-button>
+
+    <p-button
+      class="jog-pad__button jog-pad__button--down"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      title="Y-"
+      [disabled]="!connected()"
+      (onClick)="jog('Y', -1)"
+    >
+      <app-tabler-icon name="arrow-down" [size]="18" />
+    </p-button>
+  </div>
+
+  <div class="field">
+    <label for="jog-step">Step (mm)</label>
+    <p-inputnumber
+      inputId="jog-step"
+      [ngModel]="stepMm()"
+      (ngModelChange)="stepMm.set($event)"
+      [min]="0.001"
+      [step]="0.1"
+      [minFractionDigits]="0"
+      [maxFractionDigits]="3"
+      suffix=" mm"
+    />
+  </div>
+</p-card>

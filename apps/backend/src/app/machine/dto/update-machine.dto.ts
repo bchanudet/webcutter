@@ -53,4 +53,8 @@ export class UpdateMachineDto {
   @IsNumber()
   @Min(0)
   maxSpeedYMmPerSec!: number;
+
+  @IsInt()
+  @Min(1)
+  sMax!: number;
 }

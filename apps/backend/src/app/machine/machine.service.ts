@@ -19,6 +19,7 @@ const DEFAULT_MACHINE: Omit<Machine, 'id' | 'createdAt' | 'updatedAt'> = {
   maxAccelerationYMmPerSec2: 500,
   maxSpeedXMmPerSec: 200,
   maxSpeedYMmPerSec: 200,
+  sMax: 1000,
 };
 
 @Injectable()

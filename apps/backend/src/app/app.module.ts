@@ -8,6 +8,7 @@ import { CutterGateway } from './cutter/cutter.gateway';
 import { GcodeModule } from './gcode/gcode.module';
 import { MachineModule } from './machine/machine.module';
 import { MaterialsModule } from './materials/materials.module';
+import { WorkspaceCheckModule } from './workspace-check/workspace-check.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { MaterialsModule } from './materials/materials.module';
     MaterialsModule,
     MachineModule,
     GcodeModule,
+    WorkspaceCheckModule,
   ],
   controllers: [AppController, CutterController],
   providers: [AppService, CutterGateway],

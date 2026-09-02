@@ -8,6 +8,7 @@ interface LbdevSettings {
   Sim_MaxAccelY?: number;
   Sim_MaxSpeedX?: number;
   Sim_MaxSpeedY?: number;
+  S_Scale?: number;
 }
 
 interface LbdevDevice {
@@ -34,6 +35,7 @@ export interface LbdevImportResult {
   maxAccelerationYMmPerSec2?: number;
   maxSpeedXMmPerSec?: number;
   maxSpeedYMmPerSec?: number;
+  sMax?: number;
 }
 
 export function parseLbdevProfile(text: string): LbdevImportResult {
@@ -57,6 +59,7 @@ export function parseLbdevProfile(text: string): LbdevImportResult {
   if (settings.Sim_MaxAccelY != null) result.maxAccelerationYMmPerSec2 = settings.Sim_MaxAccelY;
   if (settings.Sim_MaxSpeedX != null) result.maxSpeedXMmPerSec = settings.Sim_MaxSpeedX;
   if (settings.Sim_MaxSpeedY != null) result.maxSpeedYMmPerSec = settings.Sim_MaxSpeedY;
+  if (settings.S_Scale != null) result.sMax = settings.S_Scale;
 
   return result;
 }

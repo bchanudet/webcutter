@@ -27,7 +27,11 @@ export type TablerIconName =
   | 'player-pause'
   | 'player-stop'
   | 'arrow-badge-right'
-  | 'arrow-badge-left';
+  | 'arrow-badge-left'
+  | 'arrow-up'
+  | 'arrow-down'
+  | 'arrow-left'
+  | 'arrow-right';
 
 export type TablerIconVariant = 'outline' | 'filled';
 
@@ -221,6 +225,38 @@ export const TABLER_ICON_PATHS: Record<TablerIconName, TablerIconDefinition> = {
     variant: 'outline',
     paths: `
       <path d="M11 17h6l-4 -5l4 -5h-6l-4 5l4 5" />
+    `,
+  },
+  'arrow-up': {
+    variant: 'outline',
+    paths: `
+      <path d="M12 5l0 14" />
+      <path d="M18 11l-6 -6" />
+      <path d="M6 11l6 -6" />
+    `,
+  },
+  'arrow-down': {
+    variant: 'outline',
+    paths: `
+      <path d="M12 5l0 14" />
+      <path d="M18 13l-6 6" />
+      <path d="M6 13l6 6" />
+    `,
+  },
+  'arrow-left': {
+    variant: 'outline',
+    paths: `
+      <path d="M5 12l14 0" />
+      <path d="M5 12l6 6" />
+      <path d="M5 12l6 -6" />
+    `,
+  },
+  'arrow-right': {
+    variant: 'outline',
+    paths: `
+      <path d="M5 12l14 0" />
+      <path d="M13 18l6 -6" />
+      <path d="M13 6l6 6" />
     `,
   },
 };

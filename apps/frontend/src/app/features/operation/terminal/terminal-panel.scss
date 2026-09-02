@@ -17,27 +17,46 @@
 .terminal__log {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
+
+  // p-scroller renders its own internal markup (not projected content), so styling it from here
+  // needs ::ng-deep. Deliberately no padding on -content: it's absolutely positioned and
+  // translated per row index (translate3d(0, index * itemSize, 0)), so any padding there shifts
+  // every row away from where the library's own scroll-position math thinks it is, leaving the
+  // last row clipped even once scrolled "all the way down". Vertical breathing room instead comes
+  // from each row itself matching the fixed itemSize (see rowHeightPx) — horizontal padding on
+  // .terminal__entry is fine since it doesn't affect row height.
+  ::ng-deep .p-virtualscroller {
+    width: 100%;
+    background: var(--p-surface-100, #f1f5f9);
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8125rem;
+  }
+}
+
+.terminal__log--empty {
+  align-items: center;
+  justify-content: center;
   background: var(--p-surface-100, #f1f5f9);
   border-radius: 6px;
-  padding: 0.5rem 0.75rem;
   font-family: 'Courier New', monospace;
   font-size: 0.8125rem;
 }
 
 @media (prefers-color-scheme: dark) {
-  .terminal__log {
+  .terminal__log ::ng-deep .p-virtualscroller,
+  .terminal__log--empty {
     background: var(--p-surface-950, #09090b);
   }
 }
 
 .terminal__entry {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.5rem;
+  padding: 0 0.75rem;
   color: #16a34a;
 }
 
@@ -47,7 +66,6 @@
 
 .terminal__direction-icon {
   flex: 0 0 auto;
-  align-self: center;
 }
 
 .terminal__timestamp {
@@ -57,8 +75,9 @@
 
 .terminal__content {
   color: var(--p-text-color, inherit);
-  white-space: pre-wrap;
-  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .terminal__empty {
@@ -74,6 +93,14 @@
 
 .terminal__input {
   flex: 1;
+}
+
+.terminal__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  flex: 0 0 auto;
 }
 
 .terminal__autoscroll {
