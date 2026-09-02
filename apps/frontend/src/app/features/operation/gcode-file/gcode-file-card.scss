@@ -1,0 +1,25 @@
+:host {
+  display: block;
+}
+
+.gcode-file__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.25rem 0;
+
+  &:not(:last-child) {
+    border-bottom: 1px solid var(--p-content-border-color, #e2e8f0);
+  }
+}
+
+.gcode-file__label {
+  color: var(--p-text-muted-color, #6b7280);
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}

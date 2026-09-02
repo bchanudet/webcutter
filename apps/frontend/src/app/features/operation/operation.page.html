@@ -2,27 +2,30 @@
   <p-toolbar class="workspace__toolbar">
     <ng-template pTemplate="start">
       <div class="toolbar-actions">
-        <p-button [text]="true" [rounded]="true" title="Connect to cutter">
-          <app-tabler-icon name="plug-connected" [size]="20" />
+        <p-button [text]="true" [rounded]="true" title="Upload a G-code file" (onClick)="openFilePicker()">
+          <app-tabler-icon name="file-upload" [size]="20" />
         </p-button>
-        <p-divider layout="vertical" />
-        <p-button [text]="true" [rounded]="true" title="Home axes">
-          <app-tabler-icon name="home" [size]="20" />
-        </p-button>
-        <p-button [text]="true" [rounded]="true" title="Pause job">
-          <app-tabler-icon name="player-pause" [size]="20" />
-        </p-button>
-        <p-button [text]="true" [rounded]="true" severity="danger" title="Stop job">
-          <app-tabler-icon name="player-stop" [size]="20" />
+        <p-button
+          [text]="true"
+          [rounded]="true"
+          severity="danger"
+          title="Delete the current G-code file"
+          [disabled]="!currentGcodeFile()"
+          (onClick)="deleteGcodeFile()"
+        >
+          <app-tabler-icon name="trash-x" [size]="20" />
         </p-button>
       </div>
     </ng-template>
   </p-toolbar>
 
+  <input #fileInput type="file" accept=".gcode,.nc,.ngc,.txt" hidden (change)="onFileInputChange($event)" />
+
   <p-splitter class="workspace__splitter" layout="horizontal" [panelSizes]="[25, 75]">
     <ng-template pTemplate="panel">
       <aside class="sidebar">
         <app-machine-status-card />
+        <app-gcode-file-card />
         <app-position-card />
       </aside>
     </ng-template>

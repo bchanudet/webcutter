@@ -1,15 +1,15 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, inject, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { PrimeTemplate } from '@openng/optimus-ui/api';
 import { Button } from '@openng/optimus-ui/button';
-import { Card } from '@openng/optimus-ui/card';
-import { DividerModule } from '@openng/optimus-ui/divider';
 import { Splitter } from '@openng/optimus-ui/splitter';
 import { Tab, TabList, Tabs } from '@openng/optimus-ui/tabs';
 import { Toolbar } from '@openng/optimus-ui/toolbar';
 import { TablerIcon } from '../../shared/tabler-icon/tabler-icon';
+import { GcodeFileCard } from './gcode-file/gcode-file-card';
+import { GcodeFileService } from './gcode-file/gcode-file.service';
 import { MachineStatusCard } from './machine-status/machine-status-card';
 import { PositionCard } from './position/position-card';
 
@@ -20,8 +20,7 @@ type OperationTab = 'gcode' | 'terminal';
   imports: [
     PrimeTemplate,
     Button,
-    Card,
-    DividerModule,
+    GcodeFileCard,
     MachineStatusCard,
     PositionCard,
     RouterOutlet,
@@ -38,6 +37,10 @@ type OperationTab = 'gcode' | 'terminal';
 })
 export class OperationPage {
   private readonly router = inject(Router);
+  private readonly gcodeFile = inject(GcodeFileService);
+  private readonly fileInput = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
+
+  protected readonly currentGcodeFile = this.gcodeFile.current;
 
   /** Which tab is active, derived from the URL — kept in sync with `/operation/gcode` and
    * `/operation/terminal` so navigating directly to either activates the matching tab. */
@@ -56,5 +59,23 @@ export class OperationPage {
 
   protected navigateToTab(tab: OperationTab): void {
     this.router.navigate(['/operation', tab]);
+  }
+
+  protected openFilePicker(): void {
+    this.fileInput().nativeElement.click();
+  }
+
+  protected onFileInputChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) {
+      return;
+    }
+    this.gcodeFile.upload(file);
+  }
+
+  protected deleteGcodeFile(): void {
+    this.gcodeFile.delete();
   }
 }

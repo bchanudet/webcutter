@@ -35,6 +35,19 @@
         <p-button [text]="true" [rounded]="true" title="Redo" [disabled]="!canRedo()" (onClick)="redo()">
           <app-tabler-icon name="arrow-right-dashed" [size]="20" />
         </p-button>
+        <p-divider layout="vertical"/>
+        <p-overlayBadge severity="danger" [badgeDisabled]="!hasCheckErrors()">
+          <p-button
+            [text]="true"
+            [rounded]="true"
+            title="Download G-code"
+            [disabled]="documents().length === 0 || downloadingGcode()"
+            [loading]="downloadingGcode()"
+            (onClick)="downloadGeneratedGcode()"
+          >
+            <app-tabler-icon name="code-circle" [size]="20" />
+          </p-button>
+        </p-overlayBadge>
         </div>
     </ng-template>
     <ng-template pTemplate="end">

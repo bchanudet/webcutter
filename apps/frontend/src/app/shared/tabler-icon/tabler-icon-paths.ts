@@ -15,6 +15,7 @@ export type TablerIconName =
   | 'arrow-right-dashed'
   | 'adjustments-horizontal'
   | 'code'
+  | 'code-circle'
   | 'building-factory-2'
   | 'settings'
   | 'file-scissors'
@@ -131,6 +132,14 @@ export const TABLER_ICON_PATHS: Record<TablerIconName, TablerIconDefinition> = {
       <path d="M7 8l-4 4l4 4" />
       <path d="M17 8l4 4l-4 4" />
       <path d="M14 4l-4 16" />
+    `,
+  },
+  'code-circle': {
+    variant: 'outline',
+    paths: `
+      <path d="M10 14l-2 -2l2 -2" />
+      <path d="M14 10l2 2l-2 2" />
+      <path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
     `,
   },
   'building-factory-2': {

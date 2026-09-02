@@ -1,0 +1,22 @@
+@if (file(); as file) {
+  <p-card header="Gcode file" class="gcode-file">
+    <div class="gcode-file__row">
+      <span class="gcode-file__label">Name</span>
+      <span class="gcode-file__value">{{ file.fileName }}</span>
+    </div>
+    <div class="gcode-file__row">
+      <span class="gcode-file__label">Size</span>
+      <span class="gcode-file__value">{{ formatFileSize(file.sizeBytes) }}</span>
+    </div>
+    <div class="gcode-file__row">
+      <span class="gcode-file__label">Commands</span>
+      <span class="gcode-file__value">{{ file.commandCount }}</span>
+    </div>
+
+    <div class="actions">
+      <!-- Not wired up yet — job streaming to the cutter doesn't exist yet. -->
+      <p-button label="Start" />
+      <p-button label="Frame" [outlined]="true" />
+    </div>
+  </p-card>
+}

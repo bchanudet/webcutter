@@ -17,6 +17,7 @@ import { ContextMenu } from '@openng/optimus-ui/contextmenu';
 import { InputNumber } from '@openng/optimus-ui/inputnumber';
 import { DividerModule } from "@openng/optimus-ui/divider";
 import { Message } from '@openng/optimus-ui/message';
+import { OverlayBadge } from '@openng/optimus-ui/overlaybadge';
 import { Select } from '@openng/optimus-ui/select';
 import { Splitter } from '@openng/optimus-ui/splitter';
 import { Toolbar } from '@openng/optimus-ui/toolbar';
@@ -35,7 +36,7 @@ import {
   SvgTreeNodeData,
   groupSubpathsIntoEntities,
 } from './svg-flattener.service';
-import { WorkspaceCheckApiService, WorkspaceCheckError } from './workspace-check-api.service';
+import { WorkspaceApiService, WorkspaceCheckError } from './workspace-api.service';
 
 /** Just the display-scale control now — g-code generation moved to the backend, which will take
  * the exported workspace SVG (see docs/workspace-svg-format.md) rather than live form params. */
@@ -156,6 +157,7 @@ interface PersistedWorkspaceState {
     InputNumber,
     DividerModule,
     Message,
+    OverlayBadge,
     Select,
     Splitter,
     Toolbar,
@@ -170,7 +172,7 @@ export class SvgToGcodePage {
   private readonly flattener = inject(SvgFlattenerService);
   private readonly materialsApi = inject(MaterialsApiService);
   private readonly machineApi = inject(MachineApiService);
-  private readonly workspaceCheckApi = inject(WorkspaceCheckApiService);
+  private readonly workspaceApi = inject(WorkspaceApiService);
 
   private readonly fileInput = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
   private readonly svgCanvas = viewChild.required<ElementRef<SVGSVGElement>>('svgCanvas');
@@ -228,8 +230,10 @@ export class SvgToGcodePage {
   protected readonly errorMessage = signal<string | null>(null);
 
   protected readonly checking = signal(false);
+  protected readonly downloadingGcode = signal(false);
   protected readonly checkErrors = signal<WorkspaceCheckError[] | null>(null);
   protected readonly checkFailureMessage = signal<string | null>(null);
+  protected readonly hasCheckErrors = computed(() => (this.checkErrors()?.length ?? 0) > 0);
 
   protected readonly materials = signal<Material[]>([]);
   protected readonly selectedMaterialId = signal<number | null>(null);
@@ -1332,7 +1336,7 @@ export class SvgToGcodePage {
 
     this.checking.set(true);
     this.checkFailureMessage.set(null);
-    this.workspaceCheckApi.check(this.buildWorkspaceSvg()).subscribe({
+    this.workspaceApi.check(this.buildWorkspaceSvg()).subscribe({
       next: ({ errors }) => {
         this.checkErrors.set(errors);
         this.checking.set(false);
@@ -1343,6 +1347,34 @@ export class SvgToGcodePage {
           (error as { error?: { message?: string } })?.error?.message ?? 'La vérification a échoué.',
         );
         this.checking.set(false);
+      },
+    });
+  }
+
+  /** Toolbar "download g-code" action: generates the workspace SVG, sends it to the backend. A
+   * workspace with rule violations downloads nothing — the violations surface as the toolbar
+   * button's danger badge and in the "Errors" card below, exactly like `checkWorkspace()`. */
+  protected downloadGeneratedGcode(): void {
+    if (this.documents().length === 0) {
+      return;
+    }
+
+    this.downloadingGcode.set(true);
+    this.checkFailureMessage.set(null);
+    this.workspaceApi.generate(this.buildWorkspaceSvg()).subscribe({
+      next: ({ errors, gcode }) => {
+        this.checkErrors.set(errors);
+        this.downloadingGcode.set(false);
+        if (errors.length === 0 && gcode) {
+          this.downloadTextFile(gcode, 'workspace.gcode', 'text/plain');
+        }
+      },
+      error: (error: unknown) => {
+        this.checkErrors.set(null);
+        this.checkFailureMessage.set(
+          (error as { error?: { message?: string } })?.error?.message ?? 'La génération du G-code a échoué.',
+        );
+        this.downloadingGcode.set(false);
       },
     });
   }
