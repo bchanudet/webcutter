@@ -1,28 +1,32 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { Observable } from 'rxjs';
+import { CutterSocketService } from '../machine-status/cutter-socket.service';
 import { GcodeFileInfo } from './gcode-file.model';
 
 /** The single G-code file currently uploaded and ready to be sent to the cutter (Operation page).
- * Kept as shared state (rather than fetched separately by each consumer) so the toolbar's
- * upload/delete actions and the sidebar's "gcode file" card stay in sync. */
+ * `current` mirrors `CutterSocketService.gcodeFile` — broadcast by the backend to every connected
+ * browser whenever the file changes — rather than being fetched or held locally here, so every
+ * browser on the Operation page stays in sync. */
 @Injectable({ providedIn: 'root' })
 export class GcodeFileService {
   private readonly http = inject(HttpClient);
+  private readonly cutterSocket = inject(CutterSocketService);
   private readonly baseUrl = '/api/gcode-file';
 
-  readonly current = signal<GcodeFileInfo | null>(null);
+  readonly current = this.cutterSocket.gcodeFile;
 
-  constructor() {
-    this.http.get<GcodeFileInfo | null>(this.baseUrl).subscribe((file) => this.current.set(file));
-  }
-
-  upload(file: File): void {
+  /** Returns an observable (rather than subscribing internally) so a caller — e.g. the Gcode
+   * page's "Send to Operation" — can chain work (like navigating away) onto the upload actually
+   * completing, instead of firing it off blind. `current` updates once the server broadcasts the
+   * change back over the WebSocket, not directly from this response. */
+  upload(file: File): Observable<GcodeFileInfo> {
     const formData = new FormData();
     formData.append('file', file);
-    this.http.post<GcodeFileInfo>(this.baseUrl, formData).subscribe((info) => this.current.set(info));
+    return this.http.post<GcodeFileInfo>(this.baseUrl, formData);
   }
 
   delete(): void {
-    this.http.delete<void>(this.baseUrl).subscribe(() => this.current.set(null));
+    this.cutterSocket.deleteGcodeFile();
   }
 }

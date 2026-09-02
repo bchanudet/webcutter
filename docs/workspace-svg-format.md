@@ -194,3 +194,19 @@ tous les sous-tracés du path, et les intersections triées sont appariées deux
 ce qui exclut nativement les trous (sous-tracés imbriqués) sans traitement particulier. Chaque
 segment de hachurage est parcouru comme une ligne indépendante (`G0`/`M4`/`G1`/`M5`), et les
 lignes de balayage successives alternent de sens pour limiter les déplacements à vide.
+
+## Point d'entrée "Send to Operation" (`POST /api/workspace/send-to-operation`)
+
+Même corps que `/check` et `/generate` (`{ "svg": "<...>" }`) et mêmes règles de validation —
+`WorkspaceSendToOperationController` (`apps/backend/src/app/workspace/`) appelle directement
+`WorkspaceGcodeGeneratorService.generate()` et, seulement si `errors` est vide, stocke le G-code
+obtenu via `GcodeFileService.save()` (`apps/backend/src/app/gcode-file/`) : c'est le **même
+service** que celui utilisé par l'upload manuel de l'onglet Operation, donc le fichier généré
+devient immédiatement le "fichier G-code courant" de l'onglet Operation, et déclenche la même
+diffusion WebSocket (`CutterGateway` écoute l'évènement `changed` de `GcodeFileService`) vers tous
+les navigateurs connectés — sans que le G-code n'ait jamais à transiter par le navigateur qui a
+fait la demande (contrairement à `/generate`, dont la réponse contient le G-code en clair).
+
+Réponse : `{ "errors": [...], "file": ... }` — si `errors` n'est pas vide, `file` vaut `null` et
+rien n'est stocké. Sinon, `file` est le `GcodeFileInfo` (`fileName`, `sizeBytes`, `commandCount`)
+du fichier désormais actif, identique à ce que renvoie l'upload manuel.

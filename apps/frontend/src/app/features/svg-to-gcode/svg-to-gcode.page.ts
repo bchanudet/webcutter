@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import { MenuItem, PrimeTemplate, TreeNode } from '@openng/optimus-ui/api';
 import { Button } from '@openng/optimus-ui/button';
 import { Card } from '@openng/optimus-ui/card';
@@ -173,6 +174,7 @@ export class SvgToGcodePage {
   private readonly materialsApi = inject(MaterialsApiService);
   private readonly machineApi = inject(MachineApiService);
   private readonly workspaceApi = inject(WorkspaceApiService);
+  private readonly router = inject(Router);
 
   private readonly fileInput = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
   private readonly svgCanvas = viewChild.required<ElementRef<SVGSVGElement>>('svgCanvas');
@@ -231,6 +233,7 @@ export class SvgToGcodePage {
 
   protected readonly checking = signal(false);
   protected readonly downloadingGcode = signal(false);
+  protected readonly sendingToOperation = signal(false);
   protected readonly checkErrors = signal<WorkspaceCheckError[] | null>(null);
   protected readonly checkFailureMessage = signal<string | null>(null);
   protected readonly hasCheckErrors = computed(() => (this.checkErrors()?.length ?? 0) > 0);
@@ -1375,6 +1378,37 @@ export class SvgToGcodePage {
           (error as { error?: { message?: string } })?.error?.message ?? 'La génération du G-code a échoué.',
         );
         this.downloadingGcode.set(false);
+      },
+    });
+  }
+
+  /** Toolbar "Send to Operation" action: the backend generates the g-code and stores it as the
+   * current Operation file directly (`POST /api/workspace/send-to-operation`) — the g-code itself
+   * never round-trips through the browser as a download-then-reupload would. The existing
+   * WebSocket broadcast picks up the change on the Operation page on its own; this only needs to
+   * navigate there once storage is confirmed. A workspace with rule violations sends nothing; the
+   * violations surface in the "Errors" card, same as the other two actions. */
+  protected sendToOperation(): void {
+    if (this.documents().length === 0) {
+      return;
+    }
+
+    this.sendingToOperation.set(true);
+    this.checkFailureMessage.set(null);
+    this.workspaceApi.sendToOperation(this.buildWorkspaceSvg()).subscribe({
+      next: ({ errors, file }) => {
+        this.checkErrors.set(errors);
+        this.sendingToOperation.set(false);
+        if (errors.length === 0 && file) {
+          this.router.navigate(['/operation']);
+        }
+      },
+      error: (error: unknown) => {
+        this.checkErrors.set(null);
+        this.checkFailureMessage.set(
+          (error as { error?: { message?: string } })?.error?.message ?? "L'envoi vers Operation a échoué.",
+        );
+        this.sendingToOperation.set(false);
       },
     });
   }

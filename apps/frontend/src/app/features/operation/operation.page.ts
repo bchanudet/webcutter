@@ -72,7 +72,7 @@ export class OperationPage {
     if (!file) {
       return;
     }
-    this.gcodeFile.upload(file);
+    this.gcodeFile.upload(file).subscribe();
   }
 
   protected deleteGcodeFile(): void {

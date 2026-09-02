@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CutterController } from './cutter/cutter.controller';
 import { CutterGateway } from './cutter/cutter.gateway';
+import { FramingService } from './cutter/framing.service';
 import { GcodeFileModule } from './gcode-file/gcode-file.module';
 import { GcodeModule } from './gcode/gcode.module';
 import { MachineModule } from './machine/machine.module';
@@ -27,6 +28,6 @@ import { WorkspaceModule } from './workspace/workspace.module';
     WorkspaceModule,
   ],
   controllers: [AppController, CutterController],
-  providers: [AppService, CutterGateway],
+  providers: [AppService, CutterGateway, FramingService],
 })
 export class AppModule {}

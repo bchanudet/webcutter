@@ -7,7 +7,9 @@ export type GrblMachineState =
   | 'Door'
   | 'Check'
   | 'Home'
-  | 'Sleep';
+  | 'Sleep'
+  // Synthetic state, never reported by GRBL itself — see the backend's `CutterGateway.applyFramingOverride`.
+  | 'Framing';
 
 export interface GrblPosition {
   x: number;

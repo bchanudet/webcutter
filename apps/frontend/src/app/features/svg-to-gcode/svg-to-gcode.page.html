@@ -48,6 +48,16 @@
             <app-tabler-icon name="code-circle" [size]="20" />
           </p-button>
         </p-overlayBadge>
+        <p-button
+          [text]="true"
+          [rounded]="true"
+          title="Send to Operation"
+          [disabled]="documents().length === 0 || sendingToOperation()"
+          [loading]="sendingToOperation()"
+          (onClick)="sendToOperation()"
+        >
+          <app-tabler-icon name="building-factory-2" [size]="20" />
+        </p-button>
         </div>
     </ng-template>
     <ng-template pTemplate="end">

@@ -15,8 +15,14 @@
 
     <div class="actions">
       <!-- Not wired up yet — job streaming to the cutter doesn't exist yet. -->
-      <p-button label="Start" />
-      <p-button label="Frame" [outlined]="true" />
+      <p-button label="Start" [disabled]="!connected()" />
+      <p-button
+        [label]="framing() ? 'Stop' : 'Frame'"
+        [severity]="framing() ? 'danger' : undefined"
+        [outlined]="!framing()"
+        [disabled]="!connected()"
+        (onClick)="toggleFrame()"
+      />
     </div>
   </p-card>
 }

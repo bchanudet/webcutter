@@ -19,6 +19,7 @@ const GRBL_STATE_LABELS: Record<GrblMachineState, string> = {
   Check: 'Check mode',
   Home: 'Homing',
   Sleep: 'Sleep',
+  Framing: 'Framing',
 };
 
 const GRBL_STATE_SEVERITIES: Record<GrblMachineState, StatusSeverity> = {
@@ -31,6 +32,7 @@ const GRBL_STATE_SEVERITIES: Record<GrblMachineState, StatusSeverity> = {
   Check: 'secondary',
   Home: 'info',
   Sleep: 'secondary',
+  Framing: 'warn',
 };
 
 @Component({

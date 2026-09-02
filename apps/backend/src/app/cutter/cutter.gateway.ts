@@ -9,18 +9,25 @@ import {
 } from '@nestjs/websockets';
 import { CutterCommunicationService, GrblStatus } from '@webcutter/cutter-communication';
 import { Server, WebSocket } from 'ws';
+import { GcodeFileInfo, GcodeFileService } from '../gcode-file/gcode-file.service';
 import { MachineService } from '../machine/machine.service';
 import { MachineStatusPayload, SerialMessageDirection, SerialMessagePayload } from './cutter-ws.types';
+import { FramingService } from './framing.service';
 
 /** How often GRBL's own status ("Idle"/"Run"/"Home"/...) is polled and re-broadcast while the
  * machine is connected — no-op (and no serial traffic) while disconnected. */
 const STATUS_POLL_INTERVAL_MS = 1000;
 
-/** Real-time channel for the cutter's connection lifecycle, status and raw serial traffic,
- * alongside the existing REST endpoints on `CutterController`.
- * Client -> server: `connect`, `disconnect`, `sendCommand`.
- * Server -> client: `status` (broadcast whenever it changes), `serial` (broadcast for every byte
- * sequence written to or read from the cutter — feeds the Operation page's Terminal tab). */
+/** Real-time channel for the cutter's connection lifecycle, status, raw serial traffic and the
+ * currently uploaded G-code file, alongside the existing REST endpoints on `CutterController` and
+ * `GcodeFileController`.
+ * Client -> server: `connect`, `disconnect`, `sendCommand`, `deleteGcodeFile`, `startFrame`,
+ * `stopFrame`.
+ * Server -> client: `status` (broadcast whenever it changes — reports a synthetic "Framing" state
+ * while `FramingService` is running, see `applyFramingOverride`), `serial` (broadcast for every
+ * byte sequence written to or read from the cutter — feeds the Operation page's Terminal tab),
+ * `gcodeFile` (broadcast whenever the uploaded G-code file changes, so every browser on the
+ * Operation page shows the same file). */
 @WebSocketGateway({ path: '/api/ws/cutter' })
 export class CutterGateway
   implements OnGatewayInit<Server>, OnGatewayConnection<WebSocket>, OnModuleDestroy
@@ -36,6 +43,8 @@ export class CutterGateway
   constructor(
     private readonly cutterCommunication: CutterCommunicationService,
     private readonly machineService: MachineService,
+    private readonly gcodeFileService: GcodeFileService,
+    private readonly framingService: FramingService,
   ) {
     this.cutterCommunication.on('sent', (raw: string) => this.broadcastSerialMessage('sent', raw));
     this.cutterCommunication.on('received', (raw: string) =>
@@ -44,6 +53,10 @@ export class CutterGateway
     // Broadcasts the alarm-locked status immediately rather than waiting for the next poll tick
     // (up to STATUS_POLL_INTERVAL_MS later) — this is safety-relevant feedback.
     this.cutterCommunication.on('alarm', () => void this.pollAndBroadcastStatus(true));
+    this.gcodeFileService.on('changed', (info: GcodeFileInfo | null) => this.broadcastGcodeFile(info));
+    // Same reasoning as 'alarm' above: framing starting/stopping should reach every client right
+    // away, not on the next poll tick.
+    this.framingService.on('changed', () => void this.pollAndBroadcastStatus(true));
   }
 
   afterInit(): void {
@@ -56,11 +69,12 @@ export class CutterGateway
     }
   }
 
-  /** A freshly connected client has no way to know the current status yet — send it directly,
-   * bypassing the broadcast dedupe so it doesn't depend on the next status change. */
+  /** A freshly connected client has no way to know the current status or G-code file yet — send
+   * both directly, bypassing the broadcast dedupe so they don't depend on the next change. */
   async handleConnection(client: WebSocket): Promise<void> {
     const payload = await this.buildStatusPayload();
     this.sendTo(client, payload);
+    this.sendGcodeFileTo(client, this.gcodeFileService.get());
   }
 
   @SubscribeMessage('connect')
@@ -109,6 +123,23 @@ export class CutterGateway
     }
   }
 
+  @SubscribeMessage('deleteGcodeFile')
+  handleDeleteGcodeFileMessage(): void {
+    this.gcodeFileService.delete();
+  }
+
+  /** Not awaited — `start()` only resolves once framing actually stops, and the gateway shouldn't
+   * block handling other messages (e.g. `stopFrame`) until then. */
+  @SubscribeMessage('startFrame')
+  handleStartFrameMessage(): void {
+    void this.framingService.start();
+  }
+
+  @SubscribeMessage('stopFrame')
+  handleStopFrameMessage(): void {
+    this.framingService.stop();
+  }
+
   private broadcastSerialMessage(direction: SerialMessageDirection, raw: string): void {
     const payload: SerialMessagePayload = {
       direction,
@@ -134,7 +165,7 @@ export class CutterGateway
     }
     try {
       const grbl = await this.cutterCommunication.getStatus();
-      return { connected: true, grbl: this.applyAlarmLatch(grbl) };
+      return { connected: true, grbl: this.applyFramingOverride(this.applyAlarmLatch(grbl)) };
     } catch {
       return {
         connected: true,
@@ -153,6 +184,15 @@ export class CutterGateway
     return { ...grbl, state: 'Alarm' };
   }
 
+  /** Forces the reported state to "Framing" while `FramingService` is tracing the current G-code
+   * file's bounding box — a real alarm (checked first) always takes priority over this. */
+  private applyFramingOverride(grbl: GrblStatus): GrblStatus {
+    if (grbl.state === 'Alarm' || !this.framingService.isFraming) {
+      return grbl;
+    }
+    return { ...grbl, state: 'Framing' };
+  }
+
   private broadcast(json: string): void {
     for (const client of this.server.clients) {
       if (client.readyState === client.OPEN) {
@@ -164,6 +204,16 @@ export class CutterGateway
   private sendTo(client: WebSocket, payload: MachineStatusPayload): void {
     if (client.readyState === client.OPEN) {
       client.send(JSON.stringify({ event: 'status', data: payload }));
+    }
+  }
+
+  private broadcastGcodeFile(info: GcodeFileInfo | null): void {
+    this.broadcast(JSON.stringify({ event: 'gcodeFile', data: info }));
+  }
+
+  private sendGcodeFileTo(client: WebSocket, info: GcodeFileInfo | null): void {
+    if (client.readyState === client.OPEN) {
+      client.send(JSON.stringify({ event: 'gcodeFile', data: info }));
     }
   }
 }
