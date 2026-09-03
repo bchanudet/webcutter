@@ -21,11 +21,15 @@ export class CutterSocketService implements OnDestroy {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private destroyed = false;
 
-  readonly status = signal<MachineStatusPayload>({ connected: false, grbl: null });
+  readonly status = signal<MachineStatusPayload>({ connected: false, grbl: null, connectionError: null });
   readonly serialMessages$ = new Subject<SerialMessagePayload>();
   /** The G-code file currently uploaded, kept in sync across every browser on the Operation page —
    * pushed by the server on connect and on every change (upload/delete), not fetched over REST. */
   readonly gcodeFile = signal<GcodeFileInfo | null>(null);
+  /** Whether the *browser's own* WebSocket to the backend is currently open — distinct from
+   * `status().connected`, which is whether the *backend* is connected to the cutter's serial port.
+   * `false` means every other signal here is stale until reconnection succeeds. */
+  readonly wsConnected = signal(false);
 
   constructor() {
     this.open();
@@ -67,8 +71,12 @@ export class CutterSocketService implements OnDestroy {
   private open(): void {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/cutter`);
+    socket.addEventListener('open', () => this.wsConnected.set(true));
     socket.addEventListener('message', (event) => this.handleMessage(event));
-    socket.addEventListener('close', () => this.scheduleReconnect());
+    socket.addEventListener('close', () => {
+      this.wsConnected.set(false);
+      this.scheduleReconnect();
+    });
     socket.addEventListener('error', () => socket.close());
     this.socket = socket;
   }

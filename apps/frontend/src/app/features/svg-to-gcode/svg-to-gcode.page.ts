@@ -8,8 +8,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MenuItem, PrimeTemplate, TreeNode } from '@openng/optimus-ui/api';
 import { Button } from '@openng/optimus-ui/button';
@@ -39,13 +38,9 @@ import {
   groupSubpathsIntoEntities,
 } from './svg-flattener.service';
 import { TestPatternDialog, TestPatternParams } from './test-pattern-dialog';
+import { TestPatternGeneratorService } from './test-pattern-generator.service';
 import { WorkspaceApiService, WorkspaceCheckError } from './workspace-api.service';
-
-/** Just the display-scale control now — g-code generation moved to the backend, which will take
- * the exported workspace SVG (see docs/workspace-svg-format.md) rather than live form params. */
-interface DisplayScaleForm {
-  targetWidthMm: FormControl<number>;
-}
+import { SVG_NS, WEBCUTTER_NS } from './workspace-svg-constants';
 
 /** A 2D affine transform, stored as the standard SVG `matrix(a b c d e f)` components. */
 interface AffineMatrix {
@@ -73,10 +68,6 @@ function multiplyMatrices(m1: AffineMatrix, m2: AffineMatrix): AffineMatrix {
 
 function translateMatrix(tx: number, ty: number): AffineMatrix {
   return { a: 1, b: 0, c: 0, d: 1, e: tx, f: ty };
-}
-
-function scaleMatrix(s: number): AffineMatrix {
-  return { a: s, b: 0, c: 0, d: s, e: 0, f: 0 };
 }
 
 function rotateMatrix(angleDeg: number, cx: number, cy: number): AffineMatrix {
@@ -109,9 +100,6 @@ interface WorkspaceDocument {
 const WORKSPACE_STORAGE_KEY = 'webcutter.svg-to-gcode.workspace';
 const MAX_HISTORY_ENTRIES = 20;
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
-/** Namespace for the <webcutter> export metadata block — see docs/workspace-svg-format.md. */
-const WEBCUTTER_NS = 'https://webcutter.infogones.com/ns/workspace';
 /** Stroke color for a shape with no assigned profile, in the exported SVG — the viewer instead
  * uses `var(--p-primary-color, #FF7300)`, which a standalone file can't resolve. */
 const DEFAULT_SHAPE_COLOR = '#FF7300';
@@ -145,7 +133,6 @@ interface PersistedWorkspaceState {
   groupProfileAssignments?: [string, GroupProfileAssignment][];
   groupTransforms?: [string, AffineMatrix][];
   shapeOffsets?: [string, FlattenedSubpath[]][];
-  form?: { targetWidthMm: number };
   importedMaterials?: [string, ParsedWorkspaceMaterial][];
   importedProfiles?: [string, Profile][];
 }
@@ -172,7 +159,6 @@ interface ParsedWorkspaceImport {
 @Component({
   selector: 'app-svg-to-gcode-page',
   imports: [
-    ReactiveFormsModule,
     FormsModule,
     PrimeTemplate,
     AddTextDialog,
@@ -199,6 +185,7 @@ export class SvgToGcodePage {
   private readonly materialsApi = inject(MaterialsApiService);
   private readonly machineApi = inject(MachineApiService);
   private readonly workspaceApi = inject(WorkspaceApiService);
+  private readonly testPatternGenerator = inject(TestPatternGeneratorService);
   private readonly router = inject(Router);
 
   private readonly fileInput = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
@@ -269,6 +256,9 @@ export class SvgToGcodePage {
   protected readonly checkErrors = signal<WorkspaceCheckError[] | null>(null);
   protected readonly checkFailureMessage = signal<string | null>(null);
   protected readonly hasCheckErrors = computed(() => (this.checkErrors()?.length ?? 0) > 0);
+
+  protected readonly generatingTestPattern = signal(false);
+  protected readonly testPatternErrorMessage = signal<string | null>(null);
 
   protected readonly materials = signal<Material[]>([]);
   protected readonly selectedMaterialId = signal<string | null>(null);
@@ -629,12 +619,19 @@ export class SvgToGcodePage {
       (profile) => profile.materialId === materialId && !knownIds.has(profile.id),
     );
   });
-
-  protected readonly form = new FormGroup<DisplayScaleForm>({
-    targetWidthMm: new FormControl(100, {
-      nonNullable: true,
-      validators: [Validators.required, Validators.min(1)],
-    }),
+  /** Profile id(s) assigned to whichever group(s) are currently selected — lets the sidebar
+   * highlight the matching entry in `profiles()`/`missingProfiles()` when a shape is clicked, so
+   * the user can immediately see (and re-click to change) which profile it's already using. */
+  protected readonly selectedProfileIds = computed(() => {
+    const assignments = this.groupProfileAssignments();
+    const ids = new Set<string>();
+    for (const key of this.selectedGroupKeys()) {
+      const assignment = assignments.get(key);
+      if (assignment) {
+        ids.add(assignment.profileId);
+      }
+    }
+    return ids;
   });
 
   constructor() {
@@ -661,8 +658,6 @@ export class SvgToGcodePage {
       const height = this.surfaceHeightMm();
       this.viewBox.set({ x: 0, y: 0, width, height });
     });
-
-    this.form.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.persistState());
   }
 
   /** Restores the workspace saved by `persistState()`, if any — SVG sources are re-flattened
@@ -724,10 +719,6 @@ export class SvgToGcodePage {
     this.importedMaterials.set(new Map(state.importedMaterials ?? []));
     this.importedProfiles.set(new Map(state.importedProfiles ?? []));
 
-    if (state.form) {
-      this.form.reset(state.form);
-    }
-
     if (state.selectedGroupKeys?.length) {
       const keys = new Set(state.selectedGroupKeys);
       this.selectedNodes.set(
@@ -750,7 +741,6 @@ export class SvgToGcodePage {
       groupProfileAssignments: [...this.groupProfileAssignments().entries()],
       groupTransforms: [...this.groupTransforms().entries()],
       shapeOffsets: [...this.shapeOffsets().entries()],
-      form: this.form.getRawValue(),
       importedMaterials: [...this.importedMaterials().entries()],
       importedProfiles: [...this.importedProfiles().entries()],
     };
@@ -822,9 +812,41 @@ export class SvgToGcodePage {
     this.testPatternDialog().open();
   }
 
-  /** Placeholder for the "Generate" button — what it actually builds isn't implemented yet. */
+  /** "Generate" in the test pattern dialog: builds a grid-of-shapes workspace SVG (see
+   * `TestPatternGeneratorService`) sized to the machine's own cutting surface, then wipes the
+   * *entire* current workspace via `reset()` (including the temporary material/profile bookkeeping
+   * — a previous pattern's now-irrelevant temporary profiles shouldn't keep piling up across
+   * repeated generations) and loads that pattern in its place. */
   protected onGenerateTestPattern(params: TestPatternParams): void {
-    void params;
+    const material = this.materials().find((candidate) => candidate.id === params.materialId);
+    if (!material) {
+      this.testPatternErrorMessage.set('Select a material first.');
+      return;
+    }
+
+    this.generatingTestPattern.set(true);
+    this.testPatternErrorMessage.set(null);
+    this.testPatternGenerator
+      .generate({
+        ...params,
+        material,
+        surfaceWidthMm: this.surfaceWidthMm(),
+        surfaceHeightMm: this.surfaceHeightMm(),
+      })
+      .subscribe({
+        next: (svg) => {
+          this.generatingTestPattern.set(false);
+          this.reset();
+          this.addDocumentFromSource(svg, 'Test pattern');
+          this.testPatternDialog().close();
+        },
+        error: (error: unknown) => {
+          this.generatingTestPattern.set(false);
+          this.testPatternErrorMessage.set(
+            error instanceof Error ? error.message : 'Could not generate the test pattern.',
+          );
+        },
+      });
   }
 
   /** Resets the pan/zoom camera back to framing the whole bed. */
@@ -871,11 +893,7 @@ export class SvgToGcodePage {
       treeNode: result.tree,
     };
 
-    const isFirstDocument = this.documents().length === 0;
     this.documents.update((docs) => [...docs, workspaceDocument]);
-    if (isFirstDocument) {
-      this.form.controls.targetWidthMm.setValue(Math.round(result.width) || 100);
-    }
 
     if (workspaceImport) {
       this.applyWorkspaceImportMetadata(workspaceImport, result.shapes);
@@ -1036,14 +1054,6 @@ export class SvgToGcodePage {
     });
   }
 
-  /** Scale factor from a document's own units to the millimeters shown on the grid. */
-  protected previewScaleFor(document: WorkspaceDocument): number {
-    if (document.width <= 0) {
-      return 1;
-    }
-    return this.form.controls.targetWidthMm.value / document.width;
-  }
-
   /** Builds a single <path d> covering every subpath of the shape (e.g. an outer outline plus
    * an inner hole), so it can be rendered with fill-rule="evenodd" and get real holes. */
   protected shapePathData(shape: FlattenedShape): string {
@@ -1196,11 +1206,11 @@ export class SvgToGcodePage {
     return inside;
   }
 
-  /** Combines a shape's own document scale with its group's current move/rotate transform. */
-  protected shapeTransform(shape: FlattenedShape, document: WorkspaceDocument): string {
-    const group = this.groupTransforms().get(shape.groupKey) ?? IDENTITY_MATRIX;
-    const scale = this.previewScaleFor(document);
-    return matrixToAttr(multiplyMatrices(group, scaleMatrix(scale)));
+  /** A shape's group's current move/rotate transform — documents are always imported at a 1:1 mm
+   * scale (see docs/workspace-svg-format.md), so there is no separate document-level scale to
+   * combine it with. */
+  protected shapeTransform(shape: FlattenedShape): string {
+    return matrixToAttr(this.groupTransforms().get(shape.groupKey) ?? IDENTITY_MATRIX);
   }
 
   /** Starts dragging the current selection when the user presses down on one of its shapes. */
@@ -1276,18 +1286,12 @@ export class SvgToGcodePage {
       const currentAngleDeg = (Math.atan2(current.y - drag.pivot.y, current.x - drag.pivot.x) * 180) / Math.PI;
       step = rotateMatrix(currentAngleDeg - drag.startAngleDeg, drag.pivot.x, drag.pivot.y);
     } else if (drag.bbox) {
-      const dx = this.clampDelta(
-        current.x - drag.startPoint.x,
-        drag.bbox.minX,
-        drag.bbox.maxX,
-        this.surfaceWidthMm(),
-      );
-      const dy = this.clampDelta(
-        current.y - drag.startPoint.y,
-        drag.bbox.minY,
-        drag.bbox.maxY,
-        this.surfaceHeightMm(),
-      );
+      // Not clamped to the bed: an imported SVG can be (and often is) larger than the cutting
+      // surface, in which case forcing its bounding box to stay fully inside would make it
+      // impossible to move at all — `WorkspaceCheckService` is what actually enforces staying
+      // within bounds, at "Check"/generation time.
+      const dx = current.x - drag.startPoint.x;
+      const dy = current.y - drag.startPoint.y;
       step = translateMatrix(dx, dy);
     } else {
       return;
@@ -1365,16 +1369,6 @@ export class SvgToGcodePage {
     this.applySnapshot(next);
     this.updateUndoRedoAvailability();
     this.persistState();
-  }
-
-  /** Clamps a drag delta so the dragged bounding box [min, max] stays within [0, limit]. */
-  private clampDelta(delta: number, min: number, max: number, limit: number): number {
-    const minDelta = -min;
-    const maxDelta = limit - max;
-    if (minDelta > maxDelta) {
-      return 0;
-    }
-    return Math.min(Math.max(delta, minDelta), maxDelta);
   }
 
   /** Converts a client (screen) point to mm-space, accounting for the current pan/zoom. */
@@ -1484,15 +1478,11 @@ export class SvgToGcodePage {
     let found = false;
 
     for (const document of this.documents()) {
-      const scale = this.previewScaleFor(document);
       for (const shape of document.shapes) {
         if (!groupKeys.has(shape.groupKey)) {
           continue;
         }
-        const matrix = multiplyMatrices(
-          this.groupTransforms().get(shape.groupKey) ?? IDENTITY_MATRIX,
-          scaleMatrix(scale),
-        );
+        const matrix = this.groupTransforms().get(shape.groupKey) ?? IDENTITY_MATRIX;
         for (const subpath of this.effectiveSubpaths(shape)) {
           for (const point of subpath.points) {
             found = true;
@@ -1515,7 +1505,6 @@ export class SvgToGcodePage {
     groupKey: string,
   ): { minX: number; minY: number; maxX: number; maxY: number } | null {
     for (const document of this.documents()) {
-      const scale = this.previewScaleFor(document);
       let minX = Infinity;
       let minY = Infinity;
       let maxX = -Infinity;
@@ -1529,12 +1518,10 @@ export class SvgToGcodePage {
         for (const subpath of this.effectiveSubpaths(shape)) {
           for (const point of subpath.points) {
             found = true;
-            const x = point.x * scale;
-            const y = point.y * scale;
-            minX = Math.min(minX, x);
-            minY = Math.min(minY, y);
-            maxX = Math.max(maxX, x);
-            maxY = Math.max(maxY, y);
+            minX = Math.min(minX, point.x);
+            minY = Math.min(minY, point.y);
+            maxX = Math.max(maxX, point.x);
+            maxY = Math.max(maxY, point.y);
           }
         }
       }
@@ -1676,6 +1663,12 @@ export class SvgToGcodePage {
     });
   }
 
+  /** "Clear project": wipes the workspace *entirely* — including the temporary material/profile
+   * bookkeeping (`importedMaterials`/`importedProfiles`, the dashed "(from file)" entries in the
+   * material dropdown and Profiles card), not just the documents/selection/undo state a plain
+   * "start over" would need. Once nothing references them, they're just orphaned leftovers from
+   * whatever file/pattern was previously loaded — keeping them around would let them silently pile
+   * up across repeated imports/generations, so a full clear discards them too. */
   reset(): void {
     this.documents.set([]);
     this.selectedNodes.set([]);
@@ -1685,11 +1678,12 @@ export class SvgToGcodePage {
     this.groupProfileAssignments.set(new Map());
     this.groupTransforms.set(new Map());
     this.shapeOffsets.set(new Map());
+    this.importedMaterials.set(new Map());
+    this.importedProfiles.set(new Map());
     this.laserOffsetMm.set(0);
     this.undoStack = [];
     this.redoStack = [];
     this.updateUndoRedoAvailability();
-    this.form.reset({ targetWidthMm: 100 });
   }
 
   /** Builds the workspace export SVG: sized to the machine bed, with a <metadata><webcutter>
@@ -1787,7 +1781,7 @@ export class SvgToGcodePage {
         path.setAttribute('id', shape.id);
         path.setAttribute('d', this.hasOffset(shape) ? this.offsetPathData(shape) : this.shapePathData(shape));
         path.setAttribute('fill-rule', 'evenodd');
-        path.setAttribute('transform', this.shapeTransform(shape, doc));
+        path.setAttribute('transform', this.shapeTransform(shape));
         path.setAttribute('fill', this.exportFillForShape(assignment));
         path.setAttribute('stroke', this.exportStrokeForShape(assignment));
         path.setAttribute('stroke-width', '0.3');

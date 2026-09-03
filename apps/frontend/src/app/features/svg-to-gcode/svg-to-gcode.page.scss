@@ -144,6 +144,14 @@
   border-style: dashed;
 }
 
+/** The profile currently assigned to whichever shape(s) are selected on the canvas (see
+ * `selectedProfileIds`) — a distinct border/background so it's obvious at a glance which entry a
+ * clicked shape is already using, on top of whatever `--missing`'s dashed border already does. */
+.profile-item--selected {
+  border-color: var(--p-primary-color, #ff7300);
+  background: var(--p-highlight-background, rgba(255, 115, 0, 0.1));
+}
+
 .profile-item__label {
   font-weight: 500;
   font-size: 0.875rem;

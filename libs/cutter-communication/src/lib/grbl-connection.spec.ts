@@ -149,6 +149,7 @@ describe('GrblConnection', () => {
       binding.emitData('ALARM:1\r\n');
       await flush();
       expect(connection.isAlarmed).toBe(true);
+      expect(connection.alarmCode).toBe(1);
 
       await expect(connection.send('G0 X10')).rejects.toThrow('Machine en alarme');
       expect(writtenCommands).toEqual([]);
@@ -156,7 +157,7 @@ describe('GrblConnection', () => {
       await connection.disconnect();
     });
 
-    it('stays latched even once GRBL reports Idle again', async () => {
+    it('stays latched even once GRBL reports Idle again, with alarmCode null for a non-numeric code', async () => {
       const connection = await connectMock();
       const binding = getMockBinding(connection);
 
@@ -168,10 +169,11 @@ describe('GrblConnection', () => {
       await pending;
 
       expect(connection.isAlarmed).toBe(true);
+      expect(connection.alarmCode).toBeNull();
       await connection.disconnect();
     });
 
-    it('clears the latch once $H succeeds', async () => {
+    it('clears the latch and alarmCode once $H succeeds', async () => {
       const connection = await connectMock();
       const binding = getMockBinding(connection);
 
@@ -183,6 +185,7 @@ describe('GrblConnection', () => {
       await pending;
 
       expect(connection.isAlarmed).toBe(false);
+      expect(connection.alarmCode).toBeNull();
       await connection.disconnect();
     });
 
@@ -222,12 +225,14 @@ describe('GrblConnection', () => {
       binding.emitData('ALARM:1\r\n');
       await flush();
       expect(connection.isAlarmed).toBe(true);
+      expect(connection.alarmCode).toBe(1);
       await connection.disconnect();
 
       SerialPortMock.binding.createPort(PORT_PATH);
       await connection.connect({ path: PORT_PATH });
 
       expect(connection.isAlarmed).toBe(false);
+      expect(connection.alarmCode).toBeNull();
       await connection.disconnect();
     });
   });

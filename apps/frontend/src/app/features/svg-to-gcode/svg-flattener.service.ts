@@ -117,7 +117,7 @@ export interface SvgFlattenResult {
   tree: TreeNode<SvgTreeNodeData>;
 }
 
-const SAMPLE_STEP_PX = 1.5;
+const SAMPLE_STEP_PX = 0.5;
 const GEOMETRY_TAGS = new Set(['path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon']);
 const TRANSPARENT_CONTAINER_TAGS = new Set(['a', 'svg']);
 
@@ -317,7 +317,8 @@ export class SvgFlattenerService {
     }
 
     const ctm = node.getCTM();
-    const stepCount = Math.max(1, Math.ceil(totalLength / SAMPLE_STEP_PX));
+    const localSampleStep = SAMPLE_STEP_PX / this.ctmScale(ctm);
+    const stepCount = Math.max(1, Math.ceil(totalLength / localSampleStep));
     const points: { x: number; y: number }[] = [];
 
     for (let i = 0; i <= stepCount; i++) {
@@ -340,6 +341,21 @@ export class SvgFlattenerService {
 
   private isSamePoint(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
     return Math.abs(a.x - b.x) < 1e-3 && Math.abs(a.y - b.y) < 1e-3;
+  }
+
+  /** The uniform linear scale a CTM applies (the length of its x-axis basis vector) — `1` for no
+   * CTM or a degenerate one. `SAMPLE_STEP_PX` is a *document*-space (mm) sampling density; a
+   * shape's own local units aren't necessarily anywhere near 1:1 with that, e.g. a font glyph
+   * authored on a 1000-unit em square and scaled down to a few mm tall (see FontService on the
+   * backend) — sampling every 1.5 *local* units there is ~100x too fine, and the resulting glut of
+   * points can make an exported workspace SVG large enough to trip the backend's request size
+   * limit. Dividing the desired step by this scale converts it into the matching *local* step. */
+  private ctmScale(ctm: DOMMatrix | null): number {
+    if (!ctm) {
+      return 1;
+    }
+    const scale = Math.hypot(ctm.a, ctm.b);
+    return scale > 0 ? scale : 1;
   }
 
   /** Makes a subpath's last point an exact copy of its first — sampling (getPointAtLength on an
@@ -381,6 +397,11 @@ export class SvgFlattenerService {
     host.appendChild(curveSampler);
 
     try {
+      // See `ctmScale` — a curve segment's `d` is in this <path>'s own local units, which can be
+      // wildly different in scale from the document (mm) space `SAMPLE_STEP_PX` is meant for.
+      const ctm = node.getCTM();
+      const localSampleStep = SAMPLE_STEP_PX / this.ctmScale(ctm);
+
       // Each "M" starts a new subpath (e.g. an outer outline plus an inner hole, both within
       // the same <path>); keeping them separate — instead of one flat point list — is what lets
       // the caller render a single <path> with fill-rule="evenodd" and get real holes.
@@ -425,7 +446,7 @@ export class SvgFlattenerService {
         if (!Number.isFinite(totalLength) || totalLength <= 0) {
           return;
         }
-        const stepCount = Math.max(1, Math.ceil(totalLength / SAMPLE_STEP_PX));
+        const stepCount = Math.max(1, Math.ceil(totalLength / localSampleStep));
         for (let i = 1; i <= stepCount; i++) {
           const length = (i / stepCount) * totalLength;
           const point = curveSampler.getPointAtLength(length);
@@ -538,7 +559,6 @@ export class SvgFlattenerService {
         return null;
       }
 
-      const ctm = node.getCTM();
       const transformedSubpaths = subpaths.map((subpath) => ({
         points: subpath.points.map((point) => (ctm ? this.applyMatrix(point, ctm) : point)),
         closed: subpath.closed,
@@ -557,7 +577,22 @@ export class SvgFlattenerService {
     };
   }
 
+  /** A document's `width`/`height` with no unit suffix (or an explicit "mm" one) is trusted as
+   * millimeters no matter what — even overriding a `viewBox` that says otherwise. Real design
+   * tools (Inkscape, Illustrator...) routinely emit a `viewBox` in unrelated "user units" (often
+   * CSS px, e.g. 96 per inch) alongside a `width`/`height` stating the document's *actual*
+   * physical size — blindly preferring `viewBox`, as this used to, silently imported such a file
+   * at up to ~3.8x its real size. Any *other* unit (cm/in/pt/px/%...) is left alone: converting
+   * those correctly would also require rescaling the geometry itself (sampled in raw `viewBox`
+   * space via `getCTM`), which is a bigger change than this bug warrants — `viewBox` stays the
+   * fallback for those, same as before. */
   private resolveDimensions(svgRoot: Element): { width: number; height: number } {
+    const width = this.parseMmLength(svgRoot.getAttribute('width'));
+    const height = this.parseMmLength(svgRoot.getAttribute('height'));
+    if (width != null && height != null) {
+      return { width, height };
+    }
+
     const viewBox = svgRoot.getAttribute('viewBox');
     if (viewBox) {
       const parts = viewBox.trim().split(/[\s,]+/).map(Number);
@@ -566,12 +601,21 @@ export class SvgFlattenerService {
       }
     }
 
-    const width = Number.parseFloat(svgRoot.getAttribute('width') ?? '');
-    const height = Number.parseFloat(svgRoot.getAttribute('height') ?? '');
-    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
-      return { width, height };
-    }
-
     return { width: 100, height: 100 };
+  }
+
+  /** Parses a length as millimeters — only when it's a bare number or explicitly suffixed "mm";
+   * `null` for anything else (a different unit, `%`, or unparsable), which callers treat as "no
+   * mm size stated" rather than guessing. */
+  private parseMmLength(raw: string | null): number | null {
+    if (!raw) {
+      return null;
+    }
+    const match = /^\s*([+-]?[\d.]+)\s*(mm)?\s*$/i.exec(raw);
+    if (!match) {
+      return null;
+    }
+    const value = Number(match[1]);
+    return Number.isFinite(value) && value > 0 ? value : null;
   }
 }

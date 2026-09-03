@@ -22,6 +22,9 @@ export interface GrblStatus {
   machinePosition?: GrblPosition;
   workPosition?: GrblPosition;
   raw: string;
+  /** Numeric code of the last `ALARM:N` line received (e.g. `1` for a hard limit) — only ever set
+   * while `state` is `'Alarm'`; `null`/absent means the reason isn't known. */
+  alarmCode?: number | null;
 }
 
 /** Mirrors the backend's `MachineStatusPayload` (apps/backend/src/app/cutter/cutter-ws.types.ts) —
@@ -30,6 +33,9 @@ export interface GrblStatus {
 export interface MachineStatusPayload {
   connected: boolean;
   grbl: GrblStatus | null;
+  /** Message from the most recent failed `connect` attempt, or from a serial error that occurred
+   * while connected — see the backend's `MachineStatusPayload.connectionError`. */
+  connectionError: string | null;
 }
 
 export type SerialMessageDirection = 'sent' | 'received';

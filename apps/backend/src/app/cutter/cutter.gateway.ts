@@ -39,6 +39,9 @@ export class CutterGateway
 
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   private lastBroadcastJson: string | null = null;
+  /** Message from the most recent failed `connect` attempt or serial error — see
+   * `MachineStatusPayload.connectionError`. */
+  private lastConnectionError: string | null = null;
 
   constructor(
     private readonly cutterCommunication: CutterCommunicationService,
@@ -53,6 +56,13 @@ export class CutterGateway
     // Broadcasts the alarm-locked status immediately rather than waiting for the next poll tick
     // (up to STATUS_POLL_INTERVAL_MS later) — this is safety-relevant feedback.
     this.cutterCommunication.on('alarm', () => void this.pollAndBroadcastStatus(true));
+    // A serial-level error while already connected (e.g. the USB adapter disappearing) — surface
+    // it the same way a failed `connect` attempt is, rather than letting the status silently go
+    // stale until the next poll notices the port closed.
+    this.cutterCommunication.on('error', (error: Error) => {
+      this.lastConnectionError = error.message;
+      void this.pollAndBroadcastStatus(true);
+    });
     this.gcodeFileService.on('changed', (info: GcodeFileInfo | null) => this.broadcastGcodeFile(info));
     // Same reasoning as 'alarm' above: framing starting/stopping should reach every client right
     // away, not on the next poll tick.
@@ -79,6 +89,7 @@ export class CutterGateway
 
   @SubscribeMessage('connect')
   async handleConnectMessage(): Promise<void> {
+    this.lastConnectionError = null;
     try {
       const machine = await this.machineService.get();
       await this.cutterCommunication.connect({
@@ -89,6 +100,7 @@ export class CutterGateway
         parity: machine.parity,
       });
     } catch (error) {
+      this.lastConnectionError = error instanceof Error ? error.message : 'Could not connect to the cutter.';
       this.logger.error(
         'Could not connect to the cutter.',
         error instanceof Error ? error.stack : undefined,
@@ -102,6 +114,7 @@ export class CutterGateway
    * separate "locked" flag is needed — the machine simply stays unusable until `connect` reopens it. */
   @SubscribeMessage('disconnect')
   async handleDisconnectMessage(): Promise<void> {
+    this.lastConnectionError = null;
     await this.cutterCommunication.disconnect();
     await this.pollAndBroadcastStatus(true);
   }
@@ -161,27 +174,36 @@ export class CutterGateway
 
   private async buildStatusPayload(): Promise<MachineStatusPayload> {
     if (!this.cutterCommunication.isConnected()) {
-      return { connected: false, grbl: null };
+      return { connected: false, grbl: null, connectionError: this.lastConnectionError };
     }
     try {
       const grbl = await this.cutterCommunication.getStatus();
-      return { connected: true, grbl: this.applyFramingOverride(this.applyAlarmLatch(grbl)) };
+      return {
+        connected: true,
+        grbl: this.applyFramingOverride(this.applyAlarmLatch(grbl)),
+        connectionError: this.lastConnectionError,
+      };
     } catch {
       return {
         connected: true,
-        grbl: this.cutterCommunication.isAlarmed() ? { state: 'Alarm', raw: '' } : null,
+        grbl: this.cutterCommunication.isAlarmed()
+          ? { state: 'Alarm', raw: '', alarmCode: this.cutterCommunication.getAlarmCode() }
+          : null,
+        connectionError: this.lastConnectionError,
       };
     }
   }
 
   /** Forces the reported state to "Alarm" while the software alarm latch is engaged, regardless
    * of what GRBL's own `?` report says — see `GrblConnection`'s `alarmed` flag for why this is
-   * necessary on this board. */
+   * necessary on this board. Attaches the last known alarm code either way, so the UI can show a
+   * reason whenever the state ends up "Alarm" — whether by our own latch or GRBL's own report. */
   private applyAlarmLatch(grbl: GrblStatus): GrblStatus {
-    if (!this.cutterCommunication.isAlarmed()) {
+    const state = this.cutterCommunication.isAlarmed() ? 'Alarm' : grbl.state;
+    if (state !== 'Alarm') {
       return grbl;
     }
-    return { ...grbl, state: 'Alarm' };
+    return { ...grbl, state, alarmCode: this.cutterCommunication.getAlarmCode() };
   }
 
   /** Forces the reported state to "Framing" while `FramingService` is tracing the current G-code

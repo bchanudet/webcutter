@@ -50,6 +50,14 @@ describe('FontService', () => {
     expect(svg).not.toContain('<path');
   });
 
+  it('treats a space as a blank glyph advancing the cursor, not the undefined.svg placeholder', () => {
+    const svg = service.renderText('A A');
+    expect(svg).not.toContain(readGlyphD('undefined'));
+    // A (610 units) + space (300 units) = 910 units -> 9.1mm at the default 10mm height (scale 0.01).
+    expect(svg).toContain('transform="translate(9.1 0) scale(0.01)"');
+    expect(svg.match(/<path/g)).toHaveLength(2);
+  });
+
   it('renders an empty string as an empty, zero-width svg', () => {
     expect(service.renderText('')).toBe(
       '<svg xmlns="http://www.w3.org/2000/svg" width="0mm" height="10mm" viewBox="0 0 0 10"></svg>',

@@ -3,6 +3,16 @@
     <p-tag [value]="statusLabel()" [severity]="statusSeverity()" />
   </div>
 
+  @if (!wsConnected()) {
+    <p-message class="machine-status__message" severity="warn" [closable]="false">
+      Lost connection to the server — reconnecting…
+    </p-message>
+  } @else if (connectionError(); as error) {
+    <p-message class="machine-status__message" severity="error" [closable]="false">{{ error }}</p-message>
+  } @else if (alarmReason(); as reason) {
+    <p-message class="machine-status__message" severity="error" [closable]="false">{{ reason }}</p-message>
+  }
+
   <div class="actions">
     @if (!status().connected) {
       <p-button label="Connect" (onClick)="connect()" />

@@ -89,7 +89,13 @@
     (change)="onFileInputChange($event)"
   />
 
-  <app-test-pattern-dialog [maxSpeedMmPerSec]="maxFeedMmPerSec()" (generate)="onGenerateTestPattern($event)" />
+  <app-test-pattern-dialog
+    [maxSpeedMmPerSec]="maxFeedMmPerSec()"
+    [materials]="materials()"
+    [generating]="generatingTestPattern()"
+    [errorMessage]="testPatternErrorMessage()"
+    (generate)="onGenerateTestPattern($event)"
+  />
   <app-add-text-dialog (inserted)="onTextInserted($event)" />
 
   <p-splitter class="workspace__splitter" layout="horizontal" [panelSizes]="[25, 75]">
@@ -132,6 +138,7 @@
                       <button
                         type="button"
                         class="profile-item"
+                        [class.profile-item--selected]="selectedProfileIds().has(profile.id)"
                         [disabled]="selectedGroupKeys().size === 0"
                         (click)="applyProfile(profile)"
                       >
@@ -152,6 +159,7 @@
                       <button
                         type="button"
                         class="profile-item profile-item--missing"
+                        [class.profile-item--selected]="selectedProfileIds().has(profile.id)"
                         title="Not saved in the material configuration — loaded from the imported file."
                         [disabled]="selectedGroupKeys().size === 0"
                         (click)="applyProfile(profile)"
@@ -243,9 +251,6 @@
               <rect width="10" height="10" fill="url(#grid-minor)" />
               <path d="M 10 0 L 0 0 0 10" fill="none" stroke="var(--p-surface-400, #94a3b8)" stroke-width="0.15" />
             </pattern>
-            <clipPath id="surface-clip">
-              <rect [attr.width]="surfaceWidthMm()" [attr.height]="surfaceHeightMm()" />
-            </clipPath>
             <marker id="arrow-x" markerWidth="2.4" markerHeight="2.4" refX="2" refY="1.2" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
               <path d="M0,0 L2.4,1.2 L0,2.4 Z" fill="#dc2626" />
             </marker>
@@ -288,7 +293,7 @@
             />
             <circle class="origin-point" [attr.cx]="originPoint().x" [attr.cy]="originPoint().y" r="1" />
           </g>
-          <g id="content" clip-path="url(#surface-clip)">
+          <g id="content">
             @for (doc of documents(); track doc.id) {
               @for (shape of doc.shapes; track shape.id) {
                 <path
@@ -296,7 +301,7 @@
                   [class.shape--movable]="isShapeSelected(shape)"
                   [attr.d]="hasOffset(shape) ? offsetPathData(shape) : shapePathData(shape)"
                   fill-rule="evenodd"
-                  [attr.transform]="shapeTransform(shape, doc)"
+                  [attr.transform]="shapeTransform(shape)"
                   [attr.fill]="fillForShape(shape)"
                   [attr.stroke]="strokeForShape(shape)"
                   stroke-width="0.3"
@@ -310,7 +315,7 @@
               }
             }
           </g>
-          <g id="ghost" clip-path="url(#surface-clip)">
+          <g id="ghost">
             @for (doc of documents(); track doc.id) {
               @for (shape of doc.shapes; track shape.id) {
                 @if (hasOffset(shape)) {
@@ -318,7 +323,7 @@
                     class="shape shape--ghost"
                     [attr.d]="shapePathData(shape)"
                     fill-rule="evenodd"
-                    [attr.transform]="shapeTransform(shape, doc)"
+                    [attr.transform]="shapeTransform(shape)"
                     fill="none"
                     stroke="var(--p-text-muted-color, #94a3b8)"
                     stroke-width="0.3"

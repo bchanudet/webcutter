@@ -5,6 +5,14 @@ import { parseXml, XmlElement } from '../workspace/xml-parser';
 
 const FALLBACK_NAME = 'undefined';
 const DEFAULT_HEIGHT_MM = 10;
+/** The exported glyph set has no file for the space character — every other character with no
+ * dedicated file falls back to `undefined.svg`'s visible placeholder, but a *visible* placeholder
+ * for whitespace would defeat the point of a space. Handled as its own blank glyph instead, with
+ * a hand-picked advance width (about half a typical glyph's, e.g. 610 units — see
+ * `parseGlyph`/`FontService`'s own doc comment) rather than reading one from a file that doesn't
+ * exist. */
+const SPACE_CODEPOINT = 32;
+const SPACE_ADVANCE_WIDTH = 300;
 
 /** Rounds to a millimeter precision well beyond what any laser can resolve, just to keep the
  * generated markup readable — floating-point scaling (e.g. `610 * (10 / 1000)`) otherwise litters
@@ -101,6 +109,10 @@ export class FontService {
   }
 
   private loadGlyph(codepoint: number): Glyph {
+    if (codepoint === SPACE_CODEPOINT) {
+      return this.loadSpaceGlyph();
+    }
+
     const key = String(codepoint);
     const cached = this.glyphCache.get(key);
     if (cached) {
@@ -109,6 +121,21 @@ export class FontService {
 
     const glyph = this.tryReadGlyphFile(key) ?? this.loadFallbackGlyph();
     this.glyphCache.set(key, glyph);
+    return glyph;
+  }
+
+  private loadSpaceGlyph(): Glyph {
+    const cached = this.glyphCache.get('space');
+    if (cached) {
+      return cached;
+    }
+    const glyph: Glyph = {
+      advanceWidth: SPACE_ADVANCE_WIDTH,
+      height: this.loadFallbackGlyph().height,
+      path: null,
+      children: [],
+    };
+    this.glyphCache.set('space', glyph);
     return glyph;
   }
 

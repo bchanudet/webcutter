@@ -46,6 +46,13 @@ export class CutterCommunicationService extends EventEmitter implements OnModule
     return this.connection.isAlarmed;
   }
 
+  /** The numeric code of the currently latched alarm (e.g. `1` for a hard limit), or `null` if
+   * unknown — either because there's no alarm, or because it predates this process (e.g. the
+   * machine was already alarmed before this session connected). */
+  getAlarmCode(): number | null {
+    return this.connection.alarmCode;
+  }
+
   sendCommand(command: string): Promise<string> {
     return this.connection.send(command);
   }

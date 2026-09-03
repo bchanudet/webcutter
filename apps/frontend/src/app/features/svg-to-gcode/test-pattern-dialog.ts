@@ -1,12 +1,20 @@
-import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { PrimeTemplate } from '@openng/optimus-ui/api';
 import { Button } from '@openng/optimus-ui/button';
 import { Dialog } from '@openng/optimus-ui/dialog';
 import { InputNumber } from '@openng/optimus-ui/inputnumber';
+import { Message } from '@openng/optimus-ui/message';
+import { Select } from '@openng/optimus-ui/select';
+import { SelectButton } from '@openng/optimus-ui/selectbutton';
 import { ToggleSwitch } from '@openng/optimus-ui/toggleswitch';
+import { Material, ProfileMode } from '../configuration/materials/material.model';
+import { TestPatternShape } from './test-pattern-generator.service';
 
 export interface TestPatternParams {
+  mode: ProfileMode;
+  shape: TestPatternShape;
+  materialId: string;
   powerMinPercent: number;
   powerMaxPercent: number;
   speedMinMmPerSec: number;
@@ -17,6 +25,9 @@ export interface TestPatternParams {
 }
 
 interface TestPatternForm {
+  mode: FormControl<ProfileMode>;
+  shape: FormControl<TestPatternShape>;
+  materialId: FormControl<string | null>;
   powerMinPercent: FormControl<number>;
   powerMaxPercent: FormControl<number>;
   speedMinMmPerSec: FormControl<number>;
@@ -26,9 +37,19 @@ interface TestPatternForm {
   includeLegends: FormControl<boolean>;
 }
 
+const MODE_OPTIONS: { label: string; value: ProfileMode }[] = [
+  { label: 'Cut', value: 'LINE' },
+  { label: 'Fill', value: 'FILL' },
+];
+
+const SHAPE_OPTIONS: { label: string; value: TestPatternShape }[] = [
+  { label: 'Square', value: 'square' },
+  { label: 'Circle', value: 'circle' },
+];
+
 @Component({
   selector: 'app-test-pattern-dialog',
-  imports: [Dialog, Button, InputNumber, ToggleSwitch, PrimeTemplate, ReactiveFormsModule],
+  imports: [Dialog, Button, InputNumber, Message, Select, SelectButton, ToggleSwitch, PrimeTemplate, ReactiveFormsModule],
   templateUrl: './test-pattern-dialog.html',
   styleUrl: './test-pattern-dialog.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -38,14 +59,33 @@ export class TestPatternDialog {
    * `framing.service.ts` on the backend) — used to seed the speed min/max defaults every time
    * the dialog opens. */
   readonly maxSpeedMmPerSec = input.required<number>();
+  /** Materials available to generate the pattern for — the same list the workspace's own
+   * material dropdown uses. */
+  readonly materials = input.required<Material[]>();
+  /** Whether generation is currently in flight (legend text is rendered by the backend, see
+   * `TestPatternGeneratorService`) — disables "Generate" and shows a spinner instead of letting
+   * the user fire off overlapping requests. */
+  readonly generating = input(false);
+  /** Set by the caller when generation fails, shown as an inline error. */
+  readonly errorMessage = input<string | null>(null);
 
-  /** Fires with the form's current values when "Generate" is clicked — what it actually builds
-   * isn't wired up yet. */
+  /** Fires with the form's current values when "Generate" is clicked. */
   readonly generate = output<TestPatternParams>();
 
   protected readonly visible = signal(false);
+  protected readonly modeOptions = MODE_OPTIONS;
+  protected readonly shapeOptions = SHAPE_OPTIONS;
+  protected readonly materialOptions = computed(() =>
+    this.materials().map((material) => ({
+      label: `${material.name} (${material.thicknessMm} mm)`,
+      value: material.id,
+    })),
+  );
 
   protected readonly form = new FormGroup<TestPatternForm>({
+    mode: new FormControl<ProfileMode>('LINE', { nonNullable: true }),
+    shape: new FormControl<TestPatternShape>('square', { nonNullable: true }),
+    materialId: new FormControl<string | null>(null, { validators: [Validators.required] }),
     powerMinPercent: new FormControl(0, {
       nonNullable: true,
       validators: [Validators.required, Validators.min(0), Validators.max(100)],
@@ -70,12 +110,15 @@ export class TestPatternDialog {
     includeLegends: new FormControl(true, { nonNullable: true }),
   });
 
-  /** Resets the form to its defaults (speed min/max seeded from the machine's own max feed rate)
-   * and opens the dialog. */
+  /** Resets the form to its defaults (speed min/max seeded from the machine's own max feed rate,
+   * material defaulting to the first one available) and opens the dialog. */
   open(): void {
     const maxSpeed = this.maxSpeedMmPerSec();
     this.form.reset({
-      powerMinPercent: 0,
+      mode: 'LINE',
+      shape: 'square',
+      materialId: this.materials()[0]?.id ?? null,
+      powerMinPercent: 10,
       powerMaxPercent: 100,
       speedMinMmPerSec: Math.round(maxSpeed * 0.1 * 100) / 100,
       speedMaxMmPerSec: maxSpeed,
@@ -86,14 +129,20 @@ export class TestPatternDialog {
     this.visible.set(true);
   }
 
-  /** Doesn't close the dialog — generating a test pattern is meant to be repeated with tweaked
-   * parameters on the same job, not a one-shot action. */
+  /** Doesn't close the dialog on its own — the caller calls `close()` once generation actually
+   * succeeds (see `SvgToGcodePage.onGenerateTestPattern`), so a failed attempt leaves the form and
+   * the visible error as-is to retry. */
   submit(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
     }
-    this.generate.emit(this.form.getRawValue());
+    const raw = this.form.getRawValue();
+    this.generate.emit({ ...raw, materialId: raw.materialId as string });
+  }
+
+  close(): void {
+    this.visible.set(false);
   }
 
   cancel(): void {

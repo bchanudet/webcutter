@@ -72,6 +72,34 @@ describe('SvgFlattenerService', () => {
     expect(withNeither).toMatchObject({ width: 100, height: 100 });
   });
 
+  it('trusts a unitless (or explicit "mm") width/height over a mismatched viewBox', () => {
+    // A design tool's viewBox is routinely in unrelated "user units" (often CSS px) while
+    // width/height state the document's real physical size — e.g. Inkscape exporting a
+    // 100x80mm document as `viewBox="0 0 377.95 302.36"` (96 px/inch).
+    const bare = service.flatten(
+      'doc-1',
+      '<svg width="100" height="80" viewBox="0 0 377.95 302.36"><rect/></svg>',
+      'fallback.svg',
+    );
+    expect(bare).toMatchObject({ width: 100, height: 80 });
+
+    const explicitMm = service.flatten(
+      'doc-1',
+      '<svg width="100mm" height="80mm" viewBox="0 0 377.95 302.36"><rect/></svg>',
+      'fallback.svg',
+    );
+    expect(explicitMm).toMatchObject({ width: 100, height: 80 });
+  });
+
+  it('falls back to the viewBox for a width/height in a different unit (not handled here)', () => {
+    const result = service.flatten(
+      'doc-1',
+      '<svg width="10cm" height="8cm" viewBox="0 0 100 80"><rect/></svg>',
+      'fallback.svg',
+    );
+    expect(result).toMatchObject({ width: 100, height: 80 });
+  });
+
   it('descends into groups and applies each element CTM, in document order', () => {
     const result = service.flatten(
       'doc-1',
@@ -355,6 +383,25 @@ describe('SvgFlattenerService', () => {
       const result = service.flatten('doc-1', '<svg><path d="M0,0 L1,1 C2,2 3,3 4,4" /></svg>', 'fallback.svg');
       // The stub offsets <path> elements by e:100 — every point, line or curve, must carry it.
       expect(result.shapes[0].subpaths[0].points.every((p) => p.x >= 100)).toBe(true);
+    });
+
+    it('samples a curve by its real-world (document-space) length, not its raw local units', () => {
+      // A font glyph is authored on a ~1000-unit em square and scaled down to a few mm tall (see
+      // FontService on the backend) — sampling every SAMPLE_STEP_PX *local* units there, ignoring
+      // how small the CTM then makes it in real terms, produced a wildly excessive point count
+      // (a 20-character string once serialized past 900KB, tripping the backend's request size
+      // limit before "Check" ever got to report the far more useful OUT_OF_BOUNDS). A CTM that
+      // scales local units down by 100x should cut local unit's real-world footprint by the same
+      // 100x, and so sample the identical stubbed length-10 curve into far fewer points.
+      (Element.prototype as unknown as Record<string, unknown>)['getCTM'] = function (this: Element) {
+        return { a: 0.01, b: 0, c: 0, d: 0.01, e: 0, f: 0 };
+      };
+
+      const result = service.flatten('doc-1', '<svg><path d="M0,0 C1,1 2,2 3,3 L4,4" /></svg>', 'fallback.svg');
+      // Real-world length is 10 * 0.01 = 0.1 units, step 1.5 -> ceil(0.1/1.5) = 1 sample point,
+      // instead of the 7 a scale-blind step would have produced (see the test above this one).
+      const points = result.shapes[0].subpaths[0].points;
+      expect(points.length).toBeLessThan(4);
     });
 
     it('returns null for a path with no d attribute or a degenerate single-point path', () => {

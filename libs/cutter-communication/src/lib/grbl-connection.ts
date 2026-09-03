@@ -37,6 +37,9 @@ export class GrblConnection extends EventEmitter {
    * flag keeps the connection locked down regardless of what `?` reports until one of those two
    * commands actually succeeds, so the rest of the app can't be misled into thinking it's safe. */
   private alarmed = false;
+  /** The numeric code of the last `ALARM:N` line received (e.g. `1` for a hard limit) — cleared
+   * together with `alarmed`, so it always describes the alarm currently latched, not a stale one. */
+  private lastAlarmCode: number | null = null;
 
   static listPorts(): Promise<CutterPortInfo[]> {
     return SerialPort.list().then((ports) =>
@@ -56,6 +59,10 @@ export class GrblConnection extends EventEmitter {
     return this.alarmed;
   }
 
+  get alarmCode(): number | null {
+    return this.lastAlarmCode;
+  }
+
   connect(options: GrblConnectionOptions): Promise<void> {
     if (this.isOpen) {
       return Promise.reject(
@@ -64,6 +71,7 @@ export class GrblConnection extends EventEmitter {
     }
 
     this.alarmed = false;
+    this.lastAlarmCode = null;
 
     return new Promise((resolve, reject) => {
       const port = new SerialPort(
@@ -200,6 +208,7 @@ export class GrblConnection extends EventEmitter {
       this.settleCurrentCommand((command) => {
         if (isUnlockCommand(command.command)) {
           this.alarmed = false;
+          this.lastAlarmCode = null;
         }
         command.resolve(trimmed);
       });
@@ -215,6 +224,8 @@ export class GrblConnection extends EventEmitter {
 
     if (trimmed.startsWith('ALARM:')) {
       this.alarmed = true;
+      const code = Number(trimmed.slice('ALARM:'.length));
+      this.lastAlarmCode = Number.isFinite(code) ? code : null;
       this.emit('alarm', trimmed);
       return;
     }

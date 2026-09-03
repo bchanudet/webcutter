@@ -30,6 +30,11 @@ export interface GrblStatus {
   machinePosition?: GrblPosition;
   workPosition?: GrblPosition;
   raw: string;
+  /** Numeric code of the last `ALARM:N` line received (e.g. `1` for a hard limit) — only ever set
+   * while `state` is `'Alarm'`, and only populated by `CutterGateway`, never by
+   * `parseGrblStatus` (the `?` status report never carries it). `null`/absent means the reason
+   * isn't known (e.g. the machine was already alarmed before this process connected). */
+  alarmCode?: number | null;
 }
 
 export interface CutterPortInfo {

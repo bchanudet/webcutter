@@ -7,6 +7,43 @@
   <form [formGroup]="form" class="form-stack">
     <div class="field-row">
       <div class="field">
+        <label for="test-pattern-mode">Mode</label>
+        <p-selectButton
+          inputId="test-pattern-mode"
+          formControlName="mode"
+          [options]="modeOptions"
+          optionLabel="label"
+          optionValue="value"
+          [allowEmpty]="false"
+        />
+      </div>
+      <div class="field">
+        <label for="test-pattern-shape">Shape</label>
+        <p-selectButton
+          inputId="test-pattern-shape"
+          formControlName="shape"
+          [options]="shapeOptions"
+          optionLabel="label"
+          optionValue="value"
+          [allowEmpty]="false"
+        />
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="test-pattern-material">Material</label>
+      <p-select
+        inputId="test-pattern-material"
+        formControlName="materialId"
+        [options]="materialOptions()"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Select a material"
+      />
+    </div>
+
+    <div class="field-row">
+      <div class="field">
         <label for="test-pattern-power-min">Power min (%)</label>
         <p-inputnumber
           inputId="test-pattern-power-min"
@@ -66,8 +103,14 @@
     </div>
   </form>
 
+  @if (errorMessage(); as message) {
+    <p-message severity="error" [closable]="false">{{ message }}</p-message>
+  }
+
   <ng-template pTemplate="footer">
-    <p-button [text]="true" (onClick)="cancel()">Cancel</p-button>
-    <p-button [disabled]="form.invalid" (onClick)="submit()">Generate</p-button>
+    <p-button [text]="true" [disabled]="generating()" (onClick)="cancel()">Cancel</p-button>
+    <p-button [disabled]="form.invalid || generating()" [loading]="generating()" (onClick)="submit()">
+      Generate
+    </p-button>
   </ng-template>
 </p-dialog>
