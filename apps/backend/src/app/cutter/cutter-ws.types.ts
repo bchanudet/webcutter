@@ -21,6 +21,21 @@ export interface CheckStatusPayload {
   result: CheckOutcome | null;
 }
 
+/** Broadcast to every client whenever a cutting job starts, advances, or finishes (see
+ * `JobService`) — surfaced app-wide via the menubar flashcard, not just the Operation page.
+ * `error` is set only when the job stopped abnormally: a GRBL `error:N`/`ALARM:N` response, or
+ * the operator's emergency stop. */
+export interface JobStatusPayload {
+  running: boolean;
+  /** Whether the job is currently on feed hold (see `JobService.pause()`) — only meaningful while
+   * `running` is true. */
+  paused: boolean;
+  fileName: string | null;
+  currentLine: number;
+  totalLines: number;
+  error: string | null;
+}
+
 export type SerialMessageDirection = 'sent' | 'received';
 
 /** Broadcast to every client for every single byte sequence written to or read from the cutter's

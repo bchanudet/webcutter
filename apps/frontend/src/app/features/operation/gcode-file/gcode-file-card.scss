@@ -29,3 +29,20 @@
   display: block;
   margin-top: 0.75rem;
 }
+
+.gcode-file__job {
+  margin-top: 0.75rem;
+
+  .actions {
+    margin-top: 1rem;
+  }
+}
+
+.gcode-file__abort {
+  flex: 1;
+
+  ::ng-deep .p-button {
+    width: 100%;
+    font-weight: 700;
+  }
+}

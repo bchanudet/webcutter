@@ -1,7 +1,12 @@
 import { Injectable, OnDestroy, signal } from '@angular/core';
 import { Subject } from 'rxjs';
 import { GcodeFileInfo } from '../gcode-file/gcode-file.model';
-import { CheckStatusPayload, MachineStatusPayload, SerialMessagePayload } from './machine-status.model';
+import {
+  CheckStatusPayload,
+  JobStatusPayload,
+  MachineStatusPayload,
+  SerialMessagePayload,
+} from './machine-status.model';
 
 const RECONNECT_DELAY_MS = 2000;
 
@@ -10,11 +15,12 @@ interface IncomingMessage {
   data: unknown;
 }
 
-/** Client for the `/api/ws/cutter` WebSocket: keeps `status`, `gcodeFile` and `checkStatus` in sync
- * with the backend's broadcasts, streams raw serial traffic via `serialMessages$`, and sends the
- * `connect`/`disconnect`/`sendCommand`/`deleteGcodeFile`/`startFrame`/`stopFrame`/`startCheck`
- * commands. Reconnects automatically (e.g. after a backend restart) so the page doesn't need to be
- * reloaded to recover. */
+/** Client for the `/api/ws/cutter` WebSocket: keeps `status`, `gcodeFile`, `checkStatus` and
+ * `jobStatus` in sync with the backend's broadcasts, streams raw serial traffic via
+ * `serialMessages$`, and sends the `connect`/`disconnect`/`sendCommand`/`deleteGcodeFile`/
+ * `startFrame`/`stopFrame`/`startCheck`/`startJob`/`stopJob`/`pauseJob`/`resumeJob` commands.
+ * Reconnects automatically (e.g. after a backend restart) so the page doesn't need to be reloaded
+ * to recover. */
 @Injectable({ providedIn: 'root' })
 export class CutterSocketService implements OnDestroy {
   private socket: WebSocket | null = null;
@@ -32,6 +38,16 @@ export class CutterSocketService implements OnDestroy {
   readonly wsConnected = signal(false);
   /** State of the last (or currently running) `$C` check — see `startCheck()`. */
   readonly checkStatus = signal<CheckStatusPayload>({ running: false, result: null });
+  /** State of the last (or currently running) cutting job — see `startJob()`. Drives the menubar
+   * flashcard's progress bar and emergency stop button on every page, not just Operation. */
+  readonly jobStatus = signal<JobStatusPayload>({
+    running: false,
+    paused: false,
+    fileName: null,
+    currentLine: 0,
+    totalLines: 0,
+    error: null,
+  });
 
   constructor() {
     this.open();
@@ -63,6 +79,24 @@ export class CutterSocketService implements OnDestroy {
 
   startCheck(): void {
     this.send('startCheck');
+  }
+
+  startJob(): void {
+    this.send('startJob');
+  }
+
+  /** Emergency stop — cuts communication with the cutter immediately, see the backend's
+   * `JobService.stop()`. */
+  stopJob(): void {
+    this.send('stopJob');
+  }
+
+  pauseJob(): void {
+    this.send('pauseJob');
+  }
+
+  resumeJob(): void {
+    this.send('resumeJob');
   }
 
   ngOnDestroy(): void {
@@ -109,6 +143,8 @@ export class CutterSocketService implements OnDestroy {
       this.gcodeFile.set(message.data as GcodeFileInfo | null);
     } else if (message.event === 'checkResult') {
       this.checkStatus.set(message.data as CheckStatusPayload);
+    } else if (message.event === 'jobStatus') {
+      this.jobStatus.set(message.data as JobStatusPayload);
     }
   }
 

@@ -233,8 +233,8 @@ export class SvgToGcodePage {
   protected readonly surfaceHeightMm = computed(() => this.machine()?.bedHeightMm ?? 100);
   /** The machine's own max feed rate — the smaller of its X/Y max speeds, same convention as
    * `framing.service.ts` on the backend — used to seed the test pattern dialog's speed defaults. */
-  protected readonly maxFeedMmPerSec = computed(() =>
-    Math.min(this.machine()?.maxSpeedXMmPerSec ?? 100, this.machine()?.maxSpeedYMmPerSec ?? 100),
+  protected readonly maxFeedMmPerMin = computed(() =>
+    Math.min(this.machine()?.maxSpeedXMmPerMin ?? 6000, this.machine()?.maxSpeedYMmPerMin ?? 6000),
   );
 
   /** Visible mm-space window into the canvas — the pan/zoom "camera", independent of the bed's
@@ -953,7 +953,7 @@ export class SvgToGcodePage {
       const color = profileEl.getAttribute('color');
       const mode = profileEl.getAttribute('type');
       const powerPercent = Number(profileEl.getAttribute('powerPercent'));
-      const speedMmPerSec = Number(profileEl.getAttribute('speedMmPerSec'));
+      const speedMmPerMin = Number(profileEl.getAttribute('speedMmPerMin'));
       const passes = Number(profileEl.getAttribute('passes'));
       const lineSpacingAttr = profileEl.getAttribute('lineSpacingMm');
       if (
@@ -963,7 +963,7 @@ export class SvgToGcodePage {
         !color ||
         (mode !== 'LINE' && mode !== 'FILL') ||
         !Number.isFinite(powerPercent) ||
-        !Number.isFinite(speedMmPerSec) ||
+        !Number.isFinite(speedMmPerMin) ||
         !Number.isFinite(passes)
       ) {
         continue;
@@ -975,7 +975,7 @@ export class SvgToGcodePage {
         color,
         mode,
         powerPercent,
-        speedMmPerSec,
+        speedMmPerMin,
         passes,
         lineSpacingMm: lineSpacingAttr != null ? Number(lineSpacingAttr) : null,
       });
@@ -1724,7 +1724,7 @@ export class SvgToGcodePage {
       profileEl.setAttribute('color', profile.color);
       profileEl.setAttribute('type', profile.mode);
       profileEl.setAttribute('powerPercent', String(profile.powerPercent));
-      profileEl.setAttribute('speedMmPerSec', String(profile.speedMmPerSec));
+      profileEl.setAttribute('speedMmPerMin', String(profile.speedMmPerMin));
       profileEl.setAttribute('passes', String(profile.passes));
       if (profile.lineSpacingMm != null) {
         profileEl.setAttribute('lineSpacingMm', String(profile.lineSpacingMm));

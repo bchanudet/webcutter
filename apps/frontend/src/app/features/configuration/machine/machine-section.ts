@@ -111,11 +111,11 @@ export class MachineSection {
       nonNullable: true,
       validators: [Validators.required, Validators.min(0)],
     }),
-    maxSpeedXMmPerSec: new FormControl(200, {
+    maxSpeedXMmPerMin: new FormControl(12000, {
       nonNullable: true,
       validators: [Validators.required, Validators.min(0)],
     }),
-    maxSpeedYMmPerSec: new FormControl(200, {
+    maxSpeedYMmPerMin: new FormControl(12000, {
       nonNullable: true,
       validators: [Validators.required, Validators.min(0)],
     }),

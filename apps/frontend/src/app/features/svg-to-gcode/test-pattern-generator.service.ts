@@ -12,8 +12,8 @@ export interface GenerateTestPatternInput {
   material: Material;
   powerMinPercent: number;
   powerMaxPercent: number;
-  speedMinMmPerSec: number;
-  speedMaxMmPerSec: number;
+  speedMinMmPerMin: number;
+  speedMaxMmPerMin: number;
   steps: number;
   includeMaterialLabel: boolean;
   includeLegends: boolean;
@@ -46,7 +46,7 @@ interface ProfileXmlInput {
   color: string;
   mode: ProfileMode;
   powerPercent: number;
-  speedMmPerSec: number;
+  speedMmPerMin: number;
   passes: number;
   lineSpacingMm: number | null;
 }
@@ -114,7 +114,7 @@ export class TestPatternGeneratorService {
       round1(lerp(input.powerMinPercent, input.powerMaxPercent, steps === 1 ? 0 : col / (steps - 1))),
     );
     const rowSpeeds = Array.from({ length: steps }, (_, row) =>
-      round1(lerp(input.speedMaxMmPerSec, input.speedMinMmPerSec, steps === 1 ? 0 : row / (steps - 1))),
+      round1(lerp(input.speedMaxMmPerMin, input.speedMinMmPerMin, steps === 1 ? 0 : row / (steps - 1))),
     );
 
     const textRequests: { key: string; text: string }[] = [];
@@ -126,7 +126,7 @@ export class TestPatternGeneratorService {
         textRequests.push({ key: `col-${col}`, text: col === steps - 1 ? `${power}%` : `${power}` }),
       );
       rowSpeeds.forEach((speed, row) =>
-        textRequests.push({ key: `row-${row}`, text: row === steps - 1 ? `${speed} mm/s` : `${speed}` }),
+        textRequests.push({ key: `row-${row}`, text: row === steps - 1 ? `${speed} mm/min` : `${speed}` }),
       );
     }
     if (input.includeMaterialLabel) {
@@ -152,7 +152,7 @@ export class TestPatternGeneratorService {
 
   /** Lays out the grid + legends within `surfaceWidthMm x surfaceHeightMm` and serializes the
    * final workspace SVG — legend/label text may be individually shrunk (see `embedText`) to keep
-   * the whole pattern from ever exceeding that surface. The unit ("%"/"mm/s") is only spelled out
+   * the whole pattern from ever exceeding that surface. The unit ("%"/"mm/min") is only spelled out
    * on the axis's last tick (see the calling `generate()`), rather than repeated on every column/
    * row, to leave more room for the number itself in each cell's tight legend width. */
   private assemble(
@@ -188,16 +188,16 @@ export class TestPatternGeneratorService {
       for (let col = 0; col < steps; col++) {
         const profileId = crypto.randomUUID();
         const powerPercent = columnPowers[col];
-        const speedMmPerSec = rowSpeeds[row];
+        const speedMmPerMin = rowSpeeds[row];
         profiles.push(
           this.buildProfileXml({
             id: profileId,
             materialId: input.material.id,
-            name: `Test ${powerPercent}% / ${speedMmPerSec} mm/s`,
+            name: `Test ${powerPercent}% / ${speedMmPerMin} mm/min`,
             color: getProfileColor(col, steps, row, steps),
             mode: input.mode,
             powerPercent,
-            speedMmPerSec,
+            speedMmPerMin,
             passes: 1,
             lineSpacingMm: input.mode === 'FILL' ? DEFAULT_LINE_SPACING_MM : null,
           }),
@@ -226,7 +226,7 @@ export class TestPatternGeneratorService {
           color: LEGEND_COLOR,
           mode: 'FILL',
           powerPercent: LEGEND_POWER_PERCENT,
-          speedMmPerSec: input.speedMaxMmPerSec,
+          speedMmPerMin: input.speedMaxMmPerMin,
           passes: 1,
           lineSpacingMm: DEFAULT_LINE_SPACING_MM,
         }),
@@ -335,7 +335,7 @@ export class TestPatternGeneratorService {
     return (
       `<profile id="${escapeXmlAttribute(profile.id)}" materialId="${escapeXmlAttribute(profile.materialId)}" ` +
       `name="${escapeXmlAttribute(profile.name)}" color="${profile.color}" type="${profile.mode}" ` +
-      `powerPercent="${profile.powerPercent}" speedMmPerSec="${profile.speedMmPerSec}" ` +
+      `powerPercent="${profile.powerPercent}" speedMmPerMin="${profile.speedMmPerMin}" ` +
       `passes="${profile.passes}"${lineSpacing} />`
     );
   }

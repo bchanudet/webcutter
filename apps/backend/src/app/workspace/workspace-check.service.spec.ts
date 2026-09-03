@@ -10,7 +10,7 @@ const metadata = (options: {
   const profiles = (options.profiles ?? [])
     .map(
       (profile) =>
-        `<profile id="${profile.id}" materialId="${profile.materialId}" name="${profile.name ?? 'P'}" color="#ff0000" type="LINE" powerPercent="100" speedMmPerSec="10" passes="1"/>`,
+        `<profile id="${profile.id}" materialId="${profile.materialId}" name="${profile.name ?? 'P'}" color="#ff0000" type="LINE" powerPercent="100" speedMmPerMin="600" passes="1"/>`,
     )
     .join('');
   const material = options.material

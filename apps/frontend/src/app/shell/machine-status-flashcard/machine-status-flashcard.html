@@ -1,0 +1,14 @@
+<div class="machine-flashcard">
+  <p-divider layout="vertical" style="height: 1.5rem" />
+  <app-tabler-icon name="building-factory-2" [size]="20" class="machine-flashcard__icon" />
+  <p-tag [value]="stateLabel()" [severity]="stateSeverity()" />
+  @if (fileName(); as name) {
+    <span class="machine-flashcard__file" [title]="name">{{ name }}</span>
+  }
+  @if (jobRunning()) {
+    <p-progressBar class="machine-flashcard__progress" [value]="progressPercent()" [showValue]="true" />
+    <button type="button" class="machine-flashcard__stop" title="Emergency stop" (click)="stop()">
+      <app-tabler-icon name="octagon" [size]="22" />
+    </button>
+  }
+</div>

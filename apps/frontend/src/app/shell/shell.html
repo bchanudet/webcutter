@@ -6,6 +6,10 @@
     </span>
   </ng-template>
 
+  <ng-template pTemplate="end">
+    <app-machine-status-flashcard />
+  </ng-template>
+
   <ng-template #item let-item>
     <a
       [routerLink]="item.routerLink"

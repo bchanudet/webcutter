@@ -29,6 +29,7 @@ export type TablerIconName =
   | 'home'
   | 'player-pause'
   | 'player-stop'
+  | 'octagon'
   | 'arrow-badge-right'
   | 'arrow-badge-left'
   | 'arrow-up'
@@ -244,6 +245,12 @@ export const TABLER_ICON_PATHS: Record<TablerIconName, TablerIconDefinition> = {
     variant: 'outline',
     paths: `
       <path d="M6 6m0 1a1 1 0 0 1 1 -1h10a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-10a1 1 0 0 1 -1 -1z" />
+    `,
+  },
+  octagon: {
+    variant: 'filled',
+    paths: `
+      <path d="M15.3 2h-6.6c-.562 0 -1.016 .201 -1.407 .593l-4.7 4.7a1.894 1.894 0 0 0 -.593 1.407v6.6c0 .562 .201 1.016 .593 1.407l4.7 4.7c.391 .392 .845 .593 1.407 .593h6.6c.562 0 1.016 -.201 1.407 -.593l4.7 -4.7c.392 -.391 .593 -.845 .593 -1.407v-6.6c0 -.562 -.201 -1.016 -.593 -1.407l-4.7 -4.7a1.894 1.894 0 0 0 -1.407 -.593z" />
     `,
   },
   'arrow-badge-right': {

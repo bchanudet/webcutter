@@ -19,7 +19,7 @@ export class CreateProfileDto {
 
   @IsNumber()
   @Min(0)
-  speedMmPerSec!: number;
+  speedMmPerMin!: number;
 
   @IsOptional()
   @IsInt()

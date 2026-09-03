@@ -40,7 +40,7 @@ export class Profile {
   powerPercent!: number;
 
   @Column('float')
-  speedMmPerSec!: number;
+  speedMmPerMin!: number;
 
   @Column({ default: 1 })
   passes!: number;

@@ -157,6 +157,44 @@ export class GrblConnection extends EventEmitter {
     }
   }
 
+  /** Emergency stop: writes GRBL's real-time soft-reset byte (Ctrl-X) directly to the port,
+   * bypassing the ok/error queue entirely — unlike `send()`, this doesn't wait for the in-flight
+   * command's response, because the whole point is not waiting. GRBL aborts whatever move is in
+   * progress and turns the laser/spindle off on its own as part of the reset. Also engages the
+   * same software alarm latch a real `ALARM:` does (see `alarmed`): GRBL may come back up
+   * reporting "Idle" without ever having actually re-homed, and the rest of the app shouldn't be
+   * able to send a fresh command until $H/$X explicitly clears it. No-op if not connected. */
+  abort(): void {
+    if (!this.port?.isOpen) {
+      return;
+    }
+    this.write('\x18');
+    this.alarmed = true;
+    this.lastAlarmCode = null;
+    this.rejectPendingQueue(new Error("Arrêt d'urgence : communication interrompue par l'opérateur."));
+  }
+
+  /** Feed hold: writes GRBL's real-time hold byte ('!') directly to the port, bypassing the
+   * ok/error queue — GRBL decelerates to a stop and reports state "Hold" via its own status
+   * report, no different from any other cause of a hold. Unlike `abort()`, this doesn't reject
+   * the in-flight command or touch the alarm latch: nothing has gone wrong, and GRBL still sends
+   * that command's `ok` once it's accepted into the planner, hold or not. No-op if not connected. */
+  pause(): void {
+    if (!this.port?.isOpen) {
+      return;
+    }
+    this.write('!');
+  }
+
+  /** Cycle start/resume: writes GRBL's real-time resume byte ('~') directly to the port, the
+   * counterpart to `pause()`. No-op if not connected. */
+  resume(): void {
+    if (!this.port?.isOpen) {
+      return;
+    }
+    this.write('~');
+  }
+
   /** Sends the real-time '?' status query and resolves with the next status report. */
   requestStatus(): Promise<GrblStatus> {
     if (!this.port?.isOpen) {

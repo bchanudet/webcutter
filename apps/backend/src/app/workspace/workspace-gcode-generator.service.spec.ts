@@ -14,7 +14,7 @@ interface ProfileFixture {
   name?: string;
   mode?: 'LINE' | 'FILL';
   powerPercent?: number;
-  speedMmPerSec?: number;
+  speedMmPerMin?: number;
   passes?: number;
   lineSpacingMm?: number | null;
 }
@@ -23,7 +23,7 @@ const metadata = (options: { profiles?: ProfileFixture[]; material?: { id: numbe
   const profiles = (options.profiles ?? [])
     .map(
       (profile) =>
-        `<profile id="${profile.id}" materialId="${profile.materialId}" name="${profile.name ?? 'P'}" color="#ff0000" type="${profile.mode ?? 'LINE'}" powerPercent="${profile.powerPercent ?? 100}" speedMmPerSec="${profile.speedMmPerSec ?? 10}" passes="${profile.passes ?? 1}"${profile.lineSpacingMm != null ? ` lineSpacingMm="${profile.lineSpacingMm}"` : ''}/>`,
+        `<profile id="${profile.id}" materialId="${profile.materialId}" name="${profile.name ?? 'P'}" color="#ff0000" type="${profile.mode ?? 'LINE'}" powerPercent="${profile.powerPercent ?? 100}" speedMmPerMin="${profile.speedMmPerMin ?? 600}" passes="${profile.passes ?? 1}"${profile.lineSpacingMm != null ? ` lineSpacingMm="${profile.lineSpacingMm}"` : ''}/>`,
     )
     .join('');
   const material = options.material
@@ -117,12 +117,12 @@ describe('WorkspaceGcodeGeneratorService', () => {
     expect(lines[lines.length - 1]).toBe('M5');
   });
 
-  it('derives S from powerPercent/sMax and F from speedMmPerSec x 60 for a LINE profile', async () => {
+  it('derives S from powerPercent/sMax and F directly from speedMmPerMin for a LINE profile', async () => {
     machineService.get.mockResolvedValue(makeMachine(1000));
     const svg = svgDoc(
       100,
       100,
-      metadata({ profiles: [{ id: 1, materialId: 5, powerPercent: 50, speedMmPerSec: 10 }], material: { id: 5 } }),
+      metadata({ profiles: [{ id: 1, materialId: 5, powerPercent: 50, speedMmPerMin: 600 }], material: { id: 5 } }),
       [path({ id: 'a', d: SQUARE_10, profile: 1 })],
     );
 

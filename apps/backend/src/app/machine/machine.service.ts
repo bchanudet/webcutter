@@ -17,8 +17,8 @@ const DEFAULT_MACHINE: Omit<Machine, 'id' | 'createdAt' | 'updatedAt'> = {
   origin: GcodeOrigin.BOTTOM_LEFT,
   maxAccelerationXMmPerSec2: 500,
   maxAccelerationYMmPerSec2: 500,
-  maxSpeedXMmPerSec: 200,
-  maxSpeedYMmPerSec: 200,
+  maxSpeedXMmPerMin: 12000,
+  maxSpeedYMmPerMin: 12000,
   sMax: 1000,
 };
 

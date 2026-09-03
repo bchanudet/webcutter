@@ -93,7 +93,7 @@ export class WorkspaceGcodeGeneratorService {
   }
 
   private feedRate(profile: ParsedProfile): number {
-    return Math.round(profile.speedMmPerSec * 60);
+    return Math.round(profile.speedMmPerMin);
   }
 
   /** One G0 rapid + M4 (dynamic power) + a run of G1 moves + M5, per subpath, repeated

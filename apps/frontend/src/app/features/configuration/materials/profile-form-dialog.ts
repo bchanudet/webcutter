@@ -52,7 +52,7 @@ export class ProfileFormDialog {
       nonNullable: true,
       validators: [Validators.required, Validators.min(0), Validators.max(100)],
     }),
-    speedMmPerSec: new FormControl(10, {
+    speedMmPerMin: new FormControl(600, {
       nonNullable: true,
       validators: [Validators.required, Validators.min(0)],
     }),
@@ -79,7 +79,7 @@ export class ProfileFormDialog {
       color: PROFILE_COLOR_PALETTE[0],
       mode: 'LINE',
       powerPercent: 100,
-      speedMmPerSec: 10,
+      speedMmPerMin: 600,
       passes: 1,
       lineSpacingMm: 0.1,
     });
@@ -94,7 +94,7 @@ export class ProfileFormDialog {
       color: profile.color,
       mode: profile.mode,
       powerPercent: profile.powerPercent,
-      speedMmPerSec: profile.speedMmPerSec,
+      speedMmPerMin: profile.speedMmPerMin,
       passes: profile.passes,
       lineSpacingMm: profile.lineSpacingMm ?? 0.1,
     });

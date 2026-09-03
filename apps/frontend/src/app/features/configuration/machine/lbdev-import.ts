@@ -33,8 +33,8 @@ export interface LbdevImportResult {
   baudRate?: number;
   maxAccelerationXMmPerSec2?: number;
   maxAccelerationYMmPerSec2?: number;
-  maxSpeedXMmPerSec?: number;
-  maxSpeedYMmPerSec?: number;
+  maxSpeedXMmPerMin?: number;
+  maxSpeedYMmPerMin?: number;
   sMax?: number;
 }
 
@@ -57,8 +57,12 @@ export function parseLbdevProfile(text: string): LbdevImportResult {
   if (settings.BaudRate != null) result.baudRate = settings.BaudRate;
   if (settings.Sim_MaxAccelX != null) result.maxAccelerationXMmPerSec2 = settings.Sim_MaxAccelX;
   if (settings.Sim_MaxAccelY != null) result.maxAccelerationYMmPerSec2 = settings.Sim_MaxAccelY;
-  if (settings.Sim_MaxSpeedX != null) result.maxSpeedXMmPerSec = settings.Sim_MaxSpeedX;
-  if (settings.Sim_MaxSpeedY != null) result.maxSpeedYMmPerSec = settings.Sim_MaxSpeedY;
+  // LightBurn's own GRBL-sim speed settings are already expressed in mm/min, so — unlike the
+  // accel fields above, which are a straight passthrough of the same unit on both sides — this
+  // passthrough is now *also* unit-correct on both sides, whereas before this migration it wasn't
+  // (see the app-wide mm/s -> mm/min conversion).
+  if (settings.Sim_MaxSpeedX != null) result.maxSpeedXMmPerMin = settings.Sim_MaxSpeedX;
+  if (settings.Sim_MaxSpeedY != null) result.maxSpeedYMmPerMin = settings.Sim_MaxSpeedY;
   if (settings.S_Scale != null) result.sMax = settings.S_Scale;
 
   return result;

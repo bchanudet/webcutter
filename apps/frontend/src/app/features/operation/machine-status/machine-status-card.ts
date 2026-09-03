@@ -6,35 +6,7 @@ import { ConfirmDialog } from '@openng/optimus-ui/confirmdialog';
 import { Message } from '@openng/optimus-ui/message';
 import { Tag } from '@openng/optimus-ui/tag';
 import { CutterSocketService } from './cutter-socket.service';
-import { describeAlarm, GrblMachineState } from './machine-status.model';
-
-type StatusSeverity = 'success' | 'info' | 'warn' | 'danger' | 'secondary';
-
-const GRBL_STATE_LABELS: Record<GrblMachineState, string> = {
-  Idle: 'Idle',
-  Run: 'Processing',
-  Hold: 'Hold',
-  Jog: 'Jogging',
-  Alarm: 'Alarm',
-  Door: 'Door open',
-  Check: 'Check mode',
-  Home: 'Homing',
-  Sleep: 'Sleep',
-  Framing: 'Framing',
-};
-
-const GRBL_STATE_SEVERITIES: Record<GrblMachineState, StatusSeverity> = {
-  Idle: 'success',
-  Run: 'info',
-  Hold: 'warn',
-  Jog: 'info',
-  Alarm: 'danger',
-  Door: 'danger',
-  Check: 'secondary',
-  Home: 'info',
-  Sleep: 'secondary',
-  Framing: 'warn',
-};
+import { describeAlarm, GRBL_STATE_LABELS, GRBL_STATE_SEVERITIES, StatusSeverity } from './machine-status.model';
 
 @Component({
   selector: 'app-machine-status-card',
@@ -80,6 +52,10 @@ export class MachineStatusCard {
     const grbl = this.status().grbl;
     return grbl?.state === 'Alarm' ? describeAlarm(grbl.alarmCode) : null;
   });
+
+  /** While a job is running, the only way to stop the machine is the "Abort" button on the Gcode
+   * file card — Disconnect would just cut the link without actually stopping anything. */
+  protected readonly jobRunning = computed(() => this.socket.jobStatus().running);
 
   protected connect(): void {
     this.socket.connect();

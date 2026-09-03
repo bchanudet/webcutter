@@ -135,7 +135,10 @@ NOTE: n'utilise JAMAIS pnpm, seulement npm.
   25/75 :
   - Barre latérale gauche : `MachineStatusCard` (statut connexion/GRBL, boutons
     Connect/Disconnect, confirmation avant déconnexion) et `PositionCard` (position
-    X/Y depuis `MPos`, D-pad de jog avec bouton central `$H`, pas réglable en mm).
+    X/Y depuis `WPos` — relative à l'origine de la surface de découpe, donc
+    négative si la tête est à gauche/en dessous de l'origine — avec repli sur
+    `MPos` si le masque de rapport `$10` de la carte n'inclut pas `WPos`, D-pad
+    de jog avec bouton central `$H`, pas réglable en mm).
   - Panneau droit : onglets routés (`/operation/gcode` par défaut, `/operation/terminal`)
     — `GcodeViewerPanel` (placeholder, pas encore implémenté) et `TerminalPanel`.
   - `TerminalPanel` — historique complet des trames échangées avec la machine (icône

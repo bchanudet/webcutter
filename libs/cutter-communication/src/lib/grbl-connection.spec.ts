@@ -247,4 +247,78 @@ describe('GrblConnection', () => {
       await connection.disconnect();
     });
   });
+
+  describe('abort()', () => {
+    it('writes the soft-reset byte and immediately rejects the pending command, without waiting for ok/error', async () => {
+      const connection = await connectMock();
+      const binding = getMockBinding(connection);
+      const written: Buffer[] = [];
+      const originalWrite = binding.write.bind(binding);
+      binding.write = async (buffer: Buffer) => {
+        written.push(buffer);
+        return originalWrite(buffer);
+      };
+
+      const pending = connection.send('G1 X500 Y500 F600');
+      connection.abort();
+
+      await expect(pending).rejects.toThrow("Arrêt d'urgence");
+      await flush();
+      expect(written.some((buffer) => buffer.equals(Buffer.from([0x18])))).toBe(true);
+      await connection.disconnect();
+    });
+
+    it('latches the connection as alarmed, with no known alarm code', async () => {
+      const connection = await connectMock();
+
+      connection.abort();
+
+      expect(connection.isAlarmed).toBe(true);
+      expect(connection.alarmCode).toBeNull();
+      await connection.disconnect();
+    });
+
+    it('is a no-op when not connected', () => {
+      const connection = new GrblConnection();
+
+      expect(() => connection.abort()).not.toThrow();
+      expect(connection.isAlarmed).toBe(false);
+    });
+  });
+
+  describe('pause()/resume()', () => {
+    it('writes the real-time hold and resume bytes without touching the pending command or the alarm latch', async () => {
+      const connection = await connectMock();
+      const binding = getMockBinding(connection);
+      const written: Buffer[] = [];
+      const originalWrite = binding.write.bind(binding);
+      binding.write = async (buffer: Buffer) => {
+        written.push(buffer);
+        return originalWrite(buffer);
+      };
+
+      const pending = connection.send('G1 X500 Y500 F600');
+      connection.pause();
+      connection.resume();
+      await flush();
+
+      // Back-to-back synchronous writes can be coalesced by the underlying port before actually
+      // hitting the binding, so check the concatenated bytes rather than individual buffers.
+      const writtenText = Buffer.concat(written).toString('utf-8');
+      expect(writtenText).toContain('!');
+      expect(writtenText).toContain('~');
+      expect(connection.isAlarmed).toBe(false);
+
+      binding.emitData('ok\r\n');
+      await expect(pending).resolves.toBe('ok');
+      await connection.disconnect();
+    });
+
+    it('are no-ops when not connected', () => {
+      const connection = new GrblConnection();
+
+      expect(() => connection.pause()).not.toThrow();
+      expect(() => connection.resume()).not.toThrow();
+    });
+  });
 });

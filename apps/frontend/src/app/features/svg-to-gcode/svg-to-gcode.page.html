@@ -90,7 +90,7 @@
   />
 
   <app-test-pattern-dialog
-    [maxSpeedMmPerSec]="maxFeedMmPerSec()"
+    [maxSpeedMmPerMin]="maxFeedMmPerMin()"
     [materials]="materials()"
     [generating]="generatingTestPattern()"
     [errorMessage]="testPatternErrorMessage()"
@@ -145,7 +145,7 @@
                         <span class="color-swatch" [style.background]="profile.color"></span>
                         <span class="profile-item__label">{{ profile.name }}</span>
                         <span class="profile-item__meta"
-                          >{{ profile.mode }} · {{ profile.powerPercent }}% · {{ profile.speedMmPerSec }} mm/s</span
+                          >{{ profile.mode }} · {{ profile.powerPercent }}% · {{ profile.speedMmPerMin }} mm/min</span
                         >
                       </button>
                     </li>
@@ -167,7 +167,7 @@
                         <span class="color-swatch" [style.background]="profile.color"></span>
                         <span class="profile-item__label">{{ profile.name }}</span>
                         <span class="profile-item__meta"
-                          >{{ profile.mode }} · {{ profile.powerPercent }}% · {{ profile.speedMmPerSec }} mm/s</span
+                          >{{ profile.mode }} · {{ profile.powerPercent }}% · {{ profile.speedMmPerMin }} mm/min</span
                         >
                       </button>
                     </li>

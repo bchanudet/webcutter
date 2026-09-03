@@ -15,9 +15,9 @@ documentation pour toute réimportation future de ce fichier dans l'application.
       <version>1</version>
       <profiles>
         <profile id="3" materialId="1" name="Découpe 3mm" color="#ff0000" type="LINE"
-                  powerPercent="80" speedMmPerSec="12" passes="1" />
+                  powerPercent="80" speedMmPerMin="720" passes="1" />
         <profile id="5" materialId="1" name="Gravure" color="#0000ff" type="FILL"
-                  powerPercent="40" speedMmPerSec="150" passes="1" lineSpacingMm="0.1" />
+                  powerPercent="40" speedMmPerMin="9000" passes="1" lineSpacingMm="0.1" />
       </profiles>
       <material id="1" name="Contreplaqué" thicknessMm="3" />
     </webcutter>
@@ -69,7 +69,7 @@ ceux réellement assignés à une forme). Attributs, reflétant l'interface `Pro
 | `color`          | string | Couleur (code CSS, ex. `#ff0000`) utilisée pour l'affichage          |
 | `type`           | string | Mode de découpe : `LINE` (contour, la forme est découpée) ou `FILL` (surface, la forme est gravée/remplie) |
 | `powerPercent`   | number | Puissance laser, en pourcentage                                     |
-| `speedMmPerSec`  | number | Vitesse de déplacement, en mm/s                                     |
+| `speedMmPerMin`  | number | Vitesse de déplacement, en mm/min                                    |
 | `passes`         | number | Nombre de passes                                                     |
 | `lineSpacingMm`  | number | *(optionnel)* Espacement des lignes de hachurage, si mode `FILL`     |
 
@@ -174,11 +174,12 @@ La réponse est `{ "errors": [...], "gcode": "..." }` : si `errors` n'est pas vi
 ### G-code par path
 
 Pour chaque `<path>`, le profil résolu via son attribut `profile` fournit `powerPercent`,
-`speedMmPerSec`, `passes` et (en mode `FILL`) `lineSpacingMm` :
+`speedMmPerMin`, `passes` et (en mode `FILL`) `lineSpacingMm` :
 
 - La puissance devient une valeur `S` : `S = round(powerPercent / 100 * machine.sMax)`
   (`sMax`, la config machine — voir la configuration de la machine dans l'UI).
-- La vitesse devient un feed rate `F = round(speedMmPerSec * 60)` (mm/s → mm/min).
+- La vitesse est déjà exprimée en mm/min (l'unité native du feed rate G-code) : elle est utilisée
+  directement comme feed rate, `F = round(speedMmPerMin)`.
 - Tout est répété `passes` fois.
 
 **Profil `type="LINE"`** : chaque sous-tracé du path est suivi tel quel (`G0` jusqu'au premier

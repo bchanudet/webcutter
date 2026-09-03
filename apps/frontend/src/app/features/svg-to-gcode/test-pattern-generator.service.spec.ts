@@ -13,8 +13,8 @@ function baseInput(overrides: Partial<GenerateTestPatternInput> = {}): GenerateT
     material: MATERIAL,
     powerMinPercent: 10,
     powerMaxPercent: 90,
-    speedMinMmPerSec: 5,
-    speedMaxMmPerSec: 50,
+    speedMinMmPerMin: 5,
+    speedMaxMmPerMin: 50,
     steps: 3,
     includeMaterialLabel: false,
     includeLegends: false,
@@ -69,7 +69,7 @@ describe('TestPatternGeneratorService', () => {
 
   it('interpolates power increasing and speed decreasing away from the origin', () => {
     const svg = generate(
-      baseInput({ steps: 3, powerMinPercent: 0, powerMaxPercent: 100, speedMinMmPerSec: 10, speedMaxMmPerSec: 100 }),
+      baseInput({ steps: 3, powerMinPercent: 0, powerMaxPercent: 100, speedMinMmPerMin: 10, speedMaxMmPerMin: 100 }),
     );
     // cell-<row>-<col>: column 0 (closest to the origin) must carry the min power, the last
     // column the max — and symmetrically, row 0 must carry the max speed, the last row the min.
@@ -78,7 +78,7 @@ describe('TestPatternGeneratorService', () => {
       const match = id ? new RegExp(`<profile id="${id}"[^>]*/>`).exec(svg)?.[0] : undefined;
       return {
         power: match ? Number(/powerPercent="([^"]+)"/.exec(match)?.[1]) : NaN,
-        speed: match ? Number(/speedMmPerSec="([^"]+)"/.exec(match)?.[1]) : NaN,
+        speed: match ? Number(/speedMmPerMin="([^"]+)"/.exec(match)?.[1]) : NaN,
       };
     };
 
@@ -107,12 +107,12 @@ describe('TestPatternGeneratorService', () => {
 
   it('only spells out the unit on the last column/row, bare numbers everywhere else', () => {
     // baseInput: power 10 -> 90 and speed 5 -> 50 over 3 steps -> columns 10/50/90(%), rows
-    // (speed decreasing) 50/27.5/5(mm/s).
+    // (speed decreasing) 50/27.5/5(mm/min).
     generate(baseInput({ steps: 3, includeLegends: true }));
     const texts = textToSvg.mock.calls.map((call) => call[0] as string);
-    expect(texts).toEqual(expect.arrayContaining(['10', '50', '90%', '27.5', '5 mm/s']));
+    expect(texts).toEqual(expect.arrayContaining(['10', '50', '90%', '27.5', '5 mm/min']));
     expect(texts).not.toContain('10%');
-    expect(texts).not.toContain('50 mm/s');
+    expect(texts).not.toContain('50 mm/min');
   });
 
   it('does not call the font backend when neither legends nor the material label are requested', () => {

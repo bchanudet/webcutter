@@ -4,6 +4,7 @@ import { MenuItem, PrimeTemplate } from '@openng/optimus-ui/api';
 import { Menubar } from '@openng/optimus-ui/menubar';
 import { TablerIcon } from '../shared/tabler-icon/tabler-icon';
 import { TablerIconName } from '../shared/tabler-icon/tabler-icon-paths';
+import { MachineStatusFlashcard } from './machine-status-flashcard/machine-status-flashcard';
 
 interface AppMenuItem extends MenuItem {
   iconName: TablerIconName;
@@ -11,7 +12,15 @@ interface AppMenuItem extends MenuItem {
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet, PrimeTemplate, Menubar, TablerIcon],
+  imports: [
+    RouterLink,
+    RouterLinkActive,
+    RouterOutlet,
+    PrimeTemplate,
+    Menubar,
+    TablerIcon,
+    MachineStatusFlashcard,
+  ],
   templateUrl: './shell.html',
   styleUrl: './shell.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

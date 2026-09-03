@@ -20,9 +20,19 @@ const DEFAULT_STEP_MM = 1;
 export class PositionCard {
   private readonly socket = inject(CutterSocketService);
 
-  /** The laser's machine position (MPos), as last reported by the cutter's status report. */
-  protected readonly position = computed(() => this.socket.status().grbl?.machinePosition ?? null);
+  /** Position relative to the cutting surface origin (WPos), as last reported by the cutter's
+   * status report — falls back to the raw machine position (MPos) if the board's status report
+   * mask ($10) isn't configured to include WPos, so the card still shows something rather than
+   * nothing. WPos is negative whenever the head is to the left of/below the surface origin, which
+   * is expected and not an error. */
+  protected readonly position = computed(() => {
+    const grbl = this.socket.status().grbl;
+    return grbl?.workPosition ?? grbl?.machinePosition ?? null;
+  });
   protected readonly connected = computed(() => this.socket.status().connected);
+  /** Movement (jog + home) is disabled while a cutting job is running — the operator's only way
+   * to intervene at that point is the "Abort" button on the Gcode file card. */
+  protected readonly jobRunning = computed(() => this.socket.jobStatus().running);
   protected readonly stepMm = signal(DEFAULT_STEP_MM);
 
   protected home(): void {

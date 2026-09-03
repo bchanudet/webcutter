@@ -16,7 +16,7 @@ export interface ParsedProfile {
   name: string;
   mode: 'LINE' | 'FILL';
   powerPercent: number;
-  speedMmPerSec: number;
+  speedMmPerMin: number;
   passes: number;
   /** `null` when absent — only meaningful (and required) for a `FILL`-mode profile. */
   lineSpacingMm: number | null;
@@ -178,7 +178,7 @@ export function parseWorkspaceSvg(svgText: string): ParsedWorkspace {
         name: profileEl.attributes['name'] ?? '',
         mode: profileEl.attributes['type'] === 'FILL' ? 'FILL' : 'LINE',
         powerPercent: parseNumberAttr(profileEl, 'powerPercent'),
-        speedMmPerSec: parseNumberAttr(profileEl, 'speedMmPerSec'),
+        speedMmPerMin: parseNumberAttr(profileEl, 'speedMmPerMin'),
         passes: parseNumberAttr(profileEl, 'passes'),
         lineSpacingMm: lineSpacingMm != null && Number.isFinite(lineSpacingMm) ? lineSpacingMm : null,
       });

@@ -15,7 +15,7 @@ describe('ProfilesService', () => {
     color: '#ff0000',
     mode: ProfileMode.LINE,
     powerPercent: 80,
-    speedMmPerSec: 15,
+    speedMmPerMin: 900,
   };
 
   beforeEach(() => {

@@ -12,8 +12,15 @@ import { Server, WebSocket } from 'ws';
 import { GcodeFileInfo, GcodeFileService } from '../gcode-file/gcode-file.service';
 import { MachineService } from '../machine/machine.service';
 import { CheckService } from './check.service';
-import { CheckStatusPayload, MachineStatusPayload, SerialMessageDirection, SerialMessagePayload } from './cutter-ws.types';
+import {
+  CheckStatusPayload,
+  JobStatusPayload,
+  MachineStatusPayload,
+  SerialMessageDirection,
+  SerialMessagePayload,
+} from './cutter-ws.types';
 import { FramingService } from './framing.service';
+import { JobService } from './job.service';
 
 /** How often GRBL's own status ("Idle"/"Run"/"Home"/...) is polled and re-broadcast while the
  * machine is connected — no-op (and no serial traffic) while disconnected. */
@@ -23,13 +30,15 @@ const STATUS_POLL_INTERVAL_MS = 1000;
  * currently uploaded G-code file, alongside the existing REST endpoints on `CutterController` and
  * `GcodeFileController`.
  * Client -> server: `connect`, `disconnect`, `sendCommand`, `deleteGcodeFile`, `startFrame`,
- * `stopFrame`, `startCheck`.
+ * `stopFrame`, `startCheck`, `startJob`, `stopJob`, `pauseJob`, `resumeJob`.
  * Server -> client: `status` (broadcast whenever it changes — reports a synthetic "Framing" state
  * while `FramingService` is running, see `applyFramingOverride`), `serial` (broadcast for every
  * byte sequence written to or read from the cutter — feeds the Operation page's Terminal tab),
  * `gcodeFile` (broadcast whenever the uploaded G-code file changes, so every browser on the
  * Operation page shows the same file), `checkResult` (broadcast whenever a `$C` check run starts
- * or finishes, see `CheckService`). */
+ * or finishes, see `CheckService`), `jobStatus` (broadcast whenever a cutting job starts, pauses,
+ * resumes, advances, or finishes, see `JobService` — surfaced app-wide via the menubar flashcard,
+ * and in more detail on the Operation page's "Gcode file" card). */
 @WebSocketGateway({ path: '/api/ws/cutter' })
 export class CutterGateway
   implements OnGatewayInit<Server>, OnGatewayConnection<WebSocket>, OnModuleDestroy
@@ -51,6 +60,7 @@ export class CutterGateway
     private readonly gcodeFileService: GcodeFileService,
     private readonly framingService: FramingService,
     private readonly checkService: CheckService,
+    private readonly jobService: JobService,
   ) {
     this.cutterCommunication.on('sent', (raw: string) => this.broadcastSerialMessage('sent', raw));
     this.cutterCommunication.on('received', (raw: string) =>
@@ -71,6 +81,7 @@ export class CutterGateway
     // away, not on the next poll tick.
     this.framingService.on('changed', () => void this.pollAndBroadcastStatus(true));
     this.checkService.on('changed', () => this.broadcastCheckStatus());
+    this.jobService.on('changed', () => this.broadcastJobStatus());
   }
 
   afterInit(): void {
@@ -83,14 +94,15 @@ export class CutterGateway
     }
   }
 
-  /** A freshly connected client has no way to know the current status, G-code file, or check run
-   * yet — send all three directly, bypassing the broadcast dedupe so they don't depend on the
-   * next change. */
+  /** A freshly connected client has no way to know the current status, G-code file, check run, or
+   * job run yet — send all four directly, bypassing the broadcast dedupe so they don't depend on
+   * the next change. */
   async handleConnection(client: WebSocket): Promise<void> {
     const payload = await this.buildStatusPayload();
     this.sendTo(client, payload);
     this.sendGcodeFileTo(client, this.gcodeFileService.get());
     this.sendCheckStatusTo(client);
+    this.sendJobStatusTo(client);
   }
 
   @SubscribeMessage('connect')
@@ -163,6 +175,29 @@ export class CutterGateway
   @SubscribeMessage('startCheck')
   handleStartCheckMessage(): void {
     void this.checkService.run();
+  }
+
+  /** Not awaited — `start()` only resolves once the job actually finishes (or is stopped), and the
+   * gateway shouldn't block handling other messages (e.g. `stopJob`) until then. */
+  @SubscribeMessage('startJob')
+  handleStartJobMessage(): void {
+    void this.jobService.start();
+  }
+
+  /** Emergency stop — see `JobService.stop()`. */
+  @SubscribeMessage('stopJob')
+  handleStopJobMessage(): void {
+    this.jobService.stop();
+  }
+
+  @SubscribeMessage('pauseJob')
+  handlePauseJobMessage(): void {
+    this.jobService.pause();
+  }
+
+  @SubscribeMessage('resumeJob')
+  handleResumeJobMessage(): void {
+    this.jobService.resume();
   }
 
   private broadcastSerialMessage(direction: SerialMessageDirection, raw: string): void {
@@ -262,6 +297,20 @@ export class CutterGateway
   private sendCheckStatusTo(client: WebSocket): void {
     if (client.readyState === client.OPEN) {
       client.send(JSON.stringify({ event: 'checkResult', data: this.buildCheckStatusPayload() }));
+    }
+  }
+
+  private buildJobStatusPayload(): JobStatusPayload {
+    return this.jobService.status;
+  }
+
+  private broadcastJobStatus(): void {
+    this.broadcast(JSON.stringify({ event: 'jobStatus', data: this.buildJobStatusPayload() }));
+  }
+
+  private sendJobStatusTo(client: WebSocket): void {
+    if (client.readyState === client.OPEN) {
+      client.send(JSON.stringify({ event: 'jobStatus', data: this.buildJobStatusPayload() }));
     }
   }
 }

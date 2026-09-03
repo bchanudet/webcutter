@@ -67,23 +67,23 @@
 
     <div class="field-row">
       <div class="field">
-        <label for="test-pattern-speed-min">Speed min (mm/s)</label>
+        <label for="test-pattern-speed-min">Speed min (mm/min)</label>
         <p-inputnumber
           inputId="test-pattern-speed-min"
-          formControlName="speedMinMmPerSec"
-          [min]="0.1"
-          [step]="1"
-          suffix=" mm/s"
+          formControlName="speedMinMmPerMin"
+          [min]="6"
+          [step]="10"
+          suffix=" mm/min"
         />
       </div>
       <div class="field">
-        <label for="test-pattern-speed-max">Speed max (mm/s)</label>
+        <label for="test-pattern-speed-max">Speed max (mm/min)</label>
         <p-inputnumber
           inputId="test-pattern-speed-max"
-          formControlName="speedMaxMmPerSec"
-          [min]="0.1"
-          [step]="1"
-          suffix=" mm/s"
+          formControlName="speedMaxMmPerMin"
+          [min]="6"
+          [step]="10"
+          suffix=" mm/min"
         />
       </div>
     </div>

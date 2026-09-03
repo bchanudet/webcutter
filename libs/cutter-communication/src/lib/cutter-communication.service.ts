@@ -17,7 +17,7 @@ export class CutterCommunicationService extends EventEmitter implements OnModule
     super();
     this.connection.on('error', (error: Error) => this.logger.error(error.message, error.stack));
     this.connection.on('alarm', (message: string) => this.logger.warn(message));
-    this.connection.on('disconnected', () => this.logger.log('Découpeuse déconnectée.'));
+    this.connection.on('disconnected', () => this.logger.log('cutter disconnected'));
     this.connection.on('sent', (raw: string) => this.emit('sent', raw));
     this.connection.on('received', (raw: string) => this.emit('received', raw));
   }
@@ -27,7 +27,7 @@ export class CutterCommunicationService extends EventEmitter implements OnModule
   }
 
   async connect(options: GrblConnectionOptions): Promise<void> {
-    this.logger.log(`Connexion à la découpeuse sur ${options.path}`);
+    this.logger.log(`connecting to cutter on ${options.path}`);
     await this.connection.connect(options);
   }
 
@@ -59,6 +59,20 @@ export class CutterCommunicationService extends EventEmitter implements OnModule
 
   sendProgram(lines: string[]): Promise<void> {
     return this.connection.sendProgram(lines);
+  }
+
+  /** Emergency stop — see `GrblConnection.abort()`. */
+  abort(): void {
+    this.connection.abort();
+  }
+
+  /** Feed hold / cycle start — see `GrblConnection.pause()`/`resume()`. */
+  pause(): void {
+    this.connection.pause();
+  }
+
+  resume(): void {
+    this.connection.resume();
   }
 
   sleepMs(ms: number): Promise<null> {

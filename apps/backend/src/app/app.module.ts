@@ -10,6 +10,7 @@ import { FramingService } from './cutter/framing.service';
 import { FontModule } from './font/font.module';
 import { GcodeFileModule } from './gcode-file/gcode-file.module';
 import { GcodeModule } from './gcode/gcode.module';
+import { JobService } from './cutter/job.service';
 import { MachineModule } from './machine/machine.module';
 import { MaterialsModule } from './materials/materials.module';
 import { WorkspaceModule } from './workspace/workspace.module';
@@ -31,6 +32,6 @@ import { WorkspaceModule } from './workspace/workspace.module';
     FontModule,
   ],
   controllers: [AppController, CutterController],
-  providers: [AppService, CutterGateway, FramingService, CheckService],
+  providers: [AppService, CutterGateway, FramingService, CheckService, JobService],
 })
 export class AppModule {}

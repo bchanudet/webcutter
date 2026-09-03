@@ -7,7 +7,7 @@ export interface Profile {
   color: string;
   mode: ProfileMode;
   powerPercent: number;
-  speedMmPerSec: number;
+  speedMmPerMin: number;
   passes: number;
   lineSpacingMm: number | null;
 }
@@ -29,7 +29,7 @@ export interface ProfilePayload {
   color: string;
   mode: ProfileMode;
   powerPercent: number;
-  speedMmPerSec: number;
+  speedMmPerMin: number;
   passes: number;
   lineSpacingMm?: number | null;
 }

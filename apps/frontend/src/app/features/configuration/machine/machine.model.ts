@@ -22,8 +22,8 @@ export interface Machine {
   origin: GcodeOrigin;
   maxAccelerationXMmPerSec2: number;
   maxAccelerationYMmPerSec2: number;
-  maxSpeedXMmPerSec: number;
-  maxSpeedYMmPerSec: number;
+  maxSpeedXMmPerMin: number;
+  maxSpeedYMmPerMin: number;
   sMax: number;
 }
 
@@ -40,7 +40,7 @@ export interface MachinePayload {
   origin: GcodeOrigin;
   maxAccelerationXMmPerSec2: number;
   maxAccelerationYMmPerSec2: number;
-  maxSpeedXMmPerSec: number;
-  maxSpeedYMmPerSec: number;
+  maxSpeedXMmPerMin: number;
+  maxSpeedYMmPerMin: number;
   sMax: number;
 }

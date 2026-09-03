@@ -13,27 +13,55 @@
       <span class="gcode-file__value">{{ file.commandCount }}</span>
     </div>
 
-    <div class="actions">
-      <!-- Not wired up yet — job streaming to the cutter doesn't exist yet. -->
-      <p-button label="Start" [disabled]="!connected() || framing() || checking()" />
-      <p-button
-        [label]="framing() ? 'Stop' : 'Frame'"
-        [severity]="framing() ? 'danger' : undefined"
-        [outlined]="!framing()"
-        [disabled]="!connected() || checking()"
-        (onClick)="toggleFrame()"
-      />
-      <p-button
-        [label]="checking() ? 'Checking…' : 'Check'"
-        [outlined]="true"
-        [disabled]="!connected() || framing() || checking()"
-        (onClick)="runCheck()"
-      />
-    </div>
+    @if (!jobRunning()) {
+      <div class="actions">
+        <p-button
+          label="Start"
+          [disabled]="!connected() || framing() || checking()"
+          (onClick)="startJob()"
+        />
+        <p-button
+          [label]="framing() ? 'Stop' : 'Frame'"
+          [severity]="framing() ? 'danger' : undefined"
+          [outlined]="!framing()"
+          [disabled]="!connected() || checking()"
+          (onClick)="toggleFrame()"
+        />
+        <p-button
+          [label]="checking() ? 'Checking…' : 'Check'"
+          [outlined]="true"
+          [disabled]="!connected() || framing() || checking()"
+          (onClick)="runCheck()"
+        />
+      </div>
+    } @else {
+      <div class="gcode-file__job">
+        <p-progressBar [value]="jobProgressPercent()" [showValue]="true" />
+        <div class="actions">
+          <p-button
+            [label]="jobPaused() ? 'Resume' : 'Pause'"
+            [outlined]="true"
+            (onClick)="togglePauseJob()"
+          />
+          <p-button
+            label="Abort"
+            severity="danger"
+            size="large"
+            class="gcode-file__abort"
+            (onClick)="abortJob()"
+          />
+        </div>
+      </div>
+    }
 
     @if (checkResult(); as result) {
       <p-message class="gcode-file__check-result" [severity]="result.severity" [closable]="false">
         {{ result.text }}
+      </p-message>
+    }
+    @if (jobError(); as error) {
+      <p-message class="gcode-file__check-result" severity="error" [closable]="false">
+        {{ error }}
       </p-message>
     }
   </p-card>

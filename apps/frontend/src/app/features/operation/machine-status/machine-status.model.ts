@@ -17,6 +17,37 @@ export interface GrblPosition {
   z: number;
 }
 
+export type StatusSeverity = 'success' | 'info' | 'warn' | 'danger' | 'secondary';
+
+/** Human-friendly label for each GRBL state — shared by every UI surface that shows the machine's
+ * status (`MachineStatusCard` on the Operation page, `MachineStatusFlashcard` in the menubar). */
+export const GRBL_STATE_LABELS: Record<GrblMachineState, string> = {
+  Idle: 'Idle',
+  Run: 'Processing',
+  Hold: 'Hold',
+  Jog: 'Jogging',
+  Alarm: 'Alarm',
+  Door: 'Door open',
+  Check: 'Check mode',
+  Home: 'Homing',
+  Sleep: 'Sleep',
+  Framing: 'Framing',
+};
+
+/** Tag/badge severity for each GRBL state — see `GRBL_STATE_LABELS`. */
+export const GRBL_STATE_SEVERITIES: Record<GrblMachineState, StatusSeverity> = {
+  Idle: 'success',
+  Run: 'info',
+  Hold: 'warn',
+  Jog: 'info',
+  Alarm: 'danger',
+  Door: 'danger',
+  Check: 'secondary',
+  Home: 'info',
+  Sleep: 'secondary',
+  Framing: 'warn',
+};
+
 export interface GrblStatus {
   state: GrblMachineState;
   machinePosition?: GrblPosition;
@@ -82,4 +113,17 @@ export interface CheckOutcome {
 export interface CheckStatusPayload {
   running: boolean;
   result: CheckOutcome | null;
+}
+
+/** Mirrors the backend's `JobStatusPayload` — broadcast over `/api/ws/cutter` whenever a cutting
+ * job starts, advances, or finishes. Surfaced app-wide via the menubar flashcard (see
+ * `MachineStatusFlashcard`), not just the Operation page. */
+export interface JobStatusPayload {
+  running: boolean;
+  /** Whether the job is currently on feed hold — only meaningful while `running` is true. */
+  paused: boolean;
+  fileName: string | null;
+  currentLine: number;
+  totalLines: number;
+  error: string | null;
 }

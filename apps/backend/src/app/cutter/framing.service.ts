@@ -52,7 +52,7 @@ export class FramingService extends EventEmitter {
     try {
       const machine = await this.machineService.get();
       const power = Math.round((FRAMING_POWER_PERCENT / 100) * machine.sMax);
-      const feed = Math.round(Math.min(machine.maxSpeedXMmPerSec, machine.maxSpeedYMmPerSec) * 60);
+      const feed = Math.round(Math.min(machine.maxSpeedXMmPerMin, machine.maxSpeedYMmPerMin));
 
       await this.cutterCommunication.sendCommand('$H');
       await this.cutterCommunication.sendCommand('G90');

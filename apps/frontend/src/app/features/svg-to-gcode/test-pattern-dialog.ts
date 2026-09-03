@@ -17,8 +17,8 @@ export interface TestPatternParams {
   materialId: string;
   powerMinPercent: number;
   powerMaxPercent: number;
-  speedMinMmPerSec: number;
-  speedMaxMmPerSec: number;
+  speedMinMmPerMin: number;
+  speedMaxMmPerMin: number;
   steps: number;
   includeMaterialLabel: boolean;
   includeLegends: boolean;
@@ -30,8 +30,8 @@ interface TestPatternForm {
   materialId: FormControl<string | null>;
   powerMinPercent: FormControl<number>;
   powerMaxPercent: FormControl<number>;
-  speedMinMmPerSec: FormControl<number>;
-  speedMaxMmPerSec: FormControl<number>;
+  speedMinMmPerMin: FormControl<number>;
+  speedMaxMmPerMin: FormControl<number>;
   steps: FormControl<number>;
   includeMaterialLabel: FormControl<boolean>;
   includeLegends: FormControl<boolean>;
@@ -58,7 +58,7 @@ export class TestPatternDialog {
   /** The machine's own max feed rate (the smaller of its X/Y max speeds, same convention as
    * `framing.service.ts` on the backend) — used to seed the speed min/max defaults every time
    * the dialog opens. */
-  readonly maxSpeedMmPerSec = input.required<number>();
+  readonly maxSpeedMmPerMin = input.required<number>();
   /** Materials available to generate the pattern for — the same list the workspace's own
    * material dropdown uses. */
   readonly materials = input.required<Material[]>();
@@ -94,13 +94,13 @@ export class TestPatternDialog {
       nonNullable: true,
       validators: [Validators.required, Validators.min(0), Validators.max(100)],
     }),
-    speedMinMmPerSec: new FormControl(1, {
+    speedMinMmPerMin: new FormControl(60, {
       nonNullable: true,
-      validators: [Validators.required, Validators.min(0.1)],
+      validators: [Validators.required, Validators.min(6)],
     }),
-    speedMaxMmPerSec: new FormControl(10, {
+    speedMaxMmPerMin: new FormControl(600, {
       nonNullable: true,
-      validators: [Validators.required, Validators.min(0.1)],
+      validators: [Validators.required, Validators.min(6)],
     }),
     steps: new FormControl(5, {
       nonNullable: true,
@@ -113,15 +113,15 @@ export class TestPatternDialog {
   /** Resets the form to its defaults (speed min/max seeded from the machine's own max feed rate,
    * material defaulting to the first one available) and opens the dialog. */
   open(): void {
-    const maxSpeed = this.maxSpeedMmPerSec();
+    const maxSpeed = this.maxSpeedMmPerMin();
     this.form.reset({
       mode: 'LINE',
       shape: 'square',
       materialId: this.materials()[0]?.id ?? null,
       powerMinPercent: 10,
       powerMaxPercent: 100,
-      speedMinMmPerSec: Math.round(maxSpeed * 0.1 * 100) / 100,
-      speedMaxMmPerSec: maxSpeed,
+      speedMinMmPerMin: Math.round(maxSpeed * 0.1 * 100) / 100,
+      speedMaxMmPerMin: maxSpeed,
       steps: 5,
       includeMaterialLabel: true,
       includeLegends: true,
