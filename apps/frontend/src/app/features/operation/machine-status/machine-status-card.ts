@@ -6,7 +6,7 @@ import { ConfirmDialog } from '@openng/optimus-ui/confirmdialog';
 import { Message } from '@openng/optimus-ui/message';
 import { Tag } from '@openng/optimus-ui/tag';
 import { CutterSocketService } from './cutter-socket.service';
-import { GrblMachineState } from './machine-status.model';
+import { describeAlarm, GrblMachineState } from './machine-status.model';
 
 type StatusSeverity = 'success' | 'info' | 'warn' | 'danger' | 'secondary';
 
@@ -34,20 +34,6 @@ const GRBL_STATE_SEVERITIES: Record<GrblMachineState, StatusSeverity> = {
   Home: 'info',
   Sleep: 'secondary',
   Framing: 'warn',
-};
-
-/** GRBL 1.1's own `ALARM:N` codes — see https://github.com/gnea/grbl/wiki/Grbl-v1.1-Interface#alarm-messages */
-const GRBL_ALARM_REASONS: Record<number, string> = {
-  1: 'Hard limit triggered',
-  2: 'G-code move target exceeds machine travel',
-  3: 'Reset while in motion — position may be lost',
-  4: 'Probe failed (unexpected initial state)',
-  5: 'Probe failed (no contact with workpiece)',
-  6: 'Homing cycle reset before completing',
-  7: 'Safety door opened during homing',
-  8: 'Homing failed to clear the limit switch',
-  9: 'Homing could not find the limit switch',
-  10: 'Homing could not find the second limit switch',
 };
 
 @Component({
@@ -87,15 +73,12 @@ export class MachineStatusCard {
 
   protected readonly connectionError = computed(() => this.status().connectionError);
 
-  /** A human-readable reason for the current alarm, if the state is "Alarm" and we know one — see
-   * `GRBL_ALARM_REASONS`. `null` otherwise, including while alarmed for an unknown reason (e.g. the
-   * machine was already alarmed before this session connected). */
+  /** A human-readable reason for the current alarm, if the state is "Alarm" and we know one — `null`
+   * otherwise, including while alarmed for an unknown reason (e.g. the machine was already alarmed
+   * before this session connected). */
   protected readonly alarmReason = computed(() => {
     const grbl = this.status().grbl;
-    if (grbl?.state !== 'Alarm' || grbl.alarmCode == null) {
-      return null;
-    }
-    return GRBL_ALARM_REASONS[grbl.alarmCode] ?? `Alarm code ${grbl.alarmCode}`;
+    return grbl?.state === 'Alarm' ? describeAlarm(grbl.alarmCode) : null;
   });
 
   protected connect(): void {

@@ -15,14 +15,26 @@
 
     <div class="actions">
       <!-- Not wired up yet — job streaming to the cutter doesn't exist yet. -->
-      <p-button label="Start" [disabled]="!connected()" />
+      <p-button label="Start" [disabled]="!connected() || framing() || checking()" />
       <p-button
         [label]="framing() ? 'Stop' : 'Frame'"
         [severity]="framing() ? 'danger' : undefined"
         [outlined]="!framing()"
-        [disabled]="!connected()"
+        [disabled]="!connected() || checking()"
         (onClick)="toggleFrame()"
       />
+      <p-button
+        [label]="checking() ? 'Checking…' : 'Check'"
+        [outlined]="true"
+        [disabled]="!connected() || framing() || checking()"
+        (onClick)="runCheck()"
+      />
     </div>
+
+    @if (checkResult(); as result) {
+      <p-message class="gcode-file__check-result" [severity]="result.severity" [closable]="false">
+        {{ result.text }}
+      </p-message>
+    }
   </p-card>
 }

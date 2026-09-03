@@ -11,7 +11,8 @@ import { CutterCommunicationService, GrblStatus } from '@webcutter/cutter-commun
 import { Server, WebSocket } from 'ws';
 import { GcodeFileInfo, GcodeFileService } from '../gcode-file/gcode-file.service';
 import { MachineService } from '../machine/machine.service';
-import { MachineStatusPayload, SerialMessageDirection, SerialMessagePayload } from './cutter-ws.types';
+import { CheckService } from './check.service';
+import { CheckStatusPayload, MachineStatusPayload, SerialMessageDirection, SerialMessagePayload } from './cutter-ws.types';
 import { FramingService } from './framing.service';
 
 /** How often GRBL's own status ("Idle"/"Run"/"Home"/...) is polled and re-broadcast while the
@@ -22,12 +23,13 @@ const STATUS_POLL_INTERVAL_MS = 1000;
  * currently uploaded G-code file, alongside the existing REST endpoints on `CutterController` and
  * `GcodeFileController`.
  * Client -> server: `connect`, `disconnect`, `sendCommand`, `deleteGcodeFile`, `startFrame`,
- * `stopFrame`.
+ * `stopFrame`, `startCheck`.
  * Server -> client: `status` (broadcast whenever it changes — reports a synthetic "Framing" state
  * while `FramingService` is running, see `applyFramingOverride`), `serial` (broadcast for every
  * byte sequence written to or read from the cutter — feeds the Operation page's Terminal tab),
  * `gcodeFile` (broadcast whenever the uploaded G-code file changes, so every browser on the
- * Operation page shows the same file). */
+ * Operation page shows the same file), `checkResult` (broadcast whenever a `$C` check run starts
+ * or finishes, see `CheckService`). */
 @WebSocketGateway({ path: '/api/ws/cutter' })
 export class CutterGateway
   implements OnGatewayInit<Server>, OnGatewayConnection<WebSocket>, OnModuleDestroy
@@ -48,6 +50,7 @@ export class CutterGateway
     private readonly machineService: MachineService,
     private readonly gcodeFileService: GcodeFileService,
     private readonly framingService: FramingService,
+    private readonly checkService: CheckService,
   ) {
     this.cutterCommunication.on('sent', (raw: string) => this.broadcastSerialMessage('sent', raw));
     this.cutterCommunication.on('received', (raw: string) =>
@@ -67,6 +70,7 @@ export class CutterGateway
     // Same reasoning as 'alarm' above: framing starting/stopping should reach every client right
     // away, not on the next poll tick.
     this.framingService.on('changed', () => void this.pollAndBroadcastStatus(true));
+    this.checkService.on('changed', () => this.broadcastCheckStatus());
   }
 
   afterInit(): void {
@@ -79,12 +83,14 @@ export class CutterGateway
     }
   }
 
-  /** A freshly connected client has no way to know the current status or G-code file yet — send
-   * both directly, bypassing the broadcast dedupe so they don't depend on the next change. */
+  /** A freshly connected client has no way to know the current status, G-code file, or check run
+   * yet — send all three directly, bypassing the broadcast dedupe so they don't depend on the
+   * next change. */
   async handleConnection(client: WebSocket): Promise<void> {
     const payload = await this.buildStatusPayload();
     this.sendTo(client, payload);
     this.sendGcodeFileTo(client, this.gcodeFileService.get());
+    this.sendCheckStatusTo(client);
   }
 
   @SubscribeMessage('connect')
@@ -151,6 +157,12 @@ export class CutterGateway
   @SubscribeMessage('stopFrame')
   handleStopFrameMessage(): void {
     this.framingService.stop();
+  }
+
+  /** Not awaited — same reasoning as `startFrame` above. */
+  @SubscribeMessage('startCheck')
+  handleStartCheckMessage(): void {
+    void this.checkService.run();
   }
 
   private broadcastSerialMessage(direction: SerialMessageDirection, raw: string): void {
@@ -236,6 +248,20 @@ export class CutterGateway
   private sendGcodeFileTo(client: WebSocket, info: GcodeFileInfo | null): void {
     if (client.readyState === client.OPEN) {
       client.send(JSON.stringify({ event: 'gcodeFile', data: info }));
+    }
+  }
+
+  private buildCheckStatusPayload(): CheckStatusPayload {
+    return { running: this.checkService.isRunning, result: this.checkService.result };
+  }
+
+  private broadcastCheckStatus(): void {
+    this.broadcast(JSON.stringify({ event: 'checkResult', data: this.buildCheckStatusPayload() }));
+  }
+
+  private sendCheckStatusTo(client: WebSocket): void {
+    if (client.readyState === client.OPEN) {
+      client.send(JSON.stringify({ event: 'checkResult', data: this.buildCheckStatusPayload() }));
     }
   }
 }

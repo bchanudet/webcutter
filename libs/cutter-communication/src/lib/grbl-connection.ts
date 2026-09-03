@@ -227,6 +227,10 @@ export class GrblConnection extends EventEmitter {
       const code = Number(trimmed.slice('ALARM:'.length));
       this.lastAlarmCode = Number.isFinite(code) ? code : null;
       this.emit('alarm', trimmed);
+      // An ALARM: line can arrive instead of the ok/error a queued command was waiting for (e.g. a
+      // travel-limit violation caught mid-program by `sendProgram`/Check mode) — without this, that
+      // command's promise would simply never settle. A no-op if nothing is currently in flight.
+      this.settleCurrentCommand((command) => command.reject(new Error(`Alarme GRBL : ${trimmed}`)));
       return;
     }
 

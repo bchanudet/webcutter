@@ -157,6 +157,17 @@ describe('GrblConnection', () => {
       await connection.disconnect();
     });
 
+    it('rejects the in-flight command when an ALARM: line arrives instead of ok/error', async () => {
+      const connection = await connectMock();
+      const binding = getMockBinding(connection);
+
+      const pending = connection.send('G1 X500 Y500 F600');
+      binding.emitData('ALARM:2\r\n');
+
+      await expect(pending).rejects.toThrow('ALARM:2');
+      await connection.disconnect();
+    });
+
     it('stays latched even once GRBL reports Idle again, with alarmCode null for a non-numeric code', async () => {
       const connection = await connectMock();
       const binding = getMockBinding(connection);

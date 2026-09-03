@@ -1,7 +1,7 @@
 import { Injectable, OnDestroy, signal } from '@angular/core';
 import { Subject } from 'rxjs';
 import { GcodeFileInfo } from '../gcode-file/gcode-file.model';
-import { MachineStatusPayload, SerialMessagePayload } from './machine-status.model';
+import { CheckStatusPayload, MachineStatusPayload, SerialMessagePayload } from './machine-status.model';
 
 const RECONNECT_DELAY_MS = 2000;
 
@@ -10,11 +10,11 @@ interface IncomingMessage {
   data: unknown;
 }
 
-/** Client for the `/api/ws/cutter` WebSocket: keeps `status` and `gcodeFile` in sync with the
- * backend's broadcasts, streams raw serial traffic via `serialMessages$`, and sends the
- * `connect`/`disconnect`/`sendCommand`/`deleteGcodeFile`/`startFrame`/`stopFrame` commands.
- * Reconnects automatically (e.g. after a backend restart) so the page doesn't need to be reloaded
- * to recover. */
+/** Client for the `/api/ws/cutter` WebSocket: keeps `status`, `gcodeFile` and `checkStatus` in sync
+ * with the backend's broadcasts, streams raw serial traffic via `serialMessages$`, and sends the
+ * `connect`/`disconnect`/`sendCommand`/`deleteGcodeFile`/`startFrame`/`stopFrame`/`startCheck`
+ * commands. Reconnects automatically (e.g. after a backend restart) so the page doesn't need to be
+ * reloaded to recover. */
 @Injectable({ providedIn: 'root' })
 export class CutterSocketService implements OnDestroy {
   private socket: WebSocket | null = null;
@@ -30,6 +30,8 @@ export class CutterSocketService implements OnDestroy {
    * `status().connected`, which is whether the *backend* is connected to the cutter's serial port.
    * `false` means every other signal here is stale until reconnection succeeds. */
   readonly wsConnected = signal(false);
+  /** State of the last (or currently running) `$C` check — see `startCheck()`. */
+  readonly checkStatus = signal<CheckStatusPayload>({ running: false, result: null });
 
   constructor() {
     this.open();
@@ -57,6 +59,10 @@ export class CutterSocketService implements OnDestroy {
 
   stopFrame(): void {
     this.send('stopFrame');
+  }
+
+  startCheck(): void {
+    this.send('startCheck');
   }
 
   ngOnDestroy(): void {
@@ -101,6 +107,8 @@ export class CutterSocketService implements OnDestroy {
       this.serialMessages$.next(message.data as SerialMessagePayload);
     } else if (message.event === 'gcodeFile') {
       this.gcodeFile.set(message.data as GcodeFileInfo | null);
+    } else if (message.event === 'checkResult') {
+      this.checkStatus.set(message.data as CheckStatusPayload);
     }
   }
 

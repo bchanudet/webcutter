@@ -1,4 +1,5 @@
 import { GrblStatus } from '@webcutter/cutter-communication';
+import { CheckOutcome } from './check.service';
 
 /** Broadcast to every client whenever the machine's connection or GRBL-reported state changes. */
 export interface MachineStatusPayload {
@@ -11,6 +12,13 @@ export interface MachineStatusPayload {
    * Surfaced so the UI has something more useful to show than "Disconnected" when e.g. the port
    * doesn't exist or the backend's user isn't in the `dialout` group. */
   connectionError: string | null;
+}
+
+/** Broadcast to every client whenever a `$C` check run starts or finishes — see `CheckService`. */
+export interface CheckStatusPayload {
+  running: boolean;
+  /** `null` while `running`, or before any check has ever been run. */
+  result: CheckOutcome | null;
 }
 
 export type SerialMessageDirection = 'sent' | 'received';

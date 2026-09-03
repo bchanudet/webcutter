@@ -39,7 +39,7 @@ export class WorkspaceGcodeGeneratorService {
 
     const [machine, hooks] = await Promise.all([this.machineService.get(), this.gcodeService.findAll()]);
 
-    const lines: string[] = ['$H'];
+    const lines: string[] = [];
     lines.push(...this.hookCode(hooks, GcodeHook.START));
     for (const path of workspace.paths as PathWithGeometry[]) {
       const profile = workspace.profiles.find((candidate) => candidate.id === path.profileId) as ParsedProfile;
