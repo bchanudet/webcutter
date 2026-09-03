@@ -91,7 +91,7 @@ export function parseXml(source: string): XmlElement {
     if (source[i] !== '<') return null;
     i++;
     const nameMatch = /^[^\s/>]+/.exec(source.slice(i));
-    if (!nameMatch) throw new Error('Balise XML malformée.');
+    if (!nameMatch) throw new Error('Malformed XML tag.');
     const tagName = nameMatch[0];
     i += tagName.length;
     const attributes = parseAttributes();
@@ -101,7 +101,7 @@ export function parseXml(source: string): XmlElement {
       i += 2;
       return { tagName, attributes, children: [], text: '' };
     }
-    if (source[i] !== '>') throw new Error(`Balise <${tagName}> malformée.`);
+    if (source[i] !== '>') throw new Error(`Malformed <${tagName}> tag.`);
     i++;
 
     const children: XmlElement[] = [];
@@ -111,7 +111,7 @@ export function parseXml(source: string): XmlElement {
         i += tagName.length + 3;
         break;
       }
-      if (i >= len) throw new Error(`Balise <${tagName}> jamais refermée.`);
+      if (i >= len) throw new Error(`Tag <${tagName}> is never closed.`);
       if (source[i] === '<' && !source.startsWith('<!--', i)) {
         const child = parseElement();
         if (child) children.push(child);
@@ -132,7 +132,7 @@ export function parseXml(source: string): XmlElement {
 
   const root = parseElement();
   if (!root) {
-    throw new Error('Document XML vide ou invalide.');
+    throw new Error('Empty or invalid XML document.');
   }
   return root;
 }

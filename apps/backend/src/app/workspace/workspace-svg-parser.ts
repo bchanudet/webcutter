@@ -55,7 +55,7 @@ export interface ParsedWorkspace {
 function parseNumberAttr(element: XmlElement, name: string): number {
   const value = Number(element.attributes[name]);
   if (!Number.isFinite(value)) {
-    throw new Error(`Attribut "${name}" invalide sur <${element.tagName}>.`);
+    throw new Error(`Invalid "${name}" attribute on <${element.tagName}>.`);
   }
   return value;
 }
@@ -64,7 +64,7 @@ function parseNumberAttr(element: XmlElement, name: string): number {
 function requireStringAttr(element: XmlElement, name: string): string {
   const value = element.attributes[name];
   if (!value) {
-    throw new Error(`Attribut "${name}" invalide sur <${element.tagName}>.`);
+    throw new Error(`Invalid "${name}" attribute on <${element.tagName}>.`);
   }
   return value;
 }
@@ -79,7 +79,7 @@ function parseTransform(transform: string | undefined): (point: Point) => Point 
   }
   const parts = match[1].trim().split(/[\s,]+/).map(Number);
   if (parts.length !== 6 || parts.some((value) => !Number.isFinite(value))) {
-    throw new Error(`Attribut "transform" invalide : "${transform}".`);
+    throw new Error(`Invalid "transform" attribute: "${transform}".`);
   }
   const [a, b, c, d, e, f] = parts;
   return (point) => ({ x: a * point.x + c * point.y + e, y: b * point.x + d * point.y + f });
@@ -113,7 +113,7 @@ function parsePathData(d: string): { subpaths: Subpath[] } | { unsupportedComman
       const x = Number(tokens[i + 1]);
       const y = Number(tokens[i + 2]);
       if (!Number.isFinite(x) || !Number.isFinite(y)) {
-        throw new Error(`Commande "${token}" incomplète dans un path.`);
+        throw new Error(`Incomplete "${token}" command in a path.`);
       }
       if (token === 'M') {
         flush();
@@ -138,10 +138,10 @@ export function parseWorkspaceSvg(svgText: string): ParsedWorkspace {
   try {
     root = parseXml(svgText);
   } catch (error) {
-    throw new Error(`SVG illisible : ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`Unreadable SVG: ${error instanceof Error ? error.message : String(error)}`);
   }
   if (root.tagName !== 'svg') {
-    throw new Error("Le document fourni n'est pas un SVG.");
+    throw new Error("The provided document isn't an SVG.");
   }
 
   const viewBox = root.attributes['viewBox'];
@@ -150,7 +150,7 @@ export function parseWorkspaceSvg(svgText: string): ParsedWorkspace {
   if (viewBox) {
     const parts = viewBox.trim().split(/[\s,]+/).map(Number);
     if (parts.length !== 4 || parts.some((value) => !Number.isFinite(value))) {
-      throw new Error('Attribut "viewBox" invalide.');
+      throw new Error('Invalid "viewBox" attribute.');
     }
     width = parts[2];
     height = parts[3];
@@ -159,7 +159,7 @@ export function parseWorkspaceSvg(svgText: string): ParsedWorkspace {
     height = Number(root.attributes['height']);
   }
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    throw new Error('Dimensions de la surface de découpe introuvables ou invalides.');
+    throw new Error('Cutting surface dimensions are missing or invalid.');
   }
 
   const webcutter = findDescendant(root, (el) => el.tagName === 'webcutter');
@@ -195,7 +195,7 @@ export function parseWorkspaceSvg(svgText: string): ParsedWorkspace {
 
   const contentGroup = findDescendant(root, (el) => el.tagName === 'g' && el.attributes['id'] === 'content');
   if (!contentGroup) {
-    throw new Error('Groupe <g id="content"> introuvable.');
+    throw new Error('<g id="content"> group not found.');
   }
 
   const paths: ParsedPath[] = contentGroup.children
@@ -207,7 +207,7 @@ export function parseWorkspaceSvg(svgText: string): ParsedWorkspace {
 
       const d = pathEl.attributes['d'];
       if (!d) {
-        throw new Error(`Le path "${id}" n'a pas d'attribut "d".`);
+        throw new Error(`Path "${id}" has no "d" attribute.`);
       }
 
       const parsed = parsePathData(d);

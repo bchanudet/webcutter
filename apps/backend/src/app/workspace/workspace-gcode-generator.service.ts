@@ -67,7 +67,7 @@ export class WorkspaceGcodeGeneratorService {
       if (profile?.mode === 'FILL' && !(profile.lineSpacingMm != null && profile.lineSpacingMm > 0)) {
         errors.push({
           code: 'INVALID_LINE_SPACING',
-          message: `Le path "${path.id}" utilise le profil "${profile.name}" (mode FILL) sans espacement de lignes (lineSpacingMm) valide.`,
+          message: `Path "${path.id}" uses profile "${profile.name}" (FILL mode) without a valid line spacing (lineSpacingMm).`,
           pathIds: [path.id],
         });
       }

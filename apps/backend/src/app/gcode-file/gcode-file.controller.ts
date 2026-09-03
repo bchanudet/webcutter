@@ -13,7 +13,7 @@ export class GcodeFileController {
   @UseInterceptors(FileInterceptor('file'))
   upload(@UploadedFile() file: Express.Multer.File): GcodeFileInfo {
     if (!file) {
-      throw new BadRequestException('Le champ "file" est requis.');
+      throw new BadRequestException('The "file" field is required.');
     }
     return this.gcodeFile.upload(file);
   }

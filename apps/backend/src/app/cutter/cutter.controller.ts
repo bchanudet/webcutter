@@ -50,7 +50,7 @@ export class CutterController {
   @Post('command')
   async sendCommand(@Body() body: CommandDto): Promise<{ response: string }> {
     if (!body?.command) {
-      throw new BadRequestException('Le champ "command" est requis.');
+      throw new BadRequestException('The "command" field is required.');
     }
 
     return { response: await this.cutterCommunication.sendCommand(body.command) };

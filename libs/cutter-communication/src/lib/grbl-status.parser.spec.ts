@@ -26,6 +26,6 @@ describe('parseGrblStatus', () => {
   });
 
   it('throws on a malformed report', () => {
-    expect(() => parseGrblStatus('Idle|MPos:0,0,0')).toThrow("Rapport d'état GRBL invalide");
+    expect(() => parseGrblStatus('Idle|MPos:0,0,0')).toThrow('Invalid GRBL status report');
   });
 });

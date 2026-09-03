@@ -43,8 +43,8 @@ describe('WorkspaceSendToOperationController', () => {
   });
 
   it('turns a parse failure into a BadRequestException instead of a 500', async () => {
-    generator.generate.mockRejectedValue(new Error('SVG illisible'));
+    generator.generate.mockRejectedValue(new Error('Unreadable SVG'));
 
-    await expect(controller.sendToOperation({ svg: 'not-svg' })).rejects.toThrow('SVG illisible');
+    await expect(controller.sendToOperation({ svg: 'not-svg' })).rejects.toThrow('Unreadable SVG');
   });
 });

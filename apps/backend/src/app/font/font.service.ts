@@ -146,7 +146,7 @@ export class FontService {
     }
     const glyph = this.tryReadGlyphFile(FALLBACK_NAME);
     if (!glyph) {
-      throw new Error(`Fichier de glyphe de secours introuvable : "${FALLBACK_NAME}.svg".`);
+      throw new Error(`Fallback glyph file not found: "${FALLBACK_NAME}.svg".`);
     }
     this.glyphCache.set(FALLBACK_NAME, glyph);
     return glyph;
@@ -164,7 +164,7 @@ export class FontService {
     const root = parseXml(source);
     const viewBox = root.attributes['viewBox']?.trim().split(/\s+/).map(Number);
     if (!viewBox || viewBox.length !== 4 || !viewBox.every(Number.isFinite)) {
-      throw new Error('Le SVG de glyphe ne contient pas de viewBox valide.');
+      throw new Error('The glyph SVG has no valid viewBox.');
     }
     const [, , width, height] = viewBox;
 
@@ -183,7 +183,7 @@ export class FontService {
     const candidates = [join(__dirname, 'assets', 'font'), join(__dirname, '..', '..', 'assets', 'font')];
     const found = candidates.find((dir) => existsSync(dir));
     if (!found) {
-      throw new Error(`Dossier des polices introuvable (essayé : ${candidates.join(', ')}).`);
+      throw new Error(`Font directory not found (tried: ${candidates.join(', ')}).`);
     }
     this.fontDir = found;
     return found;

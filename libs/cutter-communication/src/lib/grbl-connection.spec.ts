@@ -54,7 +54,7 @@ describe('GrblConnection', () => {
     const connection = await connectMock();
 
     await expect(connection.connect({ path: PORT_PATH })).rejects.toThrow(
-      'Une connexion est déjà ouverte',
+      'A connection is already open',
     );
 
     await connection.disconnect();
@@ -76,7 +76,7 @@ describe('GrblConnection', () => {
     const pending = connection.send('G0 X10');
     getMockBinding(connection).emitData('error:9\r\n');
 
-    await expect(pending).rejects.toThrow('Erreur GRBL : error:9');
+    await expect(pending).rejects.toThrow('GRBL error: error:9');
     await connection.disconnect();
   });
 
@@ -125,14 +125,14 @@ describe('GrblConnection', () => {
     const pending = connection.send('G0 X10');
     await connection.disconnect();
 
-    await expect(pending).rejects.toThrow('Connexion fermée avant réception de la réponse.');
+    await expect(pending).rejects.toThrow('Connection closed before the response was received.');
   });
 
   it('rejects send() and requestStatus() when not connected', async () => {
     const connection = new GrblConnection();
 
-    await expect(connection.send('G0 X10')).rejects.toThrow('Aucune connexion série ouverte.');
-    await expect(connection.requestStatus()).rejects.toThrow('Aucune connexion série ouverte.');
+    await expect(connection.send('G0 X10')).rejects.toThrow('No open serial connection.');
+    await expect(connection.requestStatus()).rejects.toThrow('No open serial connection.');
   });
 
   describe('alarm latch', () => {
@@ -151,7 +151,7 @@ describe('GrblConnection', () => {
       expect(connection.isAlarmed).toBe(true);
       expect(connection.alarmCode).toBe(1);
 
-      await expect(connection.send('G0 X10')).rejects.toThrow('Machine en alarme');
+      await expect(connection.send('G0 X10')).rejects.toThrow('Machine is alarmed');
       expect(writtenCommands).toEqual([]);
 
       await connection.disconnect();
@@ -262,7 +262,7 @@ describe('GrblConnection', () => {
       const pending = connection.send('G1 X500 Y500 F600');
       connection.abort();
 
-      await expect(pending).rejects.toThrow("Arrêt d'urgence");
+      await expect(pending).rejects.toThrow("Emergency stop");
       await flush();
       expect(written.some((buffer) => buffer.equals(Buffer.from([0x18])))).toBe(true);
       await connection.disconnect();

@@ -11,7 +11,7 @@ export class WorkspaceCheckController {
     try {
       return { errors: this.workspaceCheck.check(dto.svg) };
     } catch (error) {
-      throw new BadRequestException(error instanceof Error ? error.message : 'Le SVG fourni est invalide.');
+      throw new BadRequestException(error instanceof Error ? error.message : 'The provided SVG is invalid.');
     }
   }
 }

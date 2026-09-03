@@ -11,7 +11,7 @@ export class WorkspaceGenerateController {
     try {
       return await this.generator.generate(dto.svg);
     } catch (error) {
-      throw new BadRequestException(error instanceof Error ? error.message : 'Le SVG fourni est invalide.');
+      throw new BadRequestException(error instanceof Error ? error.message : 'The provided SVG is invalid.');
     }
   }
 }

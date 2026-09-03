@@ -11,7 +11,7 @@ export class FontController {
     try {
       return { svg: this.font.renderText(dto.text, dto.heightMm) };
     } catch (error) {
-      throw new BadRequestException(error instanceof Error ? error.message : 'Le rendu du texte a échoué.');
+      throw new BadRequestException(error instanceof Error ? error.message : 'Text rendering failed.');
     }
   }
 }

@@ -42,7 +42,7 @@ export class WorkspaceCheckService {
       if (path.unsupportedCommand) {
         errors.push({
           code: 'UNSUPPORTED_PATH_COMMAND',
-          message: `Le path "${path.id}" contient une commande "${path.unsupportedCommand}" (courbe ou arc) — seuls les segments de ligne droite (M/L) sont supportés.`,
+          message: `Path "${path.id}" contains a "${path.unsupportedCommand}" command (curve or arc) — only straight line segments (M/L) are supported.`,
           pathIds: [path.id],
         });
       }
@@ -50,7 +50,7 @@ export class WorkspaceCheckService {
       if (path.profileId === null) {
         errors.push({
           code: 'MISSING_PROFILE',
-          message: `Le path "${path.id}" n'a aucun profil assigné.`,
+          message: `Path "${path.id}" has no profile assigned.`,
           pathIds: [path.id],
         });
         continue;
@@ -60,7 +60,7 @@ export class WorkspaceCheckService {
       if (!profile) {
         errors.push({
           code: 'UNKNOWN_PROFILE',
-          message: `Le path "${path.id}" référence un profil inconnu (id=${path.rawProfileAttr}).`,
+          message: `Path "${path.id}" references an unknown profile (id=${path.rawProfileAttr}).`,
           pathIds: [path.id],
         });
         continue;
@@ -71,7 +71,7 @@ export class WorkspaceCheckService {
       } else if (profile.materialId !== workspace.material.id) {
         errors.push({
           code: 'PROFILE_MATERIAL_MISMATCH',
-          message: `Le path "${path.id}" utilise le profil "${profile.name}" (id=${profile.id}), qui n'appartient pas au matériau sélectionné ("${workspace.material.name}", id=${workspace.material.id}).`,
+          message: `Path "${path.id}" uses profile "${profile.name}" (id=${profile.id}), which doesn't belong to the selected material ("${workspace.material.name}", id=${workspace.material.id}).`,
           pathIds: [path.id],
         });
       }
@@ -80,7 +80,7 @@ export class WorkspaceCheckService {
     if (pathIdsMissingMaterial.length > 0) {
       errors.push({
         code: 'NO_MATERIAL_SELECTED',
-        message: `Aucun matériau n'est sélectionné pour ce document, alors que ${pathIdsMissingMaterial.length} path(s) référencent un profil.`,
+        message: `No material is selected for this document, yet ${pathIdsMissingMaterial.length} path(s) reference a profile.`,
         pathIds: pathIdsMissingMaterial,
       });
     }
@@ -93,7 +93,7 @@ export class WorkspaceCheckService {
       if (!isWithinSurface(path.subpaths, workspace.width, workspace.height)) {
         errors.push({
           code: 'OUT_OF_BOUNDS',
-          message: `Le path "${path.id}" dépasse de la surface de découpe (${workspace.width} x ${workspace.height} mm).`,
+          message: `Path "${path.id}" extends beyond the cutting surface (${workspace.width} x ${workspace.height} mm).`,
           pathIds: [path.id],
         });
       }
@@ -106,7 +106,7 @@ export class WorkspaceCheckService {
         if (pathsIntersect(a.subpaths, b.subpaths)) {
           errors.push({
             code: 'PATH_INTERSECTION',
-            message: `Les paths "${a.id}" et "${b.id}" se croisent.`,
+            message: `Paths "${a.id}" and "${b.id}" intersect.`,
             pathIds: [a.id, b.id],
           });
         }

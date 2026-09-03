@@ -66,7 +66,7 @@ export class GrblConnection extends EventEmitter {
   connect(options: GrblConnectionOptions): Promise<void> {
     if (this.isOpen) {
       return Promise.reject(
-        new Error('Une connexion est déjà ouverte, appelez disconnect() avant de reconnecter.'),
+        new Error('A connection is already open — call disconnect() before reconnecting.'),
       );
     }
 
@@ -118,7 +118,7 @@ export class GrblConnection extends EventEmitter {
           return;
         }
         this.port = null;
-        this.rejectPendingQueue(new Error('Connexion fermée avant réception de la réponse.'));
+        this.rejectPendingQueue(new Error('Connection closed before the response was received.'));
         resolve();
       });
     });
@@ -129,13 +129,13 @@ export class GrblConnection extends EventEmitter {
    * and this isn't the $H/$X command that would clear it. */
   send(command: string): Promise<string> {
     if (!this.port?.isOpen) {
-      return Promise.reject(new Error('Aucune connexion série ouverte.'));
+      return Promise.reject(new Error('No open serial connection.'));
     }
 
     if (this.alarmed && !isUnlockCommand(command)) {
       return Promise.reject(
         new Error(
-          'Machine en alarme : envoyez $H (home) ou $X (déverrouiller) avant toute autre commande.',
+          'Machine is alarmed: send $H (home) or $X (unlock) before any other command.',
         ),
       );
     }
@@ -171,7 +171,7 @@ export class GrblConnection extends EventEmitter {
     this.write('\x18');
     this.alarmed = true;
     this.lastAlarmCode = null;
-    this.rejectPendingQueue(new Error("Arrêt d'urgence : communication interrompue par l'opérateur."));
+    this.rejectPendingQueue(new Error("Emergency stop: communication interrupted by the operator."));
   }
 
   /** Feed hold: writes GRBL's real-time hold byte ('!') directly to the port, bypassing the
@@ -198,13 +198,13 @@ export class GrblConnection extends EventEmitter {
   /** Sends the real-time '?' status query and resolves with the next status report. */
   requestStatus(): Promise<GrblStatus> {
     if (!this.port?.isOpen) {
-      return Promise.reject(new Error('Aucune connexion série ouverte.'));
+      return Promise.reject(new Error('No open serial connection.'));
     }
 
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.off('status', onStatus);
-        reject(new Error("Pas de réponse de la découpeuse au rapport d'état."));
+        reject(new Error("No response from the cutter to the status report."));
       }, STATUS_QUERY_TIMEOUT_MS);
 
       const onStatus = (status: GrblStatus) => {
@@ -255,7 +255,7 @@ export class GrblConnection extends EventEmitter {
 
     if (trimmed.startsWith('error:')) {
       this.settleCurrentCommand((command) =>
-        command.reject(new Error(`Erreur GRBL : ${trimmed}`)),
+        command.reject(new Error(`GRBL error: ${trimmed}`)),
       );
       return;
     }
@@ -268,7 +268,7 @@ export class GrblConnection extends EventEmitter {
       // An ALARM: line can arrive instead of the ok/error a queued command was waiting for (e.g. a
       // travel-limit violation caught mid-program by `sendProgram`/Check mode) — without this, that
       // command's promise would simply never settle. A no-op if nothing is currently in flight.
-      this.settleCurrentCommand((command) => command.reject(new Error(`Alarme GRBL : ${trimmed}`)));
+      this.settleCurrentCommand((command) => command.reject(new Error(`GRBL alarm: ${trimmed}`)));
       return;
     }
 

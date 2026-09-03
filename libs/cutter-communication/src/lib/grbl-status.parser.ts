@@ -16,7 +16,7 @@ function parsePosition(value: string): GrblPosition | undefined {
 export function parseGrblStatus(line: string): GrblStatus {
   const match = STATUS_REPORT_PATTERN.exec(line.trim());
   if (!match) {
-    throw new Error(`Rapport d'état GRBL invalide : ${line}`);
+    throw new Error(`Invalid GRBL status report: ${line}`);
   }
 
   const [, state, fields] = match;

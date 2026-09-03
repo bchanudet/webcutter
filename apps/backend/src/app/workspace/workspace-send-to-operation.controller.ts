@@ -35,7 +35,7 @@ export class WorkspaceSendToOperationController {
       const file = this.gcodeFile.save(result.gcode, GENERATED_FILE_NAME);
       return { errors: [], file };
     } catch (error) {
-      throw new BadRequestException(error instanceof Error ? error.message : 'Le SVG fourni est invalide.');
+      throw new BadRequestException(error instanceof Error ? error.message : 'The provided SVG is invalid.');
     }
   }
 }
