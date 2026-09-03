@@ -16,15 +16,15 @@ export enum ProfileMode {
 
 @Entity('profile')
 export class Profile {
-  @PrimaryGeneratedColumn()
-  id!: number;
+  @PrimaryGeneratedColumn('uuid')
+  id!: string;
 
   @ManyToOne(() => Material, (material) => material.profiles, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'materialId' })
   material!: Material;
 
   @Column()
-  materialId!: number;
+  materialId!: string;
 
   @Column()
   name!: string;

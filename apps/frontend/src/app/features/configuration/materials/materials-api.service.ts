@@ -16,23 +16,23 @@ export class MaterialsApiService {
     return this.http.post<Material>(this.baseUrl, payload);
   }
 
-  updateMaterial(id: number, payload: MaterialPayload): Observable<Material> {
+  updateMaterial(id: string, payload: MaterialPayload): Observable<Material> {
     return this.http.patch<Material>(`${this.baseUrl}/${id}`, payload);
   }
 
-  deleteMaterial(id: number): Observable<void> {
+  deleteMaterial(id: string): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }
 
-  createProfile(materialId: number, payload: ProfilePayload): Observable<Profile> {
+  createProfile(materialId: string, payload: ProfilePayload): Observable<Profile> {
     return this.http.post<Profile>(`${this.baseUrl}/${materialId}/profiles`, payload);
   }
 
-  updateProfile(id: number, payload: ProfilePayload): Observable<Profile> {
+  updateProfile(id: string, payload: ProfilePayload): Observable<Profile> {
     return this.http.patch<Profile>(`/api/profiles/${id}`, payload);
   }
 
-  deleteProfile(id: number): Observable<void> {
+  deleteProfile(id: string): Observable<void> {
     return this.http.delete<void>(`/api/profiles/${id}`);
   }
 }

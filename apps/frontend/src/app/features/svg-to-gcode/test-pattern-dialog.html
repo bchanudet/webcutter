@@ -1,0 +1,73 @@
+<p-dialog
+  [(visible)]="visible"
+  [modal]="true"
+  header="Generate test pattern"
+  [style]="{ width: '26rem' }"
+>
+  <form [formGroup]="form" class="form-stack">
+    <div class="field-row">
+      <div class="field">
+        <label for="test-pattern-power-min">Power min (%)</label>
+        <p-inputnumber
+          inputId="test-pattern-power-min"
+          formControlName="powerMinPercent"
+          [min]="0"
+          [max]="100"
+          suffix="%"
+        />
+      </div>
+      <div class="field">
+        <label for="test-pattern-power-max">Power max (%)</label>
+        <p-inputnumber
+          inputId="test-pattern-power-max"
+          formControlName="powerMaxPercent"
+          [min]="0"
+          [max]="100"
+          suffix="%"
+        />
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="test-pattern-speed-min">Speed min (mm/s)</label>
+        <p-inputnumber
+          inputId="test-pattern-speed-min"
+          formControlName="speedMinMmPerSec"
+          [min]="0.1"
+          [step]="1"
+          suffix=" mm/s"
+        />
+      </div>
+      <div class="field">
+        <label for="test-pattern-speed-max">Speed max (mm/s)</label>
+        <p-inputnumber
+          inputId="test-pattern-speed-max"
+          formControlName="speedMaxMmPerSec"
+          [min]="0.1"
+          [step]="1"
+          suffix=" mm/s"
+        />
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="test-pattern-steps">Steps</label>
+      <p-inputnumber inputId="test-pattern-steps" formControlName="steps" [min]="2" [step]="1" />
+    </div>
+
+    <div class="field field--inline">
+      <label for="test-pattern-material-label">Include material label</label>
+      <p-toggleswitch inputId="test-pattern-material-label" formControlName="includeMaterialLabel" />
+    </div>
+    <div class="field field--inline">
+      <label for="test-pattern-legends">Include legends</label>
+      <p-toggleswitch inputId="test-pattern-legends" formControlName="includeLegends" />
+    </div>
+  </form>
+
+  <ng-template pTemplate="footer">
+    <p-button [text]="true" (onClick)="cancel()">Cancel</p-button>
+    <p-button [disabled]="form.invalid" (onClick)="submit()">Generate</p-button>
+  </ng-template>
+</p-dialog>

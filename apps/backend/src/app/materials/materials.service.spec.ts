@@ -35,34 +35,34 @@ describe('MaterialsService', () => {
 
   it('throws NotFoundException when a material does not exist', async () => {
     repo.findOne.mockResolvedValue(null);
-    await expect(service.findOneOrThrow(42)).rejects.toThrow(NotFoundException);
+    await expect(service.findOneOrThrow('missing-id')).rejects.toThrow(NotFoundException);
   });
 
   it('returns the material when it exists', async () => {
-    const material = { id: 1, name: 'Plywood', thicknessMm: 3, profiles: [] };
+    const material = { id: 'material-1', name: 'Plywood', thicknessMm: 3, profiles: [] };
     repo.findOne.mockResolvedValue(material);
-    await expect(service.findOneOrThrow(1)).resolves.toBe(material);
+    await expect(service.findOneOrThrow('material-1')).resolves.toBe(material);
   });
 
   it('rejects updating a material that does not exist', async () => {
     repo.findOne.mockResolvedValue(null);
-    await expect(service.update(42, { name: 'X' })).rejects.toThrow(NotFoundException);
+    await expect(service.update('missing-id', { name: 'X' })).rejects.toThrow(NotFoundException);
     expect(repo.save).not.toHaveBeenCalled();
   });
 
   it('merges only the given fields when updating', async () => {
-    const material = { id: 1, name: 'Plywood', thicknessMm: 3, profiles: [] };
+    const material = { id: 'material-1', name: 'Plywood', thicknessMm: 3, profiles: [] };
     repo.findOne.mockResolvedValue(material);
     repo.save.mockImplementation((m) => Promise.resolve(m));
 
-    const updated = await service.update(1, { thicknessMm: 5 });
+    const updated = await service.update('material-1', { thicknessMm: 5 });
 
     expect(updated).toMatchObject({ name: 'Plywood', thicknessMm: 5 });
   });
 
   it('rejects deleting a material that does not exist', async () => {
     repo.findOne.mockResolvedValue(null);
-    await expect(service.remove(42)).rejects.toThrow(NotFoundException);
+    await expect(service.remove('missing-id')).rejects.toThrow(NotFoundException);
     expect(repo.delete).not.toHaveBeenCalled();
   });
 });

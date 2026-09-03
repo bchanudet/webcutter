@@ -11,8 +11,8 @@ export interface Subpath {
 }
 
 export interface ParsedProfile {
-  id: number;
-  materialId: number;
+  id: string;
+  materialId: string;
   name: string;
   mode: 'LINE' | 'FILL';
   powerPercent: number;
@@ -23,7 +23,7 @@ export interface ParsedProfile {
 }
 
 export interface ParsedMaterial {
-  id: number;
+  id: string;
   name: string;
 }
 
@@ -33,7 +33,7 @@ export interface ParsedPath {
   id: string;
   /** Raw `profile` attribute value, kept for error messages even when it doesn't resolve. */
   rawProfileAttr: string | null;
-  profileId: number | null;
+  profileId: string | null;
   /** Flattened, transform-applied geometry — `null` when the path couldn't be flattened because
    * it uses an unsupported command (see `unsupportedCommand`). */
   subpaths: Subpath[] | null;
@@ -55,6 +55,15 @@ export interface ParsedWorkspace {
 function parseNumberAttr(element: XmlElement, name: string): number {
   const value = Number(element.attributes[name]);
   if (!Number.isFinite(value)) {
+    throw new Error(`Attribut "${name}" invalide sur <${element.tagName}>.`);
+  }
+  return value;
+}
+
+/** Ids (profile/material) are opaque GUID strings — just required to be non-empty. */
+function requireStringAttr(element: XmlElement, name: string): string {
+  const value = element.attributes[name];
+  if (!value) {
     throw new Error(`Attribut "${name}" invalide sur <${element.tagName}>.`);
   }
   return value;
@@ -164,8 +173,8 @@ export function parseWorkspaceSvg(svgText: string): ParsedWorkspace {
       const lineSpacingAttr = profileEl.attributes['lineSpacingMm'];
       const lineSpacingMm = lineSpacingAttr != null && lineSpacingAttr !== '' ? Number(lineSpacingAttr) : null;
       profiles.push({
-        id: parseNumberAttr(profileEl, 'id'),
-        materialId: parseNumberAttr(profileEl, 'materialId'),
+        id: requireStringAttr(profileEl, 'id'),
+        materialId: requireStringAttr(profileEl, 'materialId'),
         name: profileEl.attributes['name'] ?? '',
         mode: profileEl.attributes['type'] === 'FILL' ? 'FILL' : 'LINE',
         powerPercent: parseNumberAttr(profileEl, 'powerPercent'),
@@ -178,7 +187,7 @@ export function parseWorkspaceSvg(svgText: string): ParsedWorkspace {
     const materialEl = findChild(webcutter, 'material');
     if (materialEl) {
       material = {
-        id: parseNumberAttr(materialEl, 'id'),
+        id: requireStringAttr(materialEl, 'id'),
         name: materialEl.attributes['name'] ?? '',
       };
     }
@@ -194,8 +203,7 @@ export function parseWorkspaceSvg(svgText: string): ParsedWorkspace {
     .map((pathEl, index) => {
       const id = pathEl.attributes['id'] || `#${index}`;
       const rawProfileAttr = pathEl.attributes['profile'] ?? null;
-      const parsedProfileId = rawProfileAttr != null && rawProfileAttr !== '' ? Number(rawProfileAttr) : null;
-      const profileId = parsedProfileId != null && Number.isFinite(parsedProfileId) ? parsedProfileId : null;
+      const profileId = rawProfileAttr != null && rawProfileAttr !== '' ? rawProfileAttr : null;
 
       const d = pathEl.attributes['d'];
       if (!d) {

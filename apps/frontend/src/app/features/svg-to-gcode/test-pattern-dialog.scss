@@ -1,0 +1,36 @@
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 0.25rem;
+}
+
+.field-row {
+  display: flex;
+  gap: 1rem;
+
+  .field {
+    flex: 1;
+  }
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+
+  input,
+  p-inputnumber,
+  p-select {
+    width: 100%;
+  }
+}
+
+.field--inline {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}

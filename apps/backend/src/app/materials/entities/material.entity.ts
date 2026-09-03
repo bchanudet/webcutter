@@ -10,8 +10,8 @@ import { Profile } from './profile.entity';
 
 @Entity('material')
 export class Material {
-  @PrimaryGeneratedColumn()
-  id!: number;
+  @PrimaryGeneratedColumn('uuid')
+  id!: string;
 
   @Column()
   name!: string;

@@ -63,8 +63,8 @@ ceux réellement assignés à une forme). Attributs, reflétant l'interface `Pro
 
 | Attribut         | Type   | Description                                                        |
 |------------------|--------|----------------------------------------------------------------------|
-| `id`             | number | Identifiant du profil en base                                       |
-| `materialId`     | number | Identifiant du matériau auquel appartient ce profil                 |
+| `id`             | string (GUID) | Identifiant du profil en base                                |
+| `materialId`     | string (GUID) | Identifiant du matériau auquel appartient ce profil          |
 | `name`           | string | Nom du profil                                                        |
 | `color`          | string | Couleur (code CSS, ex. `#ff0000`) utilisée pour l'affichage          |
 | `type`           | string | Mode de découpe : `LINE` (contour, la forme est découpée) ou `FILL` (surface, la forme est gravée/remplie) |
@@ -84,7 +84,7 @@ Un unique noeud `<material>` si un matériau est sélectionné pour le document 
 
 | Attribut       | Type   | Description                                   |
 |----------------|--------|------------------------------------------------|
-| `id`           | number | Identifiant du matériau en base                 |
+| `id`           | string (GUID) | Identifiant du matériau en base          |
 | `name`         | string | Nom du matériau                                 |
 | `thicknessMm`  | number | Épaisseur du matériau, en mm                    |
 
@@ -113,9 +113,9 @@ workspace, dans le même ordre, avec :
   mode `FILL`, `stroke` pour un profil en mode `LINE`) ; en l'absence de profil assigné,
   `stroke` retombe sur une couleur par défaut (`#FF7300`) — contrairement au visualisateur, ce
   fichier autonome n'a pas accès aux variables CSS de l'application.
-- `profile` *(optionnel)* : si une forme a un profil assigné, cet attribut contient l'`id` de ce
-  profil (référence au `<profile id="...">` correspondant dans `<metadata>`). Absent si aucun
-  profil n'a été assigné à la forme.
+- `profile` *(optionnel)* : si une forme a un profil assigné, cet attribut contient l'`id` (GUID)
+  de ce profil (référence au `<profile id="...">` correspondant dans `<metadata>`). Absent si
+  aucun profil n'a été assigné à la forme.
 
 Les groupes `id="ghost"` (aperçu du contour avant compensation de kerf) et `id="selection"`
 (poignées de sélection de l'UI) du visualisateur ne sont **pas** exportés : ce sont des éléments

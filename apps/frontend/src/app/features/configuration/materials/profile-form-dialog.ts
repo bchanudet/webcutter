@@ -10,8 +10,8 @@ import { Profile, ProfileMode, ProfilePayload } from './material.model';
 import { PROFILE_COLOR_PALETTE } from './profile-color-palette';
 
 export interface ProfileSaveEvent {
-  materialId: number;
-  id: number | null;
+  materialId: string;
+  id: string | null;
   payload: ProfilePayload;
 }
 
@@ -38,8 +38,8 @@ export class ProfileFormDialog {
   protected readonly modeOptions = MODE_OPTIONS;
   protected readonly colorPalette = PROFILE_COLOR_PALETTE;
   protected readonly visible = signal(false);
-  private materialId: number | null = null;
-  private editingId: number | null = null;
+  private materialId: string | null = null;
+  private editingId: string | null = null;
 
   protected readonly form = new FormGroup({
     name: new FormControl('', {
@@ -71,7 +71,7 @@ export class ProfileFormDialog {
     return this.form.controls.mode.value === 'FILL';
   }
 
-  openForCreate(materialId: number): void {
+  openForCreate(materialId: string): void {
     this.materialId = materialId;
     this.editingId = null;
     this.form.reset({
@@ -86,7 +86,7 @@ export class ProfileFormDialog {
     this.visible.set(true);
   }
 
-  openForEdit(materialId: number, profile: Profile): void {
+  openForEdit(materialId: string, profile: Profile): void {
     this.materialId = materialId;
     this.editingId = profile.id;
     this.form.reset({

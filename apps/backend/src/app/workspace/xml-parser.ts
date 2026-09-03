@@ -1,9 +1,10 @@
 /**
- * Minimal, purpose-built XML parser for the fixed workspace-SVG schema
- * (see docs/workspace-svg-format.md) — not a general-purpose XML/SVG parser. It only needs to
- * handle what the frontend's own `XMLSerializer.serializeToString()` ever produces: elements,
- * double-quoted attributes, self-closing tags and text content. No external dependency (no DOM
- * available on the backend) is worth pulling in for that fixed, self-controlled shape.
+ * Minimal XML parser for the handful of fixed, self-controlled SVG shapes this backend reads —
+ * the workspace SVG (see docs/workspace-svg-format.md) and the font glyph files under
+ * `assets/font` (see `FontService`) — not a general-purpose XML/SVG parser. It only needs to
+ * handle what those ever contain: elements, double-quoted attributes (including ones spanning
+ * multiple lines), self-closing tags, comments/doctype/xml-declaration and text content. No
+ * external dependency (no DOM available on the backend) is worth pulling in for that.
  */
 export interface XmlElement {
   tagName: string;

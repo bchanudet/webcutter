@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { CutterController } from './cutter/cutter.controller';
 import { CutterGateway } from './cutter/cutter.gateway';
 import { FramingService } from './cutter/framing.service';
+import { FontModule } from './font/font.module';
 import { GcodeFileModule } from './gcode-file/gcode-file.module';
 import { GcodeModule } from './gcode/gcode.module';
 import { MachineModule } from './machine/machine.module';
@@ -26,6 +27,7 @@ import { WorkspaceModule } from './workspace/workspace.module';
     GcodeModule,
     GcodeFileModule,
     WorkspaceModule,
+    FontModule,
   ],
   controllers: [AppController, CutterController],
   providers: [AppService, CutterGateway, FramingService],

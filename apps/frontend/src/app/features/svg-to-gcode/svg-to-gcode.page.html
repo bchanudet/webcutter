@@ -5,15 +5,13 @@
         <p-button [text]="true" [rounded]="true" title="Load SVG" (onClick)="openFilePicker()">
           <app-tabler-icon name="file-upload" [size]="20" />
         </p-button>
-        <p-button
-          [text]="true"
-          [rounded]="true"
-          title="Save workspace SVG"
-          [disabled]="documents().length === 0"
-          (onClick)="saveSvg()"
-        >
-          <app-tabler-icon name="file-download" [size]="20" />
+        <p-button [text]="true" [rounded]="true" title="Add text" (onClick)="openAddTextDialog()">
+          <app-tabler-icon name="text-recognition" [size]="20" />
         </p-button>
+        <p-button [text]="true" [rounded]="true" title="Generate test pattern" (onClick)="openTestPatternDialog()">
+          <app-tabler-icon name="layout-grid" [size]="20" />
+        </p-button>
+        <p-divider layout="vertical"/>
         <p-button
           [text]="true"
           [rounded]="true"
@@ -36,6 +34,15 @@
           <app-tabler-icon name="arrow-right-dashed" [size]="20" />
         </p-button>
         <p-divider layout="vertical"/>
+        <p-button
+          [text]="true"
+          [rounded]="true"
+          title="Save workspace SVG"
+          [disabled]="documents().length === 0"
+          (onClick)="saveSvg()"
+        >
+          <app-tabler-icon name="file-download" [size]="20" />
+        </p-button>
         <p-overlayBadge severity="danger" [badgeDisabled]="!hasCheckErrors()">
           <p-button
             [text]="true"
@@ -82,6 +89,9 @@
     (change)="onFileInputChange($event)"
   />
 
+  <app-test-pattern-dialog [maxSpeedMmPerSec]="maxFeedMmPerSec()" (generate)="onGenerateTestPattern($event)" />
+  <app-add-text-dialog (inserted)="onTextInserted($event)" />
+
   <p-splitter class="workspace__splitter" layout="horizontal" [panelSizes]="[25, 75]">
     <ng-template pTemplate="panel">
       <aside class="sidebar">
@@ -112,27 +122,50 @@
 
         <p-card header="Profiles">
         @if (selectedMaterial(); as material) {
-            @if (profiles().length === 0) {
+            @if (profiles().length === 0 && missingProfiles().length === 0) {
               <p class="hint">No profile defined for this material.</p>
             } @else {
-              <ul class="profile-list">
-                @for (profile of profiles(); track profile.id) {
-                  <li>
-                    <button
-                      type="button"
-                      class="profile-item"
-                      [disabled]="selectedGroupKeys().size === 0"
-                      (click)="applyProfile(profile)"
-                    >
-                      <span class="color-swatch" [style.background]="profile.color"></span>
-                      <span class="profile-item__label">{{ profile.name }}</span>
-                      <span class="profile-item__meta"
-                        >{{ profile.mode }} · {{ profile.powerPercent }}% · {{ profile.speedMmPerSec }} mm/s</span
+              @if (profiles().length > 0) {
+                <ul class="profile-list">
+                  @for (profile of profiles(); track profile.id) {
+                    <li>
+                      <button
+                        type="button"
+                        class="profile-item"
+                        [disabled]="selectedGroupKeys().size === 0"
+                        (click)="applyProfile(profile)"
                       >
-                    </button>
-                  </li>
-                }
-              </ul>
+                        <span class="color-swatch" [style.background]="profile.color"></span>
+                        <span class="profile-item__label">{{ profile.name }}</span>
+                        <span class="profile-item__meta"
+                          >{{ profile.mode }} · {{ profile.powerPercent }}% · {{ profile.speedMmPerSec }} mm/s</span
+                        >
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+              @if (missingProfiles().length > 0) {
+                <ul class="profile-list profile-list--missing">
+                  @for (profile of missingProfiles(); track profile.id) {
+                    <li>
+                      <button
+                        type="button"
+                        class="profile-item profile-item--missing"
+                        title="Not saved in the material configuration — loaded from the imported file."
+                        [disabled]="selectedGroupKeys().size === 0"
+                        (click)="applyProfile(profile)"
+                      >
+                        <span class="color-swatch" [style.background]="profile.color"></span>
+                        <span class="profile-item__label">{{ profile.name }}</span>
+                        <span class="profile-item__meta"
+                          >{{ profile.mode }} · {{ profile.powerPercent }}% · {{ profile.speedMmPerSec }} mm/s</span
+                        >
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
             }
           }
         @else {

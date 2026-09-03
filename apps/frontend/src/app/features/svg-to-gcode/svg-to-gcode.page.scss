@@ -137,6 +137,13 @@
   }
 }
 
+/** A profile that isn't saved in the material configuration — loaded from an imported workspace
+ * SVG's <metadata> instead (see docs/workspace-svg-format.md) — dashed so it reads as a temporary
+ * stand-in rather than a real, saved profile. */
+.profile-item--missing {
+  border-style: dashed;
+}
+
 .profile-item__label {
   font-weight: 500;
   font-size: 0.875rem;

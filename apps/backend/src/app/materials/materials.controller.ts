@@ -6,7 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseIntPipe,
+  ParseUUIDPipe,
   Patch,
   Post,
 } from '@nestjs/common';
@@ -24,7 +24,7 @@ export class MaterialsController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.materials.findOneOrThrow(id);
   }
 
@@ -34,13 +34,13 @@ export class MaterialsController {
   }
 
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateMaterialDto) {
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateMaterialDto) {
     return this.materials.update(id, dto);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', ParseIntPipe) id: number) {
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
     await this.materials.remove(id);
   }
 }

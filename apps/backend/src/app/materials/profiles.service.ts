@@ -13,7 +13,7 @@ export class ProfilesService {
     private readonly materials: MaterialsService,
   ) {}
 
-  private async findOneOrThrow(id: number): Promise<Profile> {
+  private async findOneOrThrow(id: string): Promise<Profile> {
     const profile = await this.profiles.findOne({ where: { id } });
     if (!profile) {
       throw new NotFoundException(`Profile ${id} not found.`);
@@ -21,19 +21,19 @@ export class ProfilesService {
     return profile;
   }
 
-  async create(materialId: number, dto: CreateProfileDto): Promise<Profile> {
+  async create(materialId: string, dto: CreateProfileDto): Promise<Profile> {
     await this.materials.findOneOrThrow(materialId);
     const profile = this.profiles.create({ ...dto, passes: dto.passes ?? 1, materialId });
     return this.profiles.save(profile);
   }
 
-  async update(id: number, dto: UpdateProfileDto): Promise<Profile> {
+  async update(id: string, dto: UpdateProfileDto): Promise<Profile> {
     const profile = await this.findOneOrThrow(id);
     Object.assign(profile, dto);
     return this.profiles.save(profile);
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     await this.findOneOrThrow(id);
     await this.profiles.delete(id);
   }

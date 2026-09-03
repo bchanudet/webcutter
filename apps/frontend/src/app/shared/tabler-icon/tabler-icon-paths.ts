@@ -9,6 +9,8 @@ export type TablerIconName =
   | 'download'
   | 'file-upload'
   | 'file-download'
+  | 'layout-grid'
+  | 'text-recognition'
   | 'trash-x'
   | 'zoom-scan'
   | 'arrow-left-dashed'
@@ -74,6 +76,26 @@ export const TABLER_ICON_PATHS: Record<TablerIconName, TablerIconDefinition> = {
       <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2" />
       <path d="M12 17v-6" />
       <path d="M9.5 14.5l2.5 2.5l2.5 -2.5" />
+    `,
+  },
+  'layout-grid': {
+    variant: 'outline',
+    paths: `
+      <path d="M4 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" />
+      <path d="M14 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" />
+      <path d="M4 15a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" />
+      <path d="M14 15a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" />
+    `,
+  },
+  'text-recognition': {
+    variant: 'outline',
+    paths: `
+      <path d="M4 8v-2a2 2 0 0 1 2 -2h2" />
+      <path d="M4 16v2a2 2 0 0 0 2 2h2" />
+      <path d="M16 4h2a2 2 0 0 1 2 2v2" />
+      <path d="M16 20h2a2 2 0 0 0 2 -2v-2" />
+      <path d="M12 16v-7" />
+      <path d="M9 9h6" />
     `,
   },
   'trash-x': {

@@ -1,0 +1,18 @@
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 0.25rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+
+  input {
+    width: 100%;
+  }
+}

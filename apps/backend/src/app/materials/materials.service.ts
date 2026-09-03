@@ -13,7 +13,7 @@ export class MaterialsService {
     return this.materials.find({ relations: { profiles: true }, order: { name: 'ASC' } });
   }
 
-  async findOneOrThrow(id: number): Promise<Material> {
+  async findOneOrThrow(id: string): Promise<Material> {
     const material = await this.materials.findOne({
       where: { id },
       relations: { profiles: true },
@@ -28,13 +28,13 @@ export class MaterialsService {
     return this.materials.save(this.materials.create(dto));
   }
 
-  async update(id: number, dto: UpdateMaterialDto): Promise<Material> {
+  async update(id: string, dto: UpdateMaterialDto): Promise<Material> {
     const material = await this.findOneOrThrow(id);
     Object.assign(material, dto);
     return this.materials.save(material);
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     await this.findOneOrThrow(id);
     await this.materials.delete(id);
   }

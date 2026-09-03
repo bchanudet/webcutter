@@ -8,7 +8,7 @@ import { InputNumber } from '@openng/optimus-ui/inputnumber';
 import { Material, MaterialPayload } from './material.model';
 
 export interface MaterialSaveEvent {
-  id: number | null;
+  id: string | null;
   payload: MaterialPayload;
 }
 
@@ -23,7 +23,7 @@ export class MaterialFormDialog {
   readonly save = output<MaterialSaveEvent>();
 
   protected readonly visible = signal(false);
-  private editingId: number | null = null;
+  private editingId: string | null = null;
 
   protected readonly form = new FormGroup({
     name: new FormControl('', {

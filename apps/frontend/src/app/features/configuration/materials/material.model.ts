@@ -1,8 +1,8 @@
 export type ProfileMode = 'LINE' | 'FILL';
 
 export interface Profile {
-  id: number;
-  materialId: number;
+  id: string;
+  materialId: string;
   name: string;
   color: string;
   mode: ProfileMode;
@@ -13,7 +13,7 @@ export interface Profile {
 }
 
 export interface Material {
-  id: number;
+  id: string;
   name: string;
   thicknessMm: number;
   profiles: Profile[];

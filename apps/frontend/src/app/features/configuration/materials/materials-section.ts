@@ -39,7 +39,7 @@ export class MaterialsSection {
   protected readonly materials = signal<Material[]>([]);
   protected readonly loading = signal(true);
   protected readonly errorMessage = signal<string | null>(null);
-  protected readonly expandedRowKeys = signal<Record<number, boolean>>({});
+  protected readonly expandedRowKeys = signal<Record<string, boolean>>({});
 
   constructor() {
     this.refresh();

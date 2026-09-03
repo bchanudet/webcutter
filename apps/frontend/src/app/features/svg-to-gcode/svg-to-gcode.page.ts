@@ -30,6 +30,7 @@ import { Material, Profile, ProfileMode } from '../configuration/materials/mater
 import { MaterialsApiService } from '../configuration/materials/materials-api.service';
 import { GcodeOrigin, Machine } from '../configuration/machine/machine.model';
 import { MachineApiService } from '../configuration/machine/machine-api.service';
+import { AddTextDialog, TextInsertedEvent } from './add-text-dialog';
 import {
   FlattenedShape,
   FlattenedSubpath,
@@ -37,6 +38,7 @@ import {
   SvgTreeNodeData,
   groupSubpathsIntoEntities,
 } from './svg-flattener.service';
+import { TestPatternDialog, TestPatternParams } from './test-pattern-dialog';
 import { WorkspaceApiService, WorkspaceCheckError } from './workspace-api.service';
 
 /** Just the display-scale control now — g-code generation moved to the backend, which will take
@@ -119,7 +121,7 @@ const DEFAULT_SHAPE_COLOR = '#FF7300';
  * alongside the copied color/mode so an exported SVG can reference the exact profile a shape
  * was cut with, even after the profile's own color/mode changes later. */
 interface GroupProfileAssignment {
-  profileId: number;
+  profileId: string;
   color: string;
   mode: ProfileMode;
 }
@@ -139,11 +141,32 @@ interface PersistedWorkspaceState {
   nextDocumentId?: number;
   documents?: { id: string; fileName: string; source: string }[];
   selectedGroupKeys?: string[];
-  selectedMaterialId?: number | null;
+  selectedMaterialId?: string | null;
   groupProfileAssignments?: [string, GroupProfileAssignment][];
   groupTransforms?: [string, AffineMatrix][];
   shapeOffsets?: [string, FlattenedSubpath[]][];
   form?: { targetWidthMm: number };
+  importedMaterials?: [string, ParsedWorkspaceMaterial][];
+  importedProfiles?: [string, Profile][];
+}
+
+/** Just enough of a `<material>` element from a workspace SVG's `<metadata>` (see
+ * docs/workspace-svg-format.md) to offer it as a "(from file)" option in the material dropdown —
+ * it has no `profiles` of its own since, being unknown to the DB, every profile referencing it is
+ * itself a `missingProfiles()` entry rather than a nested one. */
+type ParsedWorkspaceMaterial = Pick<Material, 'id' | 'name' | 'thicknessMm'>;
+
+/** Result of detecting and parsing a workspace SVG's `<metadata><webcutter>` block ahead of
+ * flattening it — `processedSource` is the same document with every top-level content path
+ * wrapped in its own `<g>` (see `parseWorkspaceImport`), and `pathProfileIds[i]` is the
+ * `profile` attribute (if any) of the i-th `<path>` under `<g id="content">`, in document
+ * order — the same order `SvgFlattenerService.flatten()` produces shapes in for those wrapped
+ * groups, which is what lets the two arrays be zipped together after flattening. */
+interface ParsedWorkspaceImport {
+  processedSource: string;
+  profiles: Map<string, Profile>;
+  material: ParsedWorkspaceMaterial | null;
+  pathProfileIds: (string | null)[];
 }
 
 @Component({
@@ -152,6 +175,7 @@ interface PersistedWorkspaceState {
     ReactiveFormsModule,
     FormsModule,
     PrimeTemplate,
+    AddTextDialog,
     Button,
     Card,
     ContextMenu,
@@ -161,6 +185,7 @@ interface PersistedWorkspaceState {
     OverlayBadge,
     Select,
     Splitter,
+    TestPatternDialog,
     Toolbar,
     Tree,
     TablerIcon,
@@ -178,6 +203,8 @@ export class SvgToGcodePage {
 
   private readonly fileInput = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
   private readonly svgCanvas = viewChild.required<ElementRef<SVGSVGElement>>('svgCanvas');
+  private readonly testPatternDialog = viewChild.required(TestPatternDialog);
+  private readonly addTextDialog = viewChild.required(AddTextDialog);
   private nextDocumentId = 0;
   private nextExplodeId = 0;
   private dragState: {
@@ -217,6 +244,11 @@ export class SvgToGcodePage {
   // Fallback cutting surface until the machine configuration has loaded.
   protected readonly surfaceWidthMm = computed(() => this.machine()?.bedWidthMm ?? 100);
   protected readonly surfaceHeightMm = computed(() => this.machine()?.bedHeightMm ?? 100);
+  /** The machine's own max feed rate — the smaller of its X/Y max speeds, same convention as
+   * `framing.service.ts` on the backend — used to seed the test pattern dialog's speed defaults. */
+  protected readonly maxFeedMmPerSec = computed(() =>
+    Math.min(this.machine()?.maxSpeedXMmPerSec ?? 100, this.machine()?.maxSpeedYMmPerSec ?? 100),
+  );
 
   /** Visible mm-space window into the canvas — the pan/zoom "camera", independent of the bed's
    * own dimensions above. */
@@ -239,7 +271,17 @@ export class SvgToGcodePage {
   protected readonly hasCheckErrors = computed(() => (this.checkErrors()?.length ?? 0) > 0);
 
   protected readonly materials = signal<Material[]>([]);
-  protected readonly selectedMaterialId = signal<number | null>(null);
+  protected readonly selectedMaterialId = signal<string | null>(null);
+  /** Materials referenced by an imported workspace SVG's `<metadata>` (see
+   * docs/workspace-svg-format.md) that aren't among `materials()` (the app's own DB) — kept so
+   * they can still be picked from the material dropdown and so their profiles stay usable/
+   * exportable, even though the DB doesn't know them. Accumulates across every workspace SVG
+   * imported this session, keyed by id. */
+  protected readonly importedMaterials = signal<Map<string, ParsedWorkspaceMaterial>>(new Map());
+  /** Same idea as `importedMaterials`, for individual profiles referenced by an imported
+   * workspace SVG — a profile can be "missing" even when its material isn't (e.g. it was deleted
+   * from the DB material after the file was exported). */
+  protected readonly importedProfiles = signal<Map<string, Profile>>(new Map());
   /** Profile (color + mode) assigned to tree node keys (documents/groups) by clicking a profile. */
   protected readonly groupProfileAssignments = signal<Map<string, GroupProfileAssignment>>(new Map());
   /** Move/rotate transform, in mm, keyed by tree node key — applied on top of a shape's own points. */
@@ -541,16 +583,52 @@ export class SvgToGcodePage {
     this.buildGridLegend(this.surfaceHeightMm(), this.originPoint().y),
   );
 
-  protected readonly materialOptions = computed(() =>
-    this.materials().map((material) => ({
+  /** The DB material list, plus one entry per `importedMaterials()` not already among them,
+   * labeled "(from file)" so the user can tell a temporary stand-in from a real, saved material. */
+  protected readonly materialOptions = computed(() => {
+    const dbOptions = this.materials().map((material) => ({
       label: `${material.name} (${material.thicknessMm} mm)`,
       value: material.id,
-    })),
-  );
-  protected readonly selectedMaterial = computed(
-    () => this.materials().find((material) => material.id === this.selectedMaterialId()) ?? null,
-  );
+    }));
+    const dbIds = new Set(this.materials().map((material) => material.id));
+    const fileOptions = Array.from(this.importedMaterials().values())
+      .filter((material) => !dbIds.has(material.id))
+      .map((material) => ({
+        label: `${material.name} (${material.thicknessMm} mm) (from file)`,
+        value: material.id,
+      }));
+    return [...dbOptions, ...fileOptions];
+  });
+  /** Resolves the selected material from the DB list first, falling back to an imported-from-file
+   * one — which has no `profiles` of its own, since every profile attached to it is by definition
+   * missing from the DB and so surfaces through `missingProfiles()` instead. */
+  protected readonly selectedMaterial = computed(() => {
+    const id = this.selectedMaterialId();
+    if (id == null) {
+      return null;
+    }
+    const fromDb = this.materials().find((material) => material.id === id);
+    if (fromDb) {
+      return fromDb;
+    }
+    const fromFile = this.importedMaterials().get(id);
+    return fromFile ? { ...fromFile, profiles: [] } : null;
+  });
   protected readonly profiles = computed(() => this.selectedMaterial()?.profiles ?? []);
+  /** Profiles an imported workspace SVG attached to the selected material that `materials()` (the
+   * DB) doesn't currently have — shown separately, dashed, below the material's real profiles. */
+  protected readonly missingProfiles = computed(() => {
+    const materialId = this.selectedMaterialId();
+    if (materialId == null) {
+      return [];
+    }
+    const knownIds = new Set(
+      this.materials().flatMap((material) => material.profiles).map((profile) => profile.id),
+    );
+    return Array.from(this.importedProfiles().values()).filter(
+      (profile) => profile.materialId === materialId && !knownIds.has(profile.id),
+    );
+  });
 
   protected readonly form = new FormGroup<DisplayScaleForm>({
     targetWidthMm: new FormControl(100, {
@@ -610,7 +688,18 @@ export class SvgToGcodePage {
     const restoredDocuments: WorkspaceDocument[] = [];
     for (const persisted of state.documents ?? []) {
       try {
-        const result = this.flattener.flatten(persisted.id, persisted.source, persisted.fileName);
+        // A workspace SVG's content paths must go through the same per-path `<g>` wrapping
+        // `onFileInputChange` applies (see `parseWorkspaceImport`) before flattening — otherwise
+        // they re-merge into one leaf-group shape (SvgFlattenerService's multi-hole-path
+        // handling) with a brand new group key that the persisted `groupProfileAssignments`
+        // (keyed by the *original* per-path group keys) no longer matches, and the tree collapses
+        // to a single layer instead of one per shape.
+        const workspaceImport = this.parseWorkspaceImport(persisted.source);
+        const result = this.flattener.flatten(
+          persisted.id,
+          workspaceImport?.processedSource ?? persisted.source,
+          persisted.fileName,
+        );
         restoredDocuments.push({
           id: persisted.id,
           fileName: persisted.fileName,
@@ -632,6 +721,8 @@ export class SvgToGcodePage {
     this.groupTransforms.set(new Map(state.groupTransforms ?? []));
     this.shapeOffsets.set(new Map(state.shapeOffsets ?? []));
     this.selectedMaterialId.set(state.selectedMaterialId ?? null);
+    this.importedMaterials.set(new Map(state.importedMaterials ?? []));
+    this.importedProfiles.set(new Map(state.importedProfiles ?? []));
 
     if (state.form) {
       this.form.reset(state.form);
@@ -660,6 +751,8 @@ export class SvgToGcodePage {
       groupTransforms: [...this.groupTransforms().entries()],
       shapeOffsets: [...this.shapeOffsets().entries()],
       form: this.form.getRawValue(),
+      importedMaterials: [...this.importedMaterials().entries()],
+      importedProfiles: [...this.importedProfiles().entries()],
     };
 
     try {
@@ -725,6 +818,15 @@ export class SvgToGcodePage {
     this.fileInput().nativeElement.click();
   }
 
+  protected openTestPatternDialog(): void {
+    this.testPatternDialog().open();
+  }
+
+  /** Placeholder for the "Generate" button — what it actually builds isn't implemented yet. */
+  protected onGenerateTestPattern(params: TestPatternParams): void {
+    void params;
+  }
+
   /** Resets the pan/zoom camera back to framing the whole bed. */
   resetView(): void {
     this.viewBox.set({ x: 0, y: 0, width: this.surfaceWidthMm(), height: this.surfaceHeightMm() });
@@ -742,35 +844,196 @@ export class SvgToGcodePage {
 
     try {
       const source = await file.text();
-      const id = `doc-${this.nextDocumentId++}`;
-      const result = this.flattener.flatten(id, source, file.name);
-
-      const workspaceDocument: WorkspaceDocument = {
-        id,
-        fileName: file.name,
-        source,
-        width: result.width,
-        height: result.height,
-        shapes: result.shapes,
-        skippedTags: result.skippedTags,
-        treeNode: result.tree,
-      };
-
-      const isFirstDocument = this.documents().length === 0;
-      this.documents.update((docs) => [...docs, workspaceDocument]);
-      if (isFirstDocument) {
-        this.form.controls.targetWidthMm.setValue(Math.round(result.width) || 100);
-      }
-
-      if (result.shapes.length === 0) {
-        this.errorMessage.set(`No cuttable shape (path, rect, circle...) found in "${file.name}".`);
-      }
-      this.persistState();
+      this.addDocumentFromSource(source, file.name);
     } catch (error) {
       this.errorMessage.set(
         error instanceof Error ? error.message : 'Could not read this SVG file.',
       );
     }
+  }
+
+  /** Adds `source` (raw SVG markup) as a new workspace document, exactly like picking a file with
+   * "Load SVG" — shared by the file input and by "Add text" (`onTextInserted`), which hands it
+   * the SVG the backend generated for the typed text instead of a file's contents. */
+  private addDocumentFromSource(source: string, label: string): void {
+    const workspaceImport = this.parseWorkspaceImport(source);
+    const id = `doc-${this.nextDocumentId++}`;
+    const result = this.flattener.flatten(id, workspaceImport?.processedSource ?? source, label);
+
+    const workspaceDocument: WorkspaceDocument = {
+      id,
+      fileName: label,
+      source,
+      width: result.width,
+      height: result.height,
+      shapes: result.shapes,
+      skippedTags: result.skippedTags,
+      treeNode: result.tree,
+    };
+
+    const isFirstDocument = this.documents().length === 0;
+    this.documents.update((docs) => [...docs, workspaceDocument]);
+    if (isFirstDocument) {
+      this.form.controls.targetWidthMm.setValue(Math.round(result.width) || 100);
+    }
+
+    if (workspaceImport) {
+      this.applyWorkspaceImportMetadata(workspaceImport, result.shapes);
+    }
+
+    if (result.shapes.length === 0) {
+      this.errorMessage.set(`No cuttable shape (path, rect, circle...) found in "${label}".`);
+    }
+    this.persistState();
+  }
+
+  protected openAddTextDialog(): void {
+    this.addTextDialog().open();
+  }
+
+  /** "Insert" in the "Add text" dialog: the backend has already turned the text into an SVG
+   * (`FontApiService.textToSvg`) — drop it into the workspace exactly like an uploaded file, so
+   * the user can assign it a profile like any other shape. */
+  protected onTextInserted(event: TextInsertedEvent): void {
+    this.errorMessage.set(null);
+    this.addDocumentFromSource(event.svg, `Text: "${event.text}"`);
+  }
+
+  /** Detects whether `source` is a workspace SVG (see docs/workspace-svg-format.md, produced by
+   * `buildWorkspaceSvg()`) by looking for its `<metadata><webcutter>` block — returns `null` for
+   * any other SVG, which callers treat as "load it exactly like before".
+   *
+   * Every path directly under `<g id="content">` there is an independent shape carrying its own
+   * `profile` attribute, but `SvgFlattenerService.flatten()` treats a `<g>` with no nested `<g>`
+   * of its own as one "leaf group" and *merges* all its direct geometry into a single shape (see
+   * that service's `isLeafGroup` handling) — exactly the multi-hole-path case it exists for, but
+   * wrong here, where each content path must stay its own selectable/colorable shape. So each
+   * content path gets wrapped in its own synthetic `<g>` before flattening, turning it into its
+   * own leaf group; `pathProfileIds` records each path's `profile` attribute in the same document
+   * order the wrapped groups will yield shapes in, so the two can be zipped back together once
+   * `flatten()` has run. */
+  private parseWorkspaceImport(source: string): ParsedWorkspaceImport | null {
+    const doc = new DOMParser().parseFromString(source, 'image/svg+xml');
+    if (doc.documentElement.querySelector('parsererror')) {
+      return null;
+    }
+
+    const webcutter = doc.getElementsByTagNameNS(WEBCUTTER_NS, 'webcutter')[0];
+    if (!webcutter) {
+      return null;
+    }
+
+    const profiles = new Map<string, Profile>();
+    const profilesEl = Array.from(webcutter.children).find((el) => el.localName === 'profiles');
+    for (const profileEl of Array.from(profilesEl?.children ?? [])) {
+      if (profileEl.localName !== 'profile') {
+        continue;
+      }
+      const id = profileEl.getAttribute('id');
+      const materialId = profileEl.getAttribute('materialId');
+      const name = profileEl.getAttribute('name');
+      const color = profileEl.getAttribute('color');
+      const mode = profileEl.getAttribute('type');
+      const powerPercent = Number(profileEl.getAttribute('powerPercent'));
+      const speedMmPerSec = Number(profileEl.getAttribute('speedMmPerSec'));
+      const passes = Number(profileEl.getAttribute('passes'));
+      const lineSpacingAttr = profileEl.getAttribute('lineSpacingMm');
+      if (
+        !id ||
+        !materialId ||
+        !name ||
+        !color ||
+        (mode !== 'LINE' && mode !== 'FILL') ||
+        !Number.isFinite(powerPercent) ||
+        !Number.isFinite(speedMmPerSec) ||
+        !Number.isFinite(passes)
+      ) {
+        continue;
+      }
+      profiles.set(id, {
+        id,
+        materialId,
+        name,
+        color,
+        mode,
+        powerPercent,
+        speedMmPerSec,
+        passes,
+        lineSpacingMm: lineSpacingAttr != null ? Number(lineSpacingAttr) : null,
+      });
+    }
+
+    const materialEl = Array.from(webcutter.children).find((el) => el.localName === 'material');
+    const materialId = materialEl?.getAttribute('id');
+    const materialName = materialEl?.getAttribute('name');
+    const thicknessAttr = materialEl?.getAttribute('thicknessMm');
+    const thicknessMm = thicknessAttr != null ? Number(thicknessAttr) : NaN;
+    const material =
+      materialId && materialName && Number.isFinite(thicknessMm)
+        ? { id: materialId, name: materialName, thicknessMm }
+        : null;
+
+    const pathProfileIds: (string | null)[] = [];
+    const contentGroup = doc.documentElement.querySelector('g#content');
+    for (const child of Array.from(contentGroup?.children ?? [])) {
+      if (child.tagName.toLowerCase() !== 'path') {
+        continue;
+      }
+      const profileAttr = child.getAttribute('profile');
+      pathProfileIds.push(profileAttr || null);
+
+      const wrapper = doc.createElementNS(SVG_NS, 'g');
+      child.replaceWith(wrapper);
+      wrapper.appendChild(child);
+    }
+
+    const processedSource = new XMLSerializer().serializeToString(doc);
+    return { processedSource, profiles, material, pathProfileIds };
+  }
+
+  /** Selects the imported material (registering it in `importedMaterials()` first if the DB
+   * doesn't have it) and, for every shape whose original `<path profile="...">` resolved to a
+   * known profile, assigns that profile's color/mode to the shape's (newly generated) group key —
+   * reusing the exact same `GroupProfileAssignment` the viewer already reads to color a shape, so
+   * an imported workspace renders identically to how it was exported. Every parsed profile is also
+   * registered in `importedProfiles()`, whether or not it ends up assigned to a shape, so it stays
+   * pickable from the sidebar (`missingProfiles()`) and exportable even if the DB doesn't know it. */
+  private applyWorkspaceImportMetadata(
+    workspaceImport: ParsedWorkspaceImport,
+    shapes: FlattenedShape[],
+  ): void {
+    if (workspaceImport.material) {
+      const material = workspaceImport.material;
+      this.importedMaterials.update((map) => new Map(map).set(material.id, material));
+      this.selectedMaterialId.set(material.id);
+    }
+
+    if (workspaceImport.profiles.size === 0) {
+      return;
+    }
+    this.importedProfiles.update((map) => {
+      const next = new Map(map);
+      for (const [id, profile] of workspaceImport.profiles) {
+        next.set(id, profile);
+      }
+      return next;
+    });
+
+    if (workspaceImport.pathProfileIds.length !== shapes.length) {
+      return;
+    }
+
+    this.groupProfileAssignments.update((assignments) => {
+      const next = new Map(assignments);
+      shapes.forEach((shape, index) => {
+        const profileId = workspaceImport.pathProfileIds[index];
+        const profile = profileId != null ? workspaceImport.profiles.get(profileId) : undefined;
+        if (profile) {
+          next.set(shape.groupKey, { profileId: profile.id, color: profile.color, mode: profile.mode });
+        }
+      });
+      return next;
+    });
   }
 
   /** Scale factor from a document's own units to the millimeters shown on the grid. */
@@ -1317,7 +1580,7 @@ export class SvgToGcodePage {
     this.persistState();
   }
 
-  protected onMaterialChange(materialId: number | null): void {
+  protected onMaterialChange(materialId: string | null): void {
     this.selectedMaterialId.set(materialId);
     this.persistState();
   }
@@ -1461,8 +1724,8 @@ export class SvgToGcodePage {
     const profilesEl = document.createElementNS(WEBCUTTER_NS, 'profiles');
     for (const profile of this.usedProfiles()) {
       const profileEl = document.createElementNS(WEBCUTTER_NS, 'profile');
-      profileEl.setAttribute('id', String(profile.id));
-      profileEl.setAttribute('materialId', String(profile.materialId));
+      profileEl.setAttribute('id', profile.id);
+      profileEl.setAttribute('materialId', profile.materialId);
       profileEl.setAttribute('name', profile.name);
       profileEl.setAttribute('color', profile.color);
       profileEl.setAttribute('type', profile.mode);
@@ -1479,7 +1742,7 @@ export class SvgToGcodePage {
     const material = this.selectedMaterial();
     if (material) {
       const materialEl = document.createElementNS(WEBCUTTER_NS, 'material');
-      materialEl.setAttribute('id', String(material.id));
+      materialEl.setAttribute('id', material.id);
       materialEl.setAttribute('name', material.name);
       materialEl.setAttribute('thicknessMm', String(material.thicknessMm));
       webcutter.appendChild(materialEl);
@@ -1491,14 +1754,22 @@ export class SvgToGcodePage {
 
   /** Every profile assigned to at least one group in the workspace, looked up across all
    * materials (not just the currently selected one) since a profile can stay assigned to a
-   * group after the user switches the workspace to a different material. */
+   * group after the user switches the workspace to a different material — falling back to
+   * `importedProfiles()` for one the DB doesn't (or doesn't anymore) have, so a "from file"
+   * profile still exports with its full power/speed/passes rather than silently disappearing
+   * from the generated workspace's `<metadata>`. */
   private usedProfiles(): Profile[] {
     const usedIds = new Set(
       Array.from(this.groupProfileAssignments().values()).map((assignment) => assignment.profileId),
     );
-    return this.materials()
-      .flatMap((material) => material.profiles)
-      .filter((profile) => usedIds.has(profile.id));
+    const byId = new Map<string, Profile>();
+    for (const [id, profile] of this.importedProfiles()) {
+      byId.set(id, profile);
+    }
+    for (const profile of this.materials().flatMap((material) => material.profiles)) {
+      byId.set(profile.id, profile);
+    }
+    return Array.from(byId.values()).filter((profile) => usedIds.has(profile.id));
   }
 
   /** Mirrors the viewer's own id="content" group (see the template): same shapes, same
@@ -1521,7 +1792,7 @@ export class SvgToGcodePage {
         path.setAttribute('stroke', this.exportStrokeForShape(assignment));
         path.setAttribute('stroke-width', '0.3');
         if (assignment) {
-          path.setAttribute('profile', String(assignment.profileId));
+          path.setAttribute('profile', assignment.profileId);
         }
         group.appendChild(path);
       }

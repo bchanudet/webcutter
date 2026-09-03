@@ -1,0 +1,27 @@
+<p-dialog [(visible)]="visible" [modal]="true" header="Add text" [style]="{ width: '24rem' }">
+  <form [formGroup]="form" class="form-stack">
+    <div class="field">
+      <label for="add-text-text">Text</label>
+      <input id="add-text-text" type="text" pInputText formControlName="text" />
+    </div>
+    <div class="field">
+      <label for="add-text-height">Text height ({{ form.controls.heightMm.value }} mm)</label>
+      <p-slider
+        inputId="add-text-height"
+        formControlName="heightMm"
+        [min]="minHeightMm"
+        [max]="maxHeightMm"
+        [step]="1"
+      />
+    </div>
+  </form>
+
+  @if (errorMessage(); as message) {
+    <p-message severity="error" [closable]="false">{{ message }}</p-message>
+  }
+
+  <ng-template pTemplate="footer">
+    <p-button [text]="true" [disabled]="inserting()" (onClick)="cancel()">Cancel</p-button>
+    <p-button [disabled]="form.invalid || inserting()" [loading]="inserting()" (onClick)="submit()">Insert</p-button>
+  </ng-template>
+</p-dialog>

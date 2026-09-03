@@ -5,7 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseIntPipe,
+  ParseUUIDPipe,
   Patch,
   Post,
 } from '@nestjs/common';
@@ -18,18 +18,18 @@ export class ProfilesController {
   constructor(private readonly profiles: ProfilesService) {}
 
   @Post('materials/:materialId/profiles')
-  create(@Param('materialId', ParseIntPipe) materialId: number, @Body() dto: CreateProfileDto) {
+  create(@Param('materialId', ParseUUIDPipe) materialId: string, @Body() dto: CreateProfileDto) {
     return this.profiles.create(materialId, dto);
   }
 
   @Patch('profiles/:id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProfileDto) {
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateProfileDto) {
     return this.profiles.update(id, dto);
   }
 
   @Delete('profiles/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', ParseIntPipe) id: number) {
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
     await this.profiles.remove(id);
   }
 }
