@@ -291,7 +291,7 @@
               [attr.y2]="yAxisEnd().y"
               marker-end="url(#arrow-y)"
             />
-            <circle class="origin-point" [attr.cx]="originPoint().x" [attr.cy]="originPoint().y" r="1" />
+            <circle class="origin-point" [attr.cx]="homePoint().x" [attr.cy]="homePoint().y" r="1" />
           </g>
           <g id="content">
             @for (doc of documents(); track doc.id) {

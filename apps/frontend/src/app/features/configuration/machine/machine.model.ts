@@ -10,6 +10,7 @@ export enum GcodeOrigin {
 
 export interface Machine {
   id: number;
+  name: string;
   bedWidthMm: number;
   bedHeightMm: number;
   serialPortPath: string;
@@ -20,14 +21,19 @@ export interface Machine {
   mirrorX: boolean;
   mirrorY: boolean;
   origin: GcodeOrigin;
+  offsetXMm: number;
+  offsetYMm: number;
   maxAccelerationXMmPerSec2: number;
   maxAccelerationYMmPerSec2: number;
   maxSpeedXMmPerMin: number;
   maxSpeedYMmPerMin: number;
+  travelSpeedXMmPerMin: number;
+  travelSpeedYMmPerMin: number;
   sMax: number;
 }
 
 export interface MachinePayload {
+  name: string;
   bedWidthMm: number;
   bedHeightMm: number;
   serialPortPath: string;
@@ -38,9 +44,13 @@ export interface MachinePayload {
   mirrorX: boolean;
   mirrorY: boolean;
   origin: GcodeOrigin;
+  offsetXMm: number;
+  offsetYMm: number;
   maxAccelerationXMmPerSec2: number;
   maxAccelerationYMmPerSec2: number;
   maxSpeedXMmPerMin: number;
   maxSpeedYMmPerMin: number;
+  travelSpeedXMmPerMin: number;
+  travelSpeedYMmPerMin: number;
   sMax: number;
 }

@@ -16,6 +16,11 @@
   color: var(--p-primary-color, #ff7300);
 }
 
+.machine-flashcard__name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .machine-flashcard__file {
   max-width: 12rem;
   overflow: hidden;

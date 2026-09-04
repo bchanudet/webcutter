@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Divider } from '@openng/optimus-ui/divider';
 import { ProgressBar } from '@openng/optimus-ui/progressbar';
 import { Tag } from '@openng/optimus-ui/tag';
+import { MachineApiService } from '../../features/configuration/machine/machine-api.service';
 import { CutterSocketService } from '../../features/operation/machine-status/cutter-socket.service';
 import {
   GRBL_STATE_LABELS,
@@ -23,6 +24,15 @@ import { TablerIcon } from '../../shared/tabler-icon/tabler-icon';
 })
 export class MachineStatusFlashcard {
   private readonly cutterSocket = inject(CutterSocketService);
+  private readonly machineApi = inject(MachineApiService);
+
+  /** Fetched once on load (no push channel for machine settings exists yet) — same convention as
+   * `MachineStatusCard`. */
+  protected readonly machineName = signal<string | null>(null);
+
+  constructor() {
+    this.machineApi.getMachine().subscribe((machine) => this.machineName.set(machine.name));
+  }
 
   /** Same label convention as `MachineStatusCard` on the Operation page, so the two widgets never
    * disagree about what to call the current state. */

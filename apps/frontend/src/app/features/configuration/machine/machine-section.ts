@@ -69,6 +69,10 @@ export class MachineSection {
   protected readonly savedMessage = signal(false);
 
   protected readonly form = new FormGroup({
+    name: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, Validators.minLength(1)],
+    }),
     bedWidthMm: new FormControl(400, {
       nonNullable: true,
       validators: [Validators.required, Validators.min(1)],
@@ -103,6 +107,14 @@ export class MachineSection {
       nonNullable: true,
       validators: [Validators.required],
     }),
+    offsetXMm: new FormControl(0, {
+      nonNullable: true,
+      validators: [Validators.required],
+    }),
+    offsetYMm: new FormControl(0, {
+      nonNullable: true,
+      validators: [Validators.required],
+    }),
     maxAccelerationXMmPerSec2: new FormControl(500, {
       nonNullable: true,
       validators: [Validators.required, Validators.min(0)],
@@ -116,6 +128,14 @@ export class MachineSection {
       validators: [Validators.required, Validators.min(0)],
     }),
     maxSpeedYMmPerMin: new FormControl(12000, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(0)],
+    }),
+    travelSpeedXMmPerMin: new FormControl(12000, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(0)],
+    }),
+    travelSpeedYMmPerMin: new FormControl(12000, {
       nonNullable: true,
       validators: [Validators.required, Validators.min(0)],
     }),
@@ -167,7 +187,7 @@ export class MachineSection {
       this.form.patchValue(values);
       this.errorMessage.set(null);
     } catch {
-      this.errorMessage.set('Le fichier lbdev est invalide ou illisible.');
+      this.errorMessage.set('The lbdev file is invalid or unreadable.');
     }
   }
 

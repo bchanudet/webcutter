@@ -41,8 +41,15 @@ const svgDoc = (width: number, height: number, meta: string, paths: string[]) =>
   `${HEADER(width, height)}${meta}<g id="content">${paths.join('')}</g></svg>`;
 
 const SQUARE_10 = 'M 0 0 L 10 0 L 10 10 L 0 10 Z';
+const SQUARE_TINY = 'M 0 0 L 1 0 L 1 1 L 0 1 Z';
 
-const makeMachine = (sMax: number): Machine => ({ sMax } as Machine);
+const makeMachine = (
+  sMax: number,
+  offsetXMm = 0,
+  offsetYMm = 0,
+  travelSpeedXMmPerMin = 6000,
+  travelSpeedYMmPerMin = 6000,
+): Machine => ({ sMax, offsetXMm, offsetYMm, travelSpeedXMmPerMin, travelSpeedYMmPerMin }) as Machine;
 
 const makeHook = (hook: GcodeHook, order: number, code: string): Gcode =>
   ({ id: order, name: `${hook}-${order}`, hook, order, code, createdAt: new Date(), updatedAt: new Date() }) as Gcode;
@@ -87,7 +94,7 @@ describe('WorkspaceGcodeGeneratorService', () => {
     expect(result.errors).toEqual([expect.objectContaining({ code: 'INVALID_LINE_SPACING', pathIds: ['a'] })]);
   });
 
-  it('wraps the program with $H, sorted start/end hooks, and a trailing M5', async () => {
+  it('wraps the program with sorted start/end hooks and a trailing M30 (no leading $H)', async () => {
     gcodeService.findAll.mockResolvedValue([
       makeHook(GcodeHook.END, 2, 'END-TWO'),
       makeHook(GcodeHook.START, 2, 'START-TWO'),
@@ -105,16 +112,19 @@ describe('WorkspaceGcodeGeneratorService', () => {
 
     expect(result.errors).toEqual([]);
     const lines = result.gcode?.split('\n') ?? [];
-    expect(lines[0]).toBe('$H');
+    // No `$H` here — some external G-code viewers reject it, and the machine is already homed
+    // once before any file is streamed to it (see `JobService.start()`) — so the very first line
+    // is the first start hook, not a homing command.
+    expect(lines[0]).toBe('START-ONE');
     const startOneIndex = lines.indexOf('START-ONE');
     const startTwoIndex = lines.indexOf('START-TWO');
     const endOneIndex = lines.indexOf('END-ONE');
     const endTwoIndex = lines.indexOf('END-TWO');
-    expect(startOneIndex).toBeGreaterThan(0);
+    expect(startOneIndex).toBe(0);
     expect(startTwoIndex).toBeGreaterThan(startOneIndex);
     expect(endOneIndex).toBeGreaterThan(startTwoIndex);
     expect(endTwoIndex).toBeGreaterThan(endOneIndex);
-    expect(lines[lines.length - 1]).toBe('M5');
+    expect(lines[lines.length - 1]).toBe('M30');
   });
 
   it('derives S from powerPercent/sMax and F directly from speedMmPerMin for a LINE profile', async () => {
@@ -132,6 +142,23 @@ describe('WorkspaceGcodeGeneratorService', () => {
     expect(result.gcode).toContain('F600');
   });
 
+  it('applies the machine origin offset to every emitted X/Y coordinate', async () => {
+    machineService.get.mockResolvedValue(makeMachine(1000, 5, -2));
+    const svg = svgDoc(
+      100,
+      100,
+      metadata({ profiles: [{ id: 1, materialId: 5 }], material: { id: 5 } }),
+      [path({ id: 'a', d: SQUARE_10, profile: 1 })],
+    );
+
+    const result = await service.generate(svg);
+    const gcode = result.gcode as string;
+
+    // The square's own start point (0, 0) flips to (0, 100) under GRBL's Y-up convention, then
+    // shifts by the machine's own origin offset (+5, -2).
+    expect(gcode).toContain('G0 X5.000 Y98.000');
+  });
+
   it('repeats a path once per pass and closes a closed subpath back to its start', async () => {
     const svg = svgDoc(
       100,
@@ -143,8 +170,9 @@ describe('WorkspaceGcodeGeneratorService', () => {
     const result = await service.generate(svg);
     const gcode = result.gcode as string;
 
-    // 3 passes each end with their own M5, plus the program's own trailing M5.
-    expect(gcode.match(/^M5$/gm)?.length).toBe(4);
+    // 3 passes each end with their own M5 — the program's own trailing line is `M30`, not `M5`.
+    expect(gcode.match(/^M5$/gm)?.length).toBe(3);
+    expect(gcode.trimEnd().endsWith('M30')).toBe(true);
     // The last G1 of each pass returns to the square's starting point (0, 10) once flipped to
     // GRBL's Y-up convention (bed height 100 - svg y 0 = 100).
     expect(gcode.match(/G1 X0\.000 Y100\.000 F600/g)?.length).toBe(3);
@@ -168,5 +196,53 @@ describe('WorkspaceGcodeGeneratorService', () => {
     expect(gcode).toContain('fill pass 1/1');
     // A 10x10 square filled every 2mm produces several distinct hatch moves.
     expect(gcode.match(/^G0 /gm)?.length).toBeGreaterThan(2);
+  });
+
+  it('bridges fill segments closer than the minimum travel distance with a single G1, never turning the laser off', async () => {
+    machineService.get.mockResolvedValue(makeMachine(1000, 0, 0, 9000, 9000));
+    const svg = svgDoc(
+      100,
+      100,
+      metadata({
+        profiles: [{ id: 1, materialId: 5, mode: 'FILL', lineSpacingMm: 0.3, passes: 1 }],
+        material: { id: 5 },
+      }),
+      // A 1x1mm square: every hatch line sits well within the 2mm threshold of its neighbours.
+      [path({ id: 'a', d: SQUARE_TINY, profile: 1 })],
+    );
+
+    const result = await service.generate(svg);
+    const gcode = result.gcode as string;
+
+    expect(result.errors).toEqual([]);
+    // Only the very first segment gets a real G0 (nothing to bridge from yet) and only the pass's
+    // final M5 — every other hatch segment is bridged straight through with a G1, never a laser-off.
+    expect(gcode.match(/^G0 /gm)?.length).toBe(1);
+    expect(gcode.match(/^M5$/gm)?.length).toBe(1);
+    expect(gcode).toContain('F9000');
+  });
+
+  it('emits a single M4 per fill pass and a plain G0 (GRBL cuts power on its own) for segments farther apart than the minimum travel distance', async () => {
+    const svg = svgDoc(
+      100,
+      100,
+      metadata({
+        profiles: [{ id: 1, materialId: 5, mode: 'FILL', lineSpacingMm: 5, passes: 1 }],
+        material: { id: 5 },
+      }),
+      // A 10x10mm square hatched every 5mm: consecutive scanlines are well over the 2mm threshold apart.
+      [path({ id: 'a', d: SQUARE_10, profile: 1 })],
+    );
+
+    const result = await service.generate(svg);
+    const gcode = result.gcode as string;
+
+    // Several separate G0 travels (one per far-apart segment)...
+    expect(gcode.match(/^G0 /gm)?.length).toBeGreaterThan(1);
+    // ...but power stays constant through the whole fill, so a single M4 at the very start of the
+    // pass is enough — no M4 re-issued per segment, and no mid-pass M5 either (a bare G0 already
+    // cuts the laser on its own): only the pass's own trailing M5.
+    expect(gcode.match(/^M4 /gm)?.length).toBe(1);
+    expect(gcode.match(/^M5$/gm)?.length).toBe(1);
   });
 });

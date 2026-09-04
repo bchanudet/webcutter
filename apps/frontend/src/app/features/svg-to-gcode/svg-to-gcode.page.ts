@@ -529,8 +529,10 @@ export class SvgToGcodePage {
     };
   });
 
-  /** Position of the machine origin on the canvas, in mm. SVG y grows downward, so "up" on
-   * the bed (Y+ in the usual GRBL bottom-left convention) is the -y direction here. */
+  /** Position of the selected origin corner (or center) on the canvas, in mm — purely cosmetic
+   * (the axis arrows and grid ruler legend anchor to it), unaffected by `offsetXMm`/`offsetYMm`:
+   * the arrows and legend describe the fixed grid itself, not where a command actually lands, so
+   * they stay put along the grid's own edge — see `homePoint()` for the offset-aware marker. */
   protected readonly originPoint = computed(() => {
     const width = this.surfaceWidthMm();
     const height = this.surfaceHeightMm();
@@ -547,6 +549,20 @@ export class SvgToGcodePage {
       default:
         return { x: 0, y: height };
     }
+  });
+
+  /** Where the laser head actually ends up when `G0 X0 Y0` is sent (the blue dot) — distinct from
+   * `originPoint()`: the machine's own origin offset (`Machine.offsetXMm`/`offsetYMm`) means
+   * G-code's `(0, 0)` doesn't sit at the grid's corner once an offset is configured (e.g. an
+   * offset of (-20, -20) with a 110mm bed means the corner is really G-code (-20, -20), and
+   * `(0, 0)` — this dot — sits 20mm in from each edge). Derived by inverting
+   * `WorkspaceGcodeGeneratorService.toMachinePoint()`'s own formula for a target of (0, 0); like
+   * that backend formula, this doesn't account for `origin`/mirror (neither does the generator
+   * yet), only the offset. */
+  protected readonly homePoint = computed(() => {
+    const machine = this.machine();
+    const height = this.surfaceHeightMm();
+    return { x: -(machine?.offsetXMm ?? 0), y: height + (machine?.offsetYMm ?? 0) };
   });
 
   private readonly axisArrowLengthMm = computed(

@@ -105,14 +105,32 @@ describe('TestPatternGeneratorService', () => {
     expect(svg).not.toContain('#333333');
   });
 
-  it('only spells out the unit on the last column/row, bare numbers everywhere else', () => {
+  it('only spells out "%" on the column axis\'s last tick, and requests "mm/min" as its own standalone label', () => {
     // baseInput: power 10 -> 90 and speed 5 -> 50 over 3 steps -> columns 10/50/90(%), rows
-    // (speed decreasing) 50/27.5/5(mm/min).
+    // (speed decreasing) 50/27.5/5 — always bare, "mm/min" requested separately exactly once.
     generate(baseInput({ steps: 3, includeLegends: true }));
     const texts = textToSvg.mock.calls.map((call) => call[0] as string);
-    expect(texts).toEqual(expect.arrayContaining(['10', '50', '90%', '27.5', '5 mm/min']));
+    expect(texts).toEqual(expect.arrayContaining(['10', '50', '90%', '27.5', '5', 'mm/min']));
     expect(texts).not.toContain('10%');
     expect(texts).not.toContain('50 mm/min');
+    expect(texts).not.toContain('5 mm/min');
+  });
+
+  it('places the "mm/min" label in the grid\'s top-left corner (x = y = the legend padding)', () => {
+    const svg = generate(baseInput({ steps: 3, includeLegends: true }));
+    // The unit label is pushed before every column/row legend, so it's the first legend/label-
+    // colored glyph path in the output; the fake glyph's own translate/scale is (0, 1), so its
+    // resulting matrix's tx/ty are exactly the x/y passed to `embedText` — the 2mm padding used
+    // for every top-left-anchored legend text, confirming it sits at the very top-left corner.
+    const [firstMatrix] = [...svg.matchAll(/<path d="M0 0 L1 1"[^>]*transform="matrix\(([^)]+)\)"/g)];
+    const [, , , , tx, ty] = firstMatrix[1].trim().split(/\s+/).map(Number);
+    expect(tx).toBe(2);
+    expect(ty).toBe(2);
+  });
+
+  it('gives the legend/material-label profile a fixed 50%/6000 mm/min, independent of the tested range', () => {
+    const svg = generate(baseInput({ includeLegends: true, speedMinMmPerMin: 1, speedMaxMmPerMin: 999 }));
+    expect(svg).toContain('name="Test pattern legend" color="#22C55E" type="FILL" powerPercent="50" speedMmPerMin="6000"');
   });
 
   it('does not call the font backend when neither legends nor the material label are requested', () => {
@@ -120,10 +138,10 @@ describe('TestPatternGeneratorService', () => {
     expect(textToSvg).not.toHaveBeenCalled();
   });
 
-  it('requests one legend text per column, per row, plus the material label when all are enabled', () => {
+  it('requests one legend text per column, per row, plus the unit label and the material label when all are enabled', () => {
     generate(baseInput({ steps: 3, includeLegends: true, includeMaterialLabel: true }));
-    // 3 columns + 3 rows + 1 material label.
-    expect(textToSvg).toHaveBeenCalledTimes(7);
+    // 3 columns + 3 rows + 1 "mm/min" unit label + 1 material label.
+    expect(textToSvg).toHaveBeenCalledTimes(8);
     expect(textToSvg).toHaveBeenCalledWith(expect.stringContaining('Plywood'), expect.any(Number));
   });
 

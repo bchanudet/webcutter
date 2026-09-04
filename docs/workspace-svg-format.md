@@ -164,12 +164,19 @@ supplémentaire, propre à la génération :
 La réponse est `{ "errors": [...], "gcode": "..." }` : si `errors` n'est pas vide, `gcode` vaut
 `null` et rien n'est généré. Sinon, `gcode` contient le programme complet, structuré ainsi :
 
-1. `$H` — homing, pour garantir que la tête est à l'origine avant de commencer.
-2. Le code des hooks `start` (table `gcode`, `apps/backend/src/app/gcode/`), triés par leur champ
+1. Le code des hooks `start` (table `gcode`, `apps/backend/src/app/gcode/`), triés par leur champ
    `order` croissant.
-3. Pour chaque `<path>`, dans l'ordre du document, le G-code de découpe/gravure (voir plus bas).
-4. Le code des hooks `end`, triés par `order` croissant.
-5. `M5` final, pour garantir que le laser est coupé même si un hook `end` a oublié de le faire.
+2. Pour chaque `<path>`, dans l'ordre du document, le G-code de découpe/gravure (voir plus bas).
+3. Le code des hooks `end`, triés par `order` croissant.
+4. `M30` final — fin de programme GRBL, qui coupe tout (laser, moteurs, ventilateur
+   d'extraction, etc.) même si un hook `end` a oublié de le faire, contrairement à un simple `M5`.
+
+Ce fichier ne commence volontairement **pas** par un `$H` : certains visualisateurs de G-code
+externes le rejettent comme commande non supportée. Le homing est déjà effectué une fois avant
+tout streaming d'un fichier vers la machine (voir `JobService.start()`,
+`apps/backend/src/app/cutter/job.service.ts`) — l'inclure ici aussi le ferait exécuter deux fois
+pour un vrai job, tout en cassant la compatibilité des fichiers téléchargés avec ces
+visualisateurs.
 
 ### G-code par path
 

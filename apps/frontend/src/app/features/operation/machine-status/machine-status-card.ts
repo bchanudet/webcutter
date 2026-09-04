@@ -1,10 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ConfirmationService } from '@openng/optimus-ui/api';
 import { Button } from '@openng/optimus-ui/button';
 import { Card } from '@openng/optimus-ui/card';
 import { ConfirmDialog } from '@openng/optimus-ui/confirmdialog';
 import { Message } from '@openng/optimus-ui/message';
 import { Tag } from '@openng/optimus-ui/tag';
+import { MachineApiService } from '../../configuration/machine/machine-api.service';
 import { CutterSocketService } from './cutter-socket.service';
 import { describeAlarm, GRBL_STATE_LABELS, GRBL_STATE_SEVERITIES, StatusSeverity } from './machine-status.model';
 
@@ -19,6 +20,11 @@ import { describeAlarm, GRBL_STATE_LABELS, GRBL_STATE_SEVERITIES, StatusSeverity
 export class MachineStatusCard {
   private readonly socket = inject(CutterSocketService);
   private readonly confirmation = inject(ConfirmationService);
+  private readonly machineApi = inject(MachineApiService);
+
+  /** Fetched once on load (no push channel for machine settings exists yet) — used as the card's
+   * header so this widget reads as "your machine's status", not just a generic "Machine" label. */
+  protected readonly machineName = signal<string | null>(null);
 
   protected readonly status = this.socket.status;
 
@@ -56,6 +62,10 @@ export class MachineStatusCard {
   /** While a job is running, the only way to stop the machine is the "Abort" button on the Gcode
    * file card — Disconnect would just cut the link without actually stopping anything. */
   protected readonly jobRunning = computed(() => this.socket.jobStatus().running);
+
+  constructor() {
+    this.machineApi.getMachine().subscribe((machine) => this.machineName.set(machine.name));
+  }
 
   protected connect(): void {
     this.socket.connect();

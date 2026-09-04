@@ -42,7 +42,7 @@ export function parseLbdevProfile(text: string): LbdevImportResult {
   const parsed = JSON.parse(text) as LbdevFile;
   const device = parsed.DeviceList?.[0];
   if (!device) {
-    throw new Error('Le fichier lbdev ne contient aucun appareil.');
+    throw new Error('The lbdev file contains no device.');
   }
 
   const settings = device.Settings ?? {};

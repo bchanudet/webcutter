@@ -41,6 +41,7 @@ describe('MachineService', () => {
   it('merges the given fields onto the singleton record when updating', async () => {
     const machine = {
       id: 1,
+      name: 'Atomstack',
       bedWidthMm: 300,
       bedHeightMm: 200,
       serialPortPath: '/dev/ttyUSB0',
@@ -51,10 +52,14 @@ describe('MachineService', () => {
       mirrorX: false,
       mirrorY: false,
       origin: GcodeOrigin.BOTTOM_LEFT,
+      offsetXMm: 0,
+      offsetYMm: 0,
       maxAccelerationXMmPerSec2: 500,
       maxAccelerationYMmPerSec2: 500,
       maxSpeedXMmPerMin: 12000,
       maxSpeedYMmPerMin: 12000,
+      travelSpeedXMmPerMin: 12000,
+      travelSpeedYMmPerMin: 12000,
       sMax: 1000,
     };
     repo.findOne.mockResolvedValue(machine);

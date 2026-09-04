@@ -7,80 +7,36 @@
   }
 
   <form [formGroup]="form" class="form-stack" (ngSubmit)="submit()">
-    <fieldset class="fieldset">
-      <legend>Cutting bed</legend>
-      <div class="field-row">
-        <div class="field">
-          <label for="machine-bed-width">Width (mm)</label>
-          <p-inputnumber inputId="machine-bed-width" formControlName="bedWidthMm" [min]="1" suffix=" mm" />
-        </div>
-        <div class="field">
-          <label for="machine-bed-height">Height (mm)</label>
-          <p-inputnumber inputId="machine-bed-height" formControlName="bedHeightMm" [min]="1" suffix=" mm" />
-        </div>
-      </div>
-    </fieldset>
+    <p-accordion [multiple]="true" [value]="['general', 'coordinates']">
+      <p-accordion-panel value="general">
+        <p-accordion-header>General</p-accordion-header>
+        <p-accordion-content>
+          <div class="fieldset">
+            <div class="field">
+              <label for="machine-name">Name</label>
+              <input id="machine-name" type="text" pInputText formControlName="name" />
+            </div>
+          </div>
+        </p-accordion-content>
+      </p-accordion-panel>
 
-    <fieldset class="fieldset">
-      <legend>Connection</legend>
-      <div class="field">
-        <label for="machine-serial-path">Serial port path</label>
-        <input
-          id="machine-serial-path"
-          type="text"
-          pInputText
-          formControlName="serialPortPath"
-          placeholder="/dev/ttyUSB0"
-        />
-      </div>
-
-      <div class="field-row">
-        <div class="field">
-          <label for="machine-baud-rate">Baud rate</label>
-          <p-inputnumber inputId="machine-baud-rate" formControlName="baudRate" [min]="1" [useGrouping]="false" />
-        </div>
-        <div class="field">
-          <label for="machine-data-bits">Data bits</label>
-          <p-inputnumber inputId="machine-data-bits" formControlName="dataBits" [min]="5" [max]="8" />
-        </div>
-      </div>
-
-      <div class="field-row">
-        <div class="field">
-          <label for="machine-stop-bits">Stop bits</label>
-          <p-inputnumber inputId="machine-stop-bits" formControlName="stopBits" [min]="1" [max]="2" />
-        </div>
-        <div class="field">
-          <label for="machine-parity">Parity</label>
-          <p-select
-            inputId="machine-parity"
-            formControlName="parity"
-            [options]="parityOptions"
-            optionLabel="label"
-            optionValue="value"
-          />
-        </div>
-      </div>
-    </fieldset>
-
-    <p-accordion value="">
-      <p-accordion-panel value="advanced">
-        <p-accordion-header>Avancé</p-accordion-header>
+      <p-accordion-panel value="coordinates">
+        <p-accordion-header>Coordinates</p-accordion-header>
         <p-accordion-content>
           <div class="fieldset">
             <div class="field-row">
-              <div class="field field--inline">
-                <label for="machine-mirror-x">Miroir X</label>
-                <p-toggleswitch inputId="machine-mirror-x" formControlName="mirrorX" />
+              <div class="field">
+                <label for="machine-bed-width">Width (mm)</label>
+                <p-inputnumber inputId="machine-bed-width" formControlName="bedWidthMm" [min]="1" suffix=" mm" />
               </div>
-              <div class="field field--inline">
-                <label for="machine-mirror-y">Miroir Y</label>
-                <p-toggleswitch inputId="machine-mirror-y" formControlName="mirrorY" />
+              <div class="field">
+                <label for="machine-bed-height">Height (mm)</label>
+                <p-inputnumber inputId="machine-bed-height" formControlName="bedHeightMm" [min]="1" suffix=" mm" />
               </div>
             </div>
 
             <div class="field">
-              <label for="machine-origin">Origine</label>
+              <label for="machine-origin">Origin</label>
               <p-select
                 inputId="machine-origin"
                 formControlName="origin"
@@ -90,14 +46,64 @@
               />
             </div>
 
-            <div class="field">
-              <label for="machine-s-max">Puissance laser max (S max)</label>
-              <p-inputnumber inputId="machine-s-max" formControlName="sMax" [min]="1" [useGrouping]="false" />
+            <div class="field-row">
+              <div class="field field--inline">
+                <label for="machine-mirror-x">Mirror X</label>
+                <p-toggleswitch inputId="machine-mirror-x" formControlName="mirrorX" />
+              </div>
+              <div class="field field--inline">
+                <label for="machine-mirror-y">Mirror Y</label>
+                <p-toggleswitch inputId="machine-mirror-y" formControlName="mirrorY" />
+              </div>
             </div>
 
             <div class="field-row">
               <div class="field">
-                <label for="machine-max-accel-x">Accélération max. X (mm/s²)</label>
+                <label for="machine-offset-x">Offset X (mm)</label>
+                <p-inputnumber
+                  inputId="machine-offset-x"
+                  formControlName="offsetXMm"
+                  [step]="0.1"
+                  [minFractionDigits]="0"
+                  [maxFractionDigits]="3"
+                  suffix=" mm"
+                />
+              </div>
+              <div class="field">
+                <label for="machine-offset-y">Offset Y (mm)</label>
+                <p-inputnumber
+                  inputId="machine-offset-y"
+                  formControlName="offsetYMm"
+                  [step]="0.1"
+                  [minFractionDigits]="0"
+                  [maxFractionDigits]="3"
+                  suffix=" mm"
+                />
+              </div>
+            </div>
+          </div>
+        </p-accordion-content>
+      </p-accordion-panel>
+
+      <p-accordion-panel value="laser">
+        <p-accordion-header>Laser</p-accordion-header>
+        <p-accordion-content>
+          <div class="fieldset">
+            <div class="field">
+              <label for="machine-s-max">Max laser power (S max)</label>
+              <p-inputnumber inputId="machine-s-max" formControlName="sMax" [min]="1" [useGrouping]="false" />
+            </div>
+          </div>
+        </p-accordion-content>
+      </p-accordion-panel>
+
+      <p-accordion-panel value="speeds">
+        <p-accordion-header>Speeds</p-accordion-header>
+        <p-accordion-content>
+          <div class="fieldset">
+            <div class="field-row">
+              <div class="field">
+                <label for="machine-max-accel-x">Max acceleration X (mm/s²)</label>
                 <p-inputnumber
                   inputId="machine-max-accel-x"
                   formControlName="maxAccelerationXMmPerSec2"
@@ -106,7 +112,7 @@
                 />
               </div>
               <div class="field">
-                <label for="machine-max-accel-y">Accélération max. Y (mm/s²)</label>
+                <label for="machine-max-accel-y">Max acceleration Y (mm/s²)</label>
                 <p-inputnumber
                   inputId="machine-max-accel-y"
                   formControlName="maxAccelerationYMmPerSec2"
@@ -118,7 +124,7 @@
 
             <div class="field-row">
               <div class="field">
-                <label for="machine-max-speed-x">Vitesse max. X (mm/min)</label>
+                <label for="machine-max-speed-x">Work speed X (mm/min)</label>
                 <p-inputnumber
                   inputId="machine-max-speed-x"
                   formControlName="maxSpeedXMmPerMin"
@@ -127,12 +133,79 @@
                 />
               </div>
               <div class="field">
-                <label for="machine-max-speed-y">Vitesse max. Y (mm/min)</label>
+                <label for="machine-max-speed-y">Work speed Y (mm/min)</label>
                 <p-inputnumber
                   inputId="machine-max-speed-y"
                   formControlName="maxSpeedYMmPerMin"
                   [min]="0"
                   suffix=" mm/min"
+                />
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="machine-travel-speed-x">Travel speed X (mm/min)</label>
+                <p-inputnumber
+                  inputId="machine-travel-speed-x"
+                  formControlName="travelSpeedXMmPerMin"
+                  [min]="0"
+                  suffix=" mm/min"
+                />
+              </div>
+              <div class="field">
+                <label for="machine-travel-speed-y">Travel speed Y (mm/min)</label>
+                <p-inputnumber
+                  inputId="machine-travel-speed-y"
+                  formControlName="travelSpeedYMmPerMin"
+                  [min]="0"
+                  suffix=" mm/min"
+                />
+              </div>
+            </div>
+          </div>
+        </p-accordion-content>
+      </p-accordion-panel>
+
+      <p-accordion-panel value="connection">
+        <p-accordion-header>Connection</p-accordion-header>
+        <p-accordion-content>
+          <div class="fieldset">
+            <div class="field">
+              <label for="machine-serial-path">Serial port path</label>
+              <input
+                id="machine-serial-path"
+                type="text"
+                pInputText
+                formControlName="serialPortPath"
+                placeholder="/dev/ttyUSB0"
+              />
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="machine-baud-rate">Baud rate</label>
+                <p-inputnumber inputId="machine-baud-rate" formControlName="baudRate" [min]="1" [useGrouping]="false" />
+              </div>
+              <div class="field">
+                <label for="machine-data-bits">Data bits</label>
+                <p-inputnumber inputId="machine-data-bits" formControlName="dataBits" [min]="5" [max]="8" />
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="machine-stop-bits">Stop bits</label>
+                <p-inputnumber inputId="machine-stop-bits" formControlName="stopBits" [min]="1" [max]="2" />
+              </div>
+              <div class="field">
+                <label for="machine-parity">Parity</label>
+                <p-select
+                  inputId="machine-parity"
+                  formControlName="parity"
+                  [options]="parityOptions"
+                  optionLabel="label"
+                  optionValue="value"
                 />
               </div>
             </div>

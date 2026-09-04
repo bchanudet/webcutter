@@ -75,10 +75,6 @@ export class CutterCommunicationService extends EventEmitter implements OnModule
     this.connection.resume();
   }
 
-  sleepMs(ms: number): Promise<null> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
   getStatus(): Promise<GrblStatus> {
     return this.connection.requestStatus();
   }

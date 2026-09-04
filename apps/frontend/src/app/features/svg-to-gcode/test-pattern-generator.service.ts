@@ -36,7 +36,8 @@ const LEGEND_COLOR = '#22C55E';
 /** Legends/material label are informational marks, not part of the power/speed matrix under
  * test — a single fixed, conservative profile for all of them, deliberately not tied to the
  * min/max range the user is testing. */
-const LEGEND_POWER_PERCENT = 15;
+const LEGEND_POWER_PERCENT = 50;
+const LEGEND_SPEED_MM_PER_MIN = 6000;
 const DEFAULT_LINE_SPACING_MM = 0.1;
 
 interface ProfileXmlInput {
@@ -119,15 +120,15 @@ export class TestPatternGeneratorService {
 
     const textRequests: { key: string; text: string }[] = [];
     if (input.includeLegends) {
-      // The unit is only spelled out once, on the last tick of each axis (see docs comment on
-      // `assemble`) — every other column/row just shows its bare number, to leave more of each
-      // cell's limited width for the number itself.
+      // "%" is short enough to just repeat on the column axis's last tick, but "mm/min" is wide
+      // enough to visibly eat into the space left for the shapes themselves — spelled out once,
+      // top-left, above the row axis's largest value (row 0, since speed decreases top to
+      // bottom — see `assemble`), instead of repeated on every row.
       columnPowers.forEach((power, col) =>
         textRequests.push({ key: `col-${col}`, text: col === steps - 1 ? `${power}%` : `${power}` }),
       );
-      rowSpeeds.forEach((speed, row) =>
-        textRequests.push({ key: `row-${row}`, text: row === steps - 1 ? `${speed} mm/min` : `${speed}` }),
-      );
+      rowSpeeds.forEach((speed, row) => textRequests.push({ key: `row-${row}`, text: `${speed}` }));
+      textRequests.push({ key: 'speed-unit', text: 'mm/min' });
     }
     if (input.includeMaterialLabel) {
       textRequests.push({
@@ -152,9 +153,11 @@ export class TestPatternGeneratorService {
 
   /** Lays out the grid + legends within `surfaceWidthMm x surfaceHeightMm` and serializes the
    * final workspace SVG — legend/label text may be individually shrunk (see `embedText`) to keep
-   * the whole pattern from ever exceeding that surface. The unit ("%"/"mm/min") is only spelled out
-   * on the axis's last tick (see the calling `generate()`), rather than repeated on every column/
-   * row, to leave more room for the number itself in each cell's tight legend width. */
+   * the whole pattern from ever exceeding that surface. "%" is only spelled out on the column
+   * axis's last tick (see the calling `generate()`); "mm/min" instead gets its own standalone
+   * label in the grid's top-left corner, above the row axis's largest value, rather than being
+   * repeated on every row, to leave more room for the number itself in each cell's tight legend
+   * width. */
   private assemble(
     input: GenerateTestPatternInput,
     columnPowers: number[],
@@ -165,7 +168,11 @@ export class TestPatternGeneratorService {
 
     const rowLegendWidth = input.includeLegends
       ? LEGEND_PADDING_MM * 2 +
-        Math.max(0, ...rowSpeeds.map((_, row) => this.textWidth(textSvgs.get(`row-${row}`))))
+        Math.max(
+          0,
+          this.textWidth(textSvgs.get('speed-unit')),
+          ...rowSpeeds.map((_, row) => this.textWidth(textSvgs.get(`row-${row}`))),
+        )
       : 0;
     const colLegendHeight = input.includeLegends ? LEGEND_PADDING_MM * 2 + LEGEND_TEXT_HEIGHT_MM : 0;
     const materialLabelHeight = input.includeMaterialLabel ? LEGEND_PADDING_MM * 2 + LEGEND_TEXT_HEIGHT_MM : 0;
@@ -226,7 +233,7 @@ export class TestPatternGeneratorService {
           color: LEGEND_COLOR,
           mode: 'FILL',
           powerPercent: LEGEND_POWER_PERCENT,
-          speedMmPerMin: input.speedMaxMmPerMin,
+          speedMmPerMin: LEGEND_SPEED_MM_PER_MIN,
           passes: 1,
           lineSpacingMm: DEFAULT_LINE_SPACING_MM,
         }),
@@ -234,6 +241,12 @@ export class TestPatternGeneratorService {
     }
 
     if (input.includeLegends && legendProfileId) {
+      const unitSvg = textSvgs.get('speed-unit');
+      if (unitSvg) {
+        contentPaths.push(
+          this.embedText(unitSvg, legendProfileId, LEGEND_PADDING_MM, LEGEND_PADDING_MM, 'left', null).markup,
+        );
+      }
       for (let col = 0; col < steps; col++) {
         const svg = textSvgs.get(`col-${col}`);
         if (!svg) {

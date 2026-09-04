@@ -2,6 +2,10 @@ import { IsBoolean, IsEnum, IsInt, IsNumber, IsString, Min, MinLength } from 'cl
 import { GcodeOrigin, SerialParity } from '../entities/machine.entity';
 
 export class UpdateMachineDto {
+  @IsString()
+  @MinLength(1)
+  name!: string;
+
   @IsNumber()
   @Min(1)
   bedWidthMm!: number;
@@ -39,6 +43,12 @@ export class UpdateMachineDto {
   origin!: GcodeOrigin;
 
   @IsNumber()
+  offsetXMm!: number;
+
+  @IsNumber()
+  offsetYMm!: number;
+
+  @IsNumber()
   @Min(0)
   maxAccelerationXMmPerSec2!: number;
 
@@ -53,6 +63,14 @@ export class UpdateMachineDto {
   @IsNumber()
   @Min(0)
   maxSpeedYMmPerMin!: number;
+
+  @IsNumber()
+  @Min(0)
+  travelSpeedXMmPerMin!: number;
+
+  @IsNumber()
+  @Min(0)
+  travelSpeedYMmPerMin!: number;
 
   @IsInt()
   @Min(1)

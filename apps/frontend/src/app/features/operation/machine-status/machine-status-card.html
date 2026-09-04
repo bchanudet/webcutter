@@ -1,4 +1,4 @@
-<p-card header="Machine" class="machine-status">
+<p-card [header]="machineName() ?? 'Machine'" class="machine-status">
   <div class="machine-status__row">
     <p-tag [value]="statusLabel()" [severity]="statusSeverity()" />
   </div>
