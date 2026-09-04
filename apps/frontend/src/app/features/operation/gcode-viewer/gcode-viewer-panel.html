@@ -1,1 +1,57 @@
-<p class="gcode-viewer__empty">Not implemented yet.</p>
+<div class="gcode-viewer">
+  <div class="gcode-viewer__options">
+    <p-selectButton
+      [options]="segmentTypeOptions"
+      optionLabel="label"
+      optionValue="value"
+      [multiple]="true"
+      [ngModel]="visibleTypes()"
+      (ngModelChange)="visibleTypes.set($event)"
+    />
+    <p-selectButton
+      [options]="colorModeOptions"
+      optionLabel="label"
+      optionValue="value"
+      [allowEmpty]="false"
+      [ngModel]="colorMode()"
+      (ngModelChange)="colorMode.set($event)"
+    />
+  </div>
+
+  <div class="gcode-viewer__canvas-wrap">
+    <app-bed-grid-canvas class="gcode-viewer__canvas" [machine]="machine()">
+      <svg:g id="gcode-content">
+        @for (segment of visibleSegments(); track $index) {
+          <svg:line
+            class="gcode-segment"
+            [class.gcode-segment--g0]="segment.type === 'G0'"
+            [class.gcode-segment--g1]="segment.type === 'G1'"
+            [style.stroke]="segment.color"
+            [attr.x1]="segment.from.x"
+            [attr.y1]="segment.from.y"
+            [attr.x2]="segment.to.x"
+            [attr.y2]="segment.to.y"
+          />
+        }
+      </svg:g>
+    </app-bed-grid-canvas>
+
+    @if (!file()) {
+      <p class="gcode-viewer__empty">Upload a G-code file to preview it here.</p>
+    } @else if (loadError(); as error) {
+      <p class="gcode-viewer__empty gcode-viewer__empty--error">{{ error }}</p>
+    }
+  </div>
+
+  <div class="gcode-viewer__slider-row">
+    <p-slider
+      class="gcode-viewer__slider"
+      [ngModel]="sliderValue()"
+      (ngModelChange)="sliderValue.set($event)"
+      [min]="0"
+      [max]="totalCommands()"
+      [disabled]="totalCommands() === 0"
+    />
+    <span class="gcode-viewer__slider-value">{{ sliderValue() }} / {{ totalCommands() }}</span>
+  </div>
+</div>

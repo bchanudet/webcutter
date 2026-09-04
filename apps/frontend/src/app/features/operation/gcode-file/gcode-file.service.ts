@@ -29,4 +29,11 @@ export class GcodeFileService {
   delete(): void {
     this.cutterSocket.deleteGcodeFile();
   }
+
+  /** The raw text of the currently uploaded file — fetched on demand (e.g. by the G-code viewer
+   * tab) rather than broadcast alongside `current`'s metadata, since it's heavy and only actually
+   * needed by whichever browser has that tab open. */
+  fetchContent(): Observable<{ content: string }> {
+    return this.http.get<{ content: string }>(`${this.baseUrl}/content`);
+  }
 }

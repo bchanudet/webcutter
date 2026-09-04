@@ -1,0 +1,64 @@
+<svg
+  #svgCanvas
+  class="bed-grid__canvas"
+  [attr.viewBox]="viewBox().x + ' ' + viewBox().y + ' ' + viewBox().width + ' ' + viewBox().height"
+  [style.aspect-ratio]="surfaceWidthMm() + ' / ' + surfaceHeightMm()"
+  preserveAspectRatio="xMidYMid meet"
+  (wheel)="onWheel($event)"
+  (pointerdown)="onCanvasPointerDown($event)"
+  (pointermove)="onCanvasPointerMove($event)"
+  (pointerup)="onCanvasPointerUp($event)"
+  (pointercancel)="onCanvasPointerUp($event)"
+>
+  <defs>
+    <pattern id="grid-minor" width="1" height="1" patternUnits="userSpaceOnUse">
+      <path d="M 1 0 L 0 0 0 1" fill="none" stroke="var(--p-surface-300, #cbd5e1)" stroke-width="0.05" />
+    </pattern>
+    <pattern id="grid-major" width="10" height="10" patternUnits="userSpaceOnUse">
+      <rect width="10" height="10" fill="url(#grid-minor)" />
+      <path d="M 10 0 L 0 0 0 10" fill="none" stroke="var(--p-surface-400, #94a3b8)" stroke-width="0.15" />
+    </pattern>
+    <marker id="arrow-x" markerWidth="2.4" markerHeight="2.4" refX="2" refY="1.2" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L2.4,1.2 L0,2.4 Z" fill="#dc2626" />
+    </marker>
+    <marker id="arrow-y" markerWidth="2.4" markerHeight="2.4" refX="2" refY="1.2" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L2.4,1.2 L0,2.4 Z" fill="#16a34a" />
+    </marker>
+  </defs>
+  <g id="metadata">
+    <rect
+      [attr.width]="surfaceWidthMm()"
+      [attr.height]="surfaceHeightMm()"
+      fill="url(#grid-major)"
+      stroke="var(--p-surface-400, #94a3b8)"
+      stroke-width="0.3"
+      (click)="onBackgroundClick($event)"
+    />
+
+    @for (tick of gridLegendX(); track tick.pos) {
+      <text class="grid-legend" [attr.x]="tick.pos + 0.4" [attr.y]="surfaceHeightMm() - 0.6">{{ tick.label }}</text>
+    }
+    @for (tick of gridLegendY(); track tick.pos) {
+      <text class="grid-legend" x="0.4" [attr.y]="tick.pos - 0.4">{{ tick.label }}</text>
+    }
+
+    <line
+      class="axis axis--x"
+      [attr.x1]="originPoint().x"
+      [attr.y1]="originPoint().y"
+      [attr.x2]="xAxisEnd().x"
+      [attr.y2]="xAxisEnd().y"
+      marker-end="url(#arrow-x)"
+    />
+    <line
+      class="axis axis--y"
+      [attr.x1]="originPoint().x"
+      [attr.y1]="originPoint().y"
+      [attr.x2]="yAxisEnd().x"
+      [attr.y2]="yAxisEnd().y"
+      marker-end="url(#arrow-y)"
+    />
+    <circle class="origin-point" [attr.cx]="homePoint().x" [attr.cy]="homePoint().y" r="1" />
+  </g>
+  <ng-content />
+</svg>

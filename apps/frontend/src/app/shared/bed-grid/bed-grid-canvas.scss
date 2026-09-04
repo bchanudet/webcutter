@@ -1,0 +1,42 @@
+:host {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.bed-grid__canvas {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  touch-action: none;
+}
+
+.axis {
+  stroke-width: 0.35;
+  pointer-events: none;
+}
+
+.axis--x {
+  stroke: #dc2626;
+}
+
+.axis--y {
+  stroke: #16a34a;
+}
+
+.origin-point {
+  fill: #2563eb;
+  pointer-events: none;
+}
+
+.grid-legend {
+  font-size: 2px;
+  font-family: inherit;
+  fill: var(--p-text-muted-color, #6b7280);
+  user-select: none;
+  pointer-events: none;
+}
