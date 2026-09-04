@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CutterCommunicationModule } from '@webcutter/cutter-communication';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AutoConnectService } from './cutter/auto-connect.service';
 import { CheckService } from './cutter/check.service';
 import { CutterController } from './cutter/cutter.controller';
 import { CutterGateway } from './cutter/cutter.gateway';
@@ -32,6 +33,6 @@ import { WorkspaceModule } from './workspace/workspace.module';
     FontModule,
   ],
   controllers: [AppController, CutterController],
-  providers: [AppService, CutterGateway, FramingService, CheckService, JobService],
+  providers: [AppService, CutterGateway, FramingService, CheckService, JobService, AutoConnectService],
 })
 export class AppModule {}

@@ -12,21 +12,4 @@
   } @else if (alarmReason(); as reason) {
     <p-message class="machine-status__message" severity="error" [closable]="false">{{ reason }}</p-message>
   }
-
-  <div class="actions">
-    @if (!status().connected) {
-      <p-button label="Connect" (onClick)="connect()" />
-    } @else {
-      <p-button
-        label="Disconnect"
-        severity="danger"
-        [outlined]="true"
-        [disabled]="jobRunning()"
-        title="A job is running — use Abort on the Gcode file card instead."
-        (onClick)="confirmDisconnect()"
-      />
-    }
-  </div>
 </p-card>
-
-<p-confirmDialog />

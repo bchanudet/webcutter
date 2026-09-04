@@ -55,6 +55,26 @@ describe('parseGcodeProgram', () => {
     expect(parseGcodeProgram('$H\nM3 S0\nM5')).toEqual([]);
   });
 
+  it('parses words with no separator between them (e.g. LightBurn-exported files)', () => {
+    // Real export, verbatim: no space between the X/Y values, or between Y/S/F on the next line.
+    const gcode = ['G0 X-19.832Y-13.05', 'G1 Y-14.22S200F6000'].join('\n');
+
+    expect(parseGcodeProgram(gcode)).toEqual([
+      { type: 'G0', x1: 0, y1: 0, x2: -19.832, y2: -13.05, feedRate: null, power: null },
+      { type: 'G1', x1: -19.832, y1: -13.05, x2: -19.832, y2: -14.22, feedRate: 6000, power: 200 },
+    ]);
+  });
+
+  it('treats X/Y as relative offsets while G91 is active, and resumes absolute after G90', () => {
+    const gcode = ['G91', 'G1 X10 Y5 F600', 'X10', 'G90', 'G1 X0 Y0'].join('\n');
+
+    expect(parseGcodeProgram(gcode)).toEqual([
+      { type: 'G1', x1: 0, y1: 0, x2: 10, y2: 5, feedRate: 600, power: null },
+      { type: 'G1', x1: 10, y1: 5, x2: 20, y2: 5, feedRate: 600, power: null },
+      { type: 'G1', x1: 20, y1: 5, x2: 0, y2: 0, feedRate: 600, power: null },
+    ]);
+  });
+
   it('tracks feed rate and power modally, independently of each other and of X/Y', () => {
     const gcode = [
       'M4 S100', // power set, no motion yet

@@ -60,6 +60,20 @@ describe('GrblConnection', () => {
     await connection.disconnect();
   });
 
+  it('rejects a second connect() racing a first one still in flight, without disturbing it', async () => {
+    const connection = new GrblConnection();
+    connection.on('error', () => undefined);
+
+    const first = connection.connect({ path: PORT_PATH });
+    const second = connection.connect({ path: PORT_PATH });
+
+    await expect(second).rejects.toThrow('A connection attempt is already in progress.');
+    await expect(first).resolves.toBeUndefined();
+    expect(connection.isOpen).toBe(true);
+
+    await connection.disconnect();
+  });
+
   it('resolves send() when GRBL replies "ok"', async () => {
     const connection = await connectMock();
 

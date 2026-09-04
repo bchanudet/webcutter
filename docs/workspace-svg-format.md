@@ -106,9 +106,9 @@ workspace, dans le même ordre, avec :
   courbes de Bézier/arcs en Node.
 - `fill-rule="evenodd"` : permet aux sous-tracés imbriqués (trous) de se comporter comme de vrais
   trous.
-- `transform` : la matrice combinant l'échelle du document (mise à l'échelle vers la largeur
-  cible définie dans le formulaire de paramètres de découpe) et la transformation
-  déplacement/rotation appliquée à son groupe dans le workspace.
+- `transform` : la matrice de déplacement/rotation appliquée au groupe de la forme dans le
+  workspace — les documents sont toujours importés à l'échelle 1 (aucun contrôle de mise à
+  l'échelle globale n'existe dans l'application).
 - `fill` / `stroke` : couleur du profil assigné au groupe de la forme (`fill` pour un profil en
   mode `FILL`, `stroke` pour un profil en mode `LINE`) ; en l'absence de profil assigné,
   `stroke` retombe sur une couleur par défaut (`#FF7300`) — contrairement au visualisateur, ce
@@ -188,6 +188,10 @@ Pour chaque `<path>`, le profil résolu via son attribut `profile` fournit `powe
 - La vitesse est déjà exprimée en mm/min (l'unité native du feed rate G-code) : elle est utilisée
   directement comme feed rate, `F = round(speedMmPerMin)`.
 - Tout est répété `passes` fois.
+- Chaque coordonnée X/Y (bed-mm space ci-dessus, convertie en Y-up GRBL) reçoit en plus le
+  décalage d'origine de la machine (`Machine.offsetXMm`/`offsetYMm`, voir CLAUDE.md) — le G-code
+  final peut donc contenir des coordonnées négatives si le décalage l'est ; GRBL s'en accommode
+  très bien.
 
 **Profil `type="LINE"`** : chaque sous-tracé du path est suivi tel quel (`G0` jusqu'au premier
 point, `M4 S<power>`, un `G1 ... F<feed>` par point suivant, puis `M5`) ; un sous-tracé fermé
@@ -199,9 +203,16 @@ espacés de `lineSpacingMm`, calculés par un algorithme de balayage (scanline) 
 dans un repère tourné de -45° : chaque ligne de balayage est intersectée avec tous les bords de
 tous les sous-tracés du path, et les intersections triées sont appariées deux à deux
 (pair = "dedans", impair = "dehors") — exactement la règle `evenodd` déjà utilisée pour l'affichage,
-ce qui exclut nativement les trous (sous-tracés imbriqués) sans traitement particulier. Chaque
-segment de hachurage est parcouru comme une ligne indépendante (`G0`/`M4`/`G1`/`M5`), et les
-lignes de balayage successives alternent de sens pour limiter les déplacements à vide.
+ce qui exclut nativement les trous (sous-tracés imbriqués) sans traitement particulier. Un seul
+`M4` est émis en tête de chaque passe (la puissance reste constante sur toute la passe, pas besoin
+de le répéter par segment) ; chaque segment de hachurage est ensuite un simple `G0` (rapide,
+laser coupé nativement par GRBL en mode laser dynamique) suivi d'un `G1 ... F<feed>` — sauf si la
+distance jusqu'au segment suivant est inférieure à `MIN_TRAVEL_DISTANCE_MM`
+(`workspace-gcode-generator.service.ts`), auquel cas le `G0` est remplacé par un `G1` au feed rate
+de déplacement de la machine, laser resté allumé en continu à travers l'écart plutôt que
+coupé/rallumé pour un déplacement minime (évite une découpe en pointillés et des à-coups moteur
+sur les zones de hachurage très découpées, ex. texte). Un seul `M5` referme la passe, à la toute
+fin. Les lignes de balayage successives alternent de sens pour limiter les déplacements à vide.
 
 ## Point d'entrée "Send to Operation" (`POST /api/workspace/send-to-operation`)
 

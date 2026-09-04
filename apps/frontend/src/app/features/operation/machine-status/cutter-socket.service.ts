@@ -17,10 +17,12 @@ interface IncomingMessage {
 
 /** Client for the `/api/ws/cutter` WebSocket: keeps `status`, `gcodeFile`, `checkStatus` and
  * `jobStatus` in sync with the backend's broadcasts, streams raw serial traffic via
- * `serialMessages$`, and sends the `connect`/`disconnect`/`sendCommand`/`deleteGcodeFile`/
- * `startFrame`/`stopFrame`/`startCheck`/`startJob`/`stopJob`/`pauseJob`/`resumeJob` commands.
- * Reconnects automatically (e.g. after a backend restart) so the page doesn't need to be reloaded
- * to recover. */
+ * `serialMessages$`, and sends the `sendCommand`/`deleteGcodeFile`/`startFrame`/`stopFrame`/
+ * `startCheck`/`startJob`/`stopJob`/`pauseJob`/`resumeJob` commands. Reconnects automatically (e.g.
+ * after a backend restart) so the page doesn't need to be reloaded to recover.
+ *
+ * No `connect`/`disconnect` here — the backend's `AutoConnectService` opens the cutter's serial
+ * connection on its own, so nothing in the UI ever needs to ask for it manually anymore. */
 @Injectable({ providedIn: 'root' })
 export class CutterSocketService implements OnDestroy {
   private socket: WebSocket | null = null;
@@ -51,14 +53,6 @@ export class CutterSocketService implements OnDestroy {
 
   constructor() {
     this.open();
-  }
-
-  connect(): void {
-    this.send('connect');
-  }
-
-  disconnect(): void {
-    this.send('disconnect');
   }
 
   sendCommand(command: string): void {

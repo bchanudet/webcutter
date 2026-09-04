@@ -32,6 +32,11 @@ export class GrblConnection extends EventEmitter {
   private port: SerialPort | null = null;
   private queue: QueuedCommand[] = [];
   private awaitingResponse = false;
+  /** Set for the duration of a `connect()` call — guards against two callers racing to open the
+   * port at once (e.g. a manual "Connect" click landing mid-tick of `AutoConnectService`'s poll):
+   * `isOpen` alone doesn't catch this, since it only turns true once `port.open()` has already
+   * finished. */
+  private connecting = false;
   /** Software-side alarm latch: some boards (e.g. this Atomstack clone) silently reset and
    * report "Idle" again after a hard-limit alarm without the user ever sending $H/$X — this
    * flag keeps the connection locked down regardless of what `?` reports until one of those two
@@ -69,11 +74,24 @@ export class GrblConnection extends EventEmitter {
         new Error('A connection is already open — call disconnect() before reconnecting.'),
       );
     }
+    if (this.connecting) {
+      return Promise.reject(new Error('A connection attempt is already in progress.'));
+    }
 
+    this.connecting = true;
     this.alarmed = false;
     this.lastAlarmCode = null;
 
     return new Promise((resolve, reject) => {
+      const settle = (error: Error | null | undefined) => {
+        this.connecting = false;
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      };
+
       const port = new SerialPort(
         {
           path: options.path,
@@ -85,14 +103,14 @@ export class GrblConnection extends EventEmitter {
         },
         (error) => {
           if (error) {
-            reject(error);
+            settle(error);
           }
         },
       );
 
       port.open((error) => {
         if (error) {
-          reject(error);
+          settle(error);
           return;
         }
 
@@ -101,7 +119,7 @@ export class GrblConnection extends EventEmitter {
         parser.on('data', (line: string) => this.handleLine(line));
         port.on('close', () => this.emit('disconnected'));
         port.on('error', (portError: Error) => this.emit('error', portError));
-        resolve();
+        settle(null);
       });
     });
   }

@@ -10,7 +10,9 @@ import {
 import { CutterCommunicationService, GrblStatus } from '@webcutter/cutter-communication';
 import { Server, WebSocket } from 'ws';
 import { GcodeFileInfo, GcodeFileService } from '../gcode-file/gcode-file.service';
+import { toGrblConnectionOptions } from '../machine/machine-connection-options';
 import { MachineService } from '../machine/machine.service';
+import { AutoConnectService } from './auto-connect.service';
 import { CheckService } from './check.service';
 import {
   CheckStatusPayload,
@@ -38,7 +40,10 @@ const STATUS_POLL_INTERVAL_MS = 1000;
  * Operation page shows the same file), `checkResult` (broadcast whenever a `$C` check run starts
  * or finishes, see `CheckService`), `jobStatus` (broadcast whenever a cutting job starts, pauses,
  * resumes, advances, or finishes, see `JobService` — surfaced app-wide via the menubar flashcard,
- * and in more detail on the Operation page's "Gcode file" card). */
+ * and in more detail on the Operation page's "Gcode file" card).
+ *
+ * The connection itself isn't only opened on a `connect` message — see `AutoConnectService`, which
+ * opens it on its own the moment the configured serial port becomes available. */
 @WebSocketGateway({ path: '/api/ws/cutter' })
 export class CutterGateway
   implements OnGatewayInit<Server>, OnGatewayConnection<WebSocket>, OnModuleDestroy
@@ -61,6 +66,7 @@ export class CutterGateway
     private readonly framingService: FramingService,
     private readonly checkService: CheckService,
     private readonly jobService: JobService,
+    private readonly autoConnectService: AutoConnectService,
   ) {
     this.cutterCommunication.on('sent', (raw: string) => this.broadcastSerialMessage('sent', raw));
     this.cutterCommunication.on('received', (raw: string) =>
@@ -82,6 +88,15 @@ export class CutterGateway
     this.framingService.on('changed', () => void this.pollAndBroadcastStatus(true));
     this.checkService.on('changed', () => this.broadcastCheckStatus());
     this.jobService.on('changed', () => this.broadcastJobStatus());
+    // Not forced: an automatic attempt that fails the same way as the previous one produces the
+    // exact same status payload, so the built-in dedupe in `pollAndBroadcastStatus` already keeps
+    // repeated failures (every `POLL_INTERVAL_MS`, while the machine stays off) from spamming
+    // every connected browser — a real change (success, or a *different* failure) still goes out
+    // immediately rather than waiting for the next 1s status tick.
+    this.autoConnectService.on('changed', () => {
+      this.lastConnectionError = this.autoConnectService.error;
+      void this.pollAndBroadcastStatus();
+    });
   }
 
   afterInit(): void {
@@ -110,13 +125,7 @@ export class CutterGateway
     this.lastConnectionError = null;
     try {
       const machine = await this.machineService.get();
-      await this.cutterCommunication.connect({
-        path: machine.serialPortPath,
-        baudRate: machine.baudRate,
-        dataBits: machine.dataBits as 5 | 6 | 7 | 8,
-        stopBits: machine.stopBits as 1 | 1.5 | 2,
-        parity: machine.parity,
-      });
+      await this.cutterCommunication.connect(toGrblConnectionOptions(machine));
     } catch (error) {
       this.lastConnectionError = error instanceof Error ? error.message : 'Could not connect to the cutter.';
       this.logger.error(

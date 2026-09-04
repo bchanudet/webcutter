@@ -1,25 +1,25 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { ConfirmationService } from '@openng/optimus-ui/api';
-import { Button } from '@openng/optimus-ui/button';
 import { Card } from '@openng/optimus-ui/card';
-import { ConfirmDialog } from '@openng/optimus-ui/confirmdialog';
 import { Message } from '@openng/optimus-ui/message';
 import { Tag } from '@openng/optimus-ui/tag';
 import { MachineApiService } from '../../configuration/machine/machine-api.service';
 import { CutterSocketService } from './cutter-socket.service';
 import { describeAlarm, GRBL_STATE_LABELS, GRBL_STATE_SEVERITIES, StatusSeverity } from './machine-status.model';
 
+/** No Connect/Disconnect controls: `AutoConnectService` on the backend opens the connection on its
+ * own the moment the configured serial port is available, and re-opens it just as fast after any
+ * disconnection — a manual button would either do nothing (already about to auto-connect) or be
+ * undone within about a second (a "disconnect" immediately auto-reconnecting), so this card is
+ * read-only status now. */
 @Component({
   selector: 'app-machine-status-card',
-  imports: [Button, Card, ConfirmDialog, Message, Tag],
-  providers: [ConfirmationService],
+  imports: [Card, Message, Tag],
   templateUrl: './machine-status-card.html',
   styleUrl: './machine-status-card.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MachineStatusCard {
   private readonly socket = inject(CutterSocketService);
-  private readonly confirmation = inject(ConfirmationService);
   private readonly machineApi = inject(MachineApiService);
 
   /** Fetched once on load (no push channel for machine settings exists yet) — used as the card's
@@ -59,23 +59,7 @@ export class MachineStatusCard {
     return grbl?.state === 'Alarm' ? describeAlarm(grbl.alarmCode) : null;
   });
 
-  /** While a job is running, the only way to stop the machine is the "Abort" button on the Gcode
-   * file card — Disconnect would just cut the link without actually stopping anything. */
-  protected readonly jobRunning = computed(() => this.socket.jobStatus().running);
-
   constructor() {
     this.machineApi.getMachine().subscribe((machine) => this.machineName.set(machine.name));
-  }
-
-  protected connect(): void {
-    this.socket.connect();
-  }
-
-  protected confirmDisconnect(): void {
-    this.confirmation.confirm({
-      header: 'Disconnect cutter',
-      message: 'Disconnect the machine? Any operation in progress will be interrupted.',
-      accept: () => this.socket.disconnect(),
-    });
   }
 }
