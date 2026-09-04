@@ -244,6 +244,7 @@
           (pointermove)="onCanvasPointerMove($event)"
           (pointerup)="onCanvasPointerUp($event)"
           (pointercancel)="onCanvasPointerUp($event)"
+          (contextmenu)="onCanvasContextMenu($event)"
         >
           <defs>
             <pattern id="grid-minor" width="1" height="1" patternUnits="userSpaceOnUse">
@@ -261,6 +262,18 @@
             </marker>
           </defs>
           <g id="metadata">
+            <!-- Invisible but hit-testable ("fill:transparent", not "none") catch-all covering the
+                 whole visible viewport, not just the cutting surface below — a click/deselect
+                 must also work over any panned-out margin, or a shape sitting outside the bed
+                 (e.g. before it's ever been moved onto it). -->
+            <rect
+              [attr.x]="viewBox().x"
+              [attr.y]="viewBox().y"
+              [attr.width]="viewBox().width"
+              [attr.height]="viewBox().height"
+              fill="transparent"
+              (click)="onBackgroundClick($event)"
+            />
             <rect
               [attr.width]="surfaceWidthMm()"
               [attr.height]="surfaceHeightMm()"
@@ -340,6 +353,22 @@
             <polygon class="selection-frame selection-frame--black" [attr.points]="frame.points" />
             <polygon class="selection-frame selection-frame--white" [attr.points]="frame.points" />
             }
+            @if (marqueeRect(); as rect) {
+              <rect
+                class="selection-frame selection-frame--black"
+                [attr.x]="rect.x"
+                [attr.y]="rect.y"
+                [attr.width]="rect.width"
+                [attr.height]="rect.height"
+              />
+              <rect
+                class="selection-frame selection-frame--white"
+                [attr.x]="rect.x"
+                [attr.y]="rect.y"
+                [attr.width]="rect.width"
+                [attr.height]="rect.height"
+              />
+            }
             @if (axisLockGuide(); as guide) {
               <line
                 class="axis-lock-guide"
@@ -371,6 +400,7 @@
           }
           </g>
         </svg>
+        <p-contextMenu #shapeContextMenu [model]="shapeContextMenuItems()" appendTo="body" />
 
         @if (documents().length === 0) {
           <p class="viewer__empty">Load an SVG to preview it here.</p>

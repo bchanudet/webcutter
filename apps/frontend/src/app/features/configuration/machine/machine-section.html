@@ -26,12 +26,18 @@
           <div class="fieldset">
             <div class="field-row">
               <div class="field">
-                <label for="machine-bed-width">Width (mm)</label>
-                <p-inputnumber inputId="machine-bed-width" formControlName="bedWidthMm" [min]="1" suffix=" mm" />
+                <label for="machine-bed-width">Work area width</label>
+                <p-inputgroup>
+                  <p-inputnumber inputId="machine-bed-width" formControlName="bedWidthMm" [min]="1"/>
+                  <p-inputgroup-addon>mm</p-inputgroup-addon>
+                </p-inputgroup>
               </div>
               <div class="field">
-                <label for="machine-bed-height">Height (mm)</label>
-                <p-inputnumber inputId="machine-bed-height" formControlName="bedHeightMm" [min]="1" suffix=" mm" />
+                <label for="machine-bed-height">Work area height</label>
+                <p-input-group>
+                  <p-inputnumber inputId="machine-bed-height" formControlName="bedHeightMm" [min]="1"/>
+                  <p-inputgroup-addon>mm</p-inputgroup-addon>
+                </p-input-group>
               </div>
             </div>
 
@@ -60,25 +66,29 @@
             <div class="field-row">
               <div class="field">
                 <label for="machine-offset-x">Offset X (mm)</label>
-                <p-inputnumber
+                <p-input-group>
+                  <p-inputnumber
                   inputId="machine-offset-x"
                   formControlName="offsetXMm"
                   [step]="0.1"
                   [minFractionDigits]="0"
                   [maxFractionDigits]="3"
-                  suffix=" mm"
                 />
+                <p-inputgroup-addon>mm</p-inputgroup-addon>
+                </p-input-group>
               </div>
               <div class="field">
                 <label for="machine-offset-y">Offset Y (mm)</label>
-                <p-inputnumber
+                <p-input-group>
+                  <p-inputnumber
                   inputId="machine-offset-y"
                   formControlName="offsetYMm"
                   [step]="0.1"
                   [minFractionDigits]="0"
                   [maxFractionDigits]="3"
-                  suffix=" mm"
                 />
+                <p-inputgroup-addon>mm</p-inputgroup-addon>
+                </p-input-group>
               </div>
             </div>
           </div>
@@ -103,64 +113,79 @@
           <div class="fieldset">
             <div class="field-row">
               <div class="field">
-                <label for="machine-max-accel-x">Max acceleration X (mm/s²)</label>
-                <p-inputnumber
-                  inputId="machine-max-accel-x"
-                  formControlName="maxAccelerationXMmPerSec2"
-                  [min]="0"
-                  suffix=" mm/s²"
-                />
+                <label for="machine-max-accel-x">Max acceleration X</label>
+                <p-input-group>
+                  <p-inputnumber
+                    inputId="machine-max-accel-x"
+                    formControlName="maxAccelerationXMmPerSec2"
+                    [min]="0"
+                  />
+                  <p-inputgroup-addon>mm/s²</p-inputgroup-addon>
+                </p-input-group>
               </div>
               <div class="field">
-                <label for="machine-max-accel-y">Max acceleration Y (mm/s²)</label>
-                <p-inputnumber
+                <label for="machine-max-accel-y">Max acceleration Y</label>
+                <p-input-group>
+
+                  <p-inputnumber
                   inputId="machine-max-accel-y"
                   formControlName="maxAccelerationYMmPerSec2"
                   [min]="0"
-                  suffix=" mm/s²"
+                  
                 />
+                <p-inputgroup-addon>mm/s²</p-inputgroup-addon>
+                </p-input-group>
               </div>
             </div>
 
             <div class="field-row">
               <div class="field">
-                <label for="machine-max-speed-x">Work speed X (mm/min)</label>
-                <p-inputnumber
-                  inputId="machine-max-speed-x"
-                  formControlName="maxSpeedXMmPerMin"
-                  [min]="0"
-                  suffix=" mm/min"
-                />
+                <label for="machine-max-speed-x">Work speed X</label>
+                <p-input-group>
+                  <p-inputnumber
+                    inputId="machine-max-speed-x"
+                    formControlName="maxSpeedXMmPerMin"
+                    [min]="0"
+                  />
+                  <p-inputgroup-addon>mm/min</p-inputgroup-addon>
+              </p-input-group>
+                
               </div>
               <div class="field">
-                <label for="machine-max-speed-y">Work speed Y (mm/min)</label>
-                <p-inputnumber
-                  inputId="machine-max-speed-y"
-                  formControlName="maxSpeedYMmPerMin"
-                  [min]="0"
-                  suffix=" mm/min"
-                />
+                <label for="machine-max-speed-y">Work speed Y</label>
+                <p-input-group>
+                  <p-inputnumber
+                    inputId="machine-max-speed-y"
+                    formControlName="maxSpeedYMmPerMin"
+                    [min]="0"
+                  />
+                  <p-inputgroup-addon>mm/min</p-inputgroup-addon>
+                </p-input-group>
               </div>
             </div>
 
             <div class="field-row">
               <div class="field">
-                <label for="machine-travel-speed-x">Travel speed X (mm/min)</label>
-                <p-inputnumber
-                  inputId="machine-travel-speed-x"
-                  formControlName="travelSpeedXMmPerMin"
-                  [min]="0"
-                  suffix=" mm/min"
-                />
+                <label for="machine-travel-speed-x">Travel speed X</label>
+                <p-input-group>
+                    <p-inputnumber
+                    inputId="machine-travel-speed-x"
+                    formControlName="travelSpeedXMmPerMin"
+                    [min]="0"
+                  />
+                  <p-inputgroup-addon>mm/min</p-inputgroup-addon>
+                </p-input-group>
               </div>
               <div class="field">
-                <label for="machine-travel-speed-y">Travel speed Y (mm/min)</label>
-                <p-inputnumber
-                  inputId="machine-travel-speed-y"
-                  formControlName="travelSpeedYMmPerMin"
-                  [min]="0"
-                  suffix=" mm/min"
-                />
+                <label for="machine-travel-speed-y">Travel speed Y</label>
+                <p-input-group>
+                    <p-inputnumber
+                    inputId="machine-travel-speed-y"
+                    formControlName="travelSpeedYMmPerMin"
+                    [min]="0"
+                  />
+                  <p-inputgroup-addon>mm/min</p-inputgroup-addon>
+                </p-input-group>
               </div>
             </div>
           </div>

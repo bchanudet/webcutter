@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Accordion, AccordionContent, AccordionHeader, AccordionPanel } from '@openng/optimus-ui/accordion';
+import { InputGroupModule } from '@openng/optimus-ui/inputgroup';
+import { InputGroupAddonModule } from '@openng/optimus-ui/inputgroupaddon';
 import { Button } from '@openng/optimus-ui/button';
 import { Card } from '@openng/optimus-ui/card';
 import { InputText } from '@openng/optimus-ui/inputtext';
@@ -51,6 +53,7 @@ const ORIGIN_OPTIONS: OriginOption[] = [
     AccordionHeader,
     AccordionContent,
     ReactiveFormsModule,
+    InputGroupModule, InputGroupAddonModule
   ],
   templateUrl: './machine-section.html',
   styleUrl: './machine-section.scss',

@@ -107,6 +107,14 @@ const MAX_HISTORY_ENTRIES = 20;
 /** Rotation snap increment while dragging the rotate handle with Shift held (see
  * `onShapePointerMove`). */
 const ROTATE_SNAP_DEG = 15;
+/** How far a duplicated shape (see `duplicateSelection`) is offset from its original, so it's
+ * immediately visible/grabbable instead of sitting exactly on top of it. */
+const DUPLICATE_OFFSET_MM = 5;
+/** Minimum pointer movement, in *screen* pixels (not mm — so it doesn't shrink to nothing when
+ * zoomed in), before a left-button press on empty canvas turns into a marquee-selection drag
+ * rather than a plain click — see `onCanvasPointerDown`/`onCanvasPointerMove`. Below this, the
+ * press's own trailing `click` still selects/deselects exactly as before the marquee existed. */
+const MARQUEE_THRESHOLD_PX = 4;
 
 /** Stroke color for a shape with no assigned profile, in the exported SVG — the viewer instead
  * uses `var(--p-primary-color, #FF7300)`, which a standalone file can't resolve. */
@@ -181,6 +189,7 @@ export class SvgToGcodePage {
 
   private readonly fileInput = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
   private readonly svgCanvas = viewChild.required<ElementRef<SVGSVGElement>>('svgCanvas');
+  private readonly shapeContextMenu = viewChild.required<ContextMenu>('shapeContextMenu');
   private readonly testPatternDialog = viewChild.required(TestPatternDialog);
   private readonly addTextDialog = viewChild.required(AddTextDialog);
   private readonly filenamePopover = viewChild.required(FilenamePopover);
@@ -193,6 +202,7 @@ export class SvgToGcodePage {
   private pendingWorkspaceImport: { source: string; fileName: string } | null = null;
   private nextDocumentId = 0;
   private nextExplodeId = 0;
+  private nextDuplicateId = 0;
   private dragState: {
     pointerId: number;
     mode: 'move' | 'rotate';
@@ -225,6 +235,24 @@ export class SvgToGcodePage {
     mmPerPixelX: number;
     mmPerPixelY: number;
   } | null = null;
+
+  /** Rubber-band ("marquee") selection dragged out from empty canvas — see
+   * `onCanvasPointerDown`/`onCanvasPointerMove`/`onCanvasPointerUp`. `startClientX`/`startClientY`
+   * (screen pixels, not mm) are only used to detect `MARQUEE_THRESHOLD_PX`, separately from
+   * `start` (mm-space, the actual first corner of the rectangle once it's shown). */
+  private marqueeState: {
+    pointerId: number;
+    start: { x: number; y: number };
+    startClientX: number;
+    startClientY: number;
+  } | null = null;
+  /** Live marquee rectangle in mm/SVG-space, already normalized (top-left + positive size)
+   * regardless of which direction the user actually dragged — `null` outside of an active drag,
+   * and while one is in progress but hasn't yet crossed `MARQUEE_THRESHOLD_PX` (see
+   * `onCanvasPointerMove`), so a plain click never flashes a zero-size rectangle. */
+  protected readonly marqueeRect = signal<{ x: number; y: number; width: number; height: number } | null>(
+    null,
+  );
 
   protected readonly machine = signal<Machine | null>(null);
   // Fallback cutting surface until the machine configuration has loaded.
@@ -280,7 +308,13 @@ export class SvgToGcodePage {
   /** Live value of the Laser Offset input field (mm), not itself undoable — only "Apply" is. */
   protected readonly laserOffsetMm = signal(0);
 
-  protected readonly treeNodes = computed(() => this.documents().map((doc) => doc.treeNode));
+  /** Deep-cloned from `doc.treeNode` — the `Tree` component mutates whatever node objects it's
+   * given to add its own back-reference `parent` property (see its `[value]` binding), which would
+   * otherwise leak a circular reference into `documents()` itself and break `persistState()`'s
+   * `JSON.stringify` (`TypeError: Converting circular structure to JSON`) the next time a
+   * selection/transform change triggers a save. Cloning here keeps that mutation confined to the
+   * value handed to the template, never touching the canonical `WorkspaceDocument`s. */
+  protected readonly treeNodes = computed(() => this.documents().map((doc) => structuredClone(doc.treeNode)));
   protected readonly skippedTags = computed(() =>
     Array.from(new Set(this.documents().flatMap((doc) => doc.skippedTags))),
   );
@@ -391,6 +425,18 @@ export class SvgToGcodePage {
     this.persistState();
   }
 
+  /** Same as `deleteNodeAndDescendants()`, but for every node currently selected in the SVG
+   * visualizer — the canvas's own context menu "Delete" command (see `shapeContextMenuItems`),
+   * which can apply to more than one shape at once (multi-selection). Iterating a node at a time
+   * re-filters an already-shrunk `documents()`/`selectedNodes()` on every step, but that's a no-op
+   * once a node's already gone (e.g. a descendant whose ancestor was deleted first) rather than
+   * an error. */
+  protected deleteSelection(): void {
+    for (const node of this.selectedNodes()) {
+      this.deleteNodeAndDescendants(node);
+    }
+  }
+
   /** Returns a copy of the tree with the node matching `targetKey` removed, wherever it is. */
   private removeNodeFromTree(
     node: TreeNode<SvgTreeNodeData>,
@@ -425,12 +471,68 @@ export class SvgToGcodePage {
     };
   }
 
+  /** Returns a copy of the tree with `newSibling` inserted right after the node matching
+   * `targetKey`, under whichever parent actually contains it — used by `duplicateSelection()` to
+   * place a shape's copy next to it in the tree, wherever it is nested. No-op (returns `node`
+   * unchanged) if `targetKey` isn't found anywhere under `node`. */
+  private addSiblingToNode(
+    node: TreeNode<SvgTreeNodeData>,
+    targetKey: string,
+    newSibling: TreeNode<SvgTreeNodeData>,
+  ): TreeNode<SvgTreeNodeData> {
+    if (!node.children) {
+      return node;
+    }
+    const index = node.children.findIndex((child) => child.key === targetKey);
+    if (index !== -1) {
+      const children = [...node.children];
+      children.splice(index + 1, 0, newSibling);
+      return { ...node, children };
+    }
+    return {
+      ...node,
+      children: node.children.map((child) => this.addSiblingToNode(child, targetKey, newSibling)),
+    };
+  }
+
+  /** Finds the node matching `targetKey` anywhere under `node`, `node` itself included. */
+  private findNodeByKey(
+    node: TreeNode<SvgTreeNodeData>,
+    targetKey: string,
+  ): TreeNode<SvgTreeNodeData> | null {
+    if (node.key === targetKey) {
+      return node;
+    }
+    for (const child of node.children ?? []) {
+      const found = this.findNodeByKey(child, targetKey);
+      if (found) {
+        return found;
+      }
+    }
+    return null;
+  }
+
   /** Splits every shape tagged with `node`'s key into its independent entities (see
    * `groupSubpathsIntoEntities`), each becoming its own shape with a fresh tree line under
    * `node` — a no-op for shapes that aren't actually explodable. */
   protected explodeNode(node: TreeNode<SvgTreeNodeData>): void {
     const targetKey = node.key as string;
     if (this.applyExplode(targetKey)) {
+      this.persistState();
+    }
+  }
+
+  /** Same as `explodeNode()`, but for every group currently selected in the SVG visualizer — the
+   * canvas's own context menu "Explode" command (see `shapeContextMenuItems`), which can apply to
+   * more than one shape at once (multi-selection). */
+  protected explodeSelection(): void {
+    let exploded = false;
+    for (const key of this.selectedGroupKeys()) {
+      if (this.applyExplode(key)) {
+        exploded = true;
+      }
+    }
+    if (exploded) {
       this.persistState();
     }
   }
@@ -493,6 +595,159 @@ export class SvgToGcodePage {
     );
 
     return exploded;
+  }
+
+  /** Duplicates every shape currently selected in the SVG visualizer — the canvas's own context
+   * menu "Duplicate" command (see `shapeContextMenuItems`). Each copy gets a fresh id/tree line
+   * right next to the original (see `addSiblingToNode`), starts with the same move/rotate
+   * transform and profile assignment as the original, offset by `DUPLICATE_OFFSET_MM` so it's
+   * immediately visible/grabbable rather than sitting exactly on top of it, and becomes the new
+   * selection so it can be dragged away right away. Not undoable — same as `deleteSelection()`/
+   * `explodeSelection()`, creating/removing shapes and tree lines is outside what `WorkspaceSnapshot`
+   * tracks (see its own doc comment). */
+  protected duplicateSelection(): void {
+    const targetKeys = new Set(this.selectedGroupKeys());
+    if (targetKeys.size === 0) {
+      return;
+    }
+
+    const transforms = new Map(this.groupTransforms());
+    const profileAssignments = new Map(this.groupProfileAssignments());
+    const newNodes: TreeNode<SvgTreeNodeData>[] = [];
+
+    this.documents.update((docs) =>
+      docs.map((doc) => {
+        const matching = doc.shapes.filter((shape) => targetKeys.has(shape.groupKey));
+        if (matching.length === 0) {
+          return doc;
+        }
+
+        let treeNode = doc.treeNode;
+        const newShapes: FlattenedShape[] = [];
+
+        for (const shape of matching) {
+          const suffix = this.nextDuplicateId++;
+          const groupKey = `${shape.groupKey}:copy:${suffix}`;
+          const originalNode = this.findNodeByKey(doc.treeNode, shape.groupKey);
+          const newNode: TreeNode<SvgTreeNodeData> = {
+            key: groupKey,
+            label: `${originalNode?.label ?? 'Shape'} copy`,
+            data: { documentId: doc.id, kind: 'group' },
+            children: [],
+          };
+
+          newShapes.push({ ...shape, id: `${groupKey}:shape`, groupKey });
+          treeNode = this.addSiblingToNode(treeNode, shape.groupKey, newNode);
+          newNodes.push(newNode);
+
+          const baseTransform = this.groupTransforms().get(shape.groupKey) ?? IDENTITY_MATRIX;
+          transforms.set(
+            groupKey,
+            multiplyMatrices(translateMatrix(DUPLICATE_OFFSET_MM, DUPLICATE_OFFSET_MM), baseTransform),
+          );
+          const assignment = this.groupProfileAssignments().get(shape.groupKey);
+          if (assignment) {
+            profileAssignments.set(groupKey, assignment);
+          }
+        }
+
+        return { ...doc, shapes: [...doc.shapes, ...newShapes], treeNode };
+      }),
+    );
+
+    this.groupTransforms.set(transforms);
+    this.groupProfileAssignments.set(profileAssignments);
+    this.selectedNodes.set(newNodes);
+    this.persistState();
+  }
+
+  /** Resets every currently selected group's rotation back to 0° (its angle at import) while
+   * keeping its current position — the canvas's own context menu "Reset rotation" command (see
+   * `shapeContextMenuItems`). Un-rotates around each group's own current center rather than just
+   * dropping the matrix back to identity, so the shape doesn't also jump back to its original
+   * position. */
+  protected resetRotationForSelection(): void {
+    const keys = this.selectedGroupKeys();
+    if (keys.size === 0) {
+      return;
+    }
+
+    const snapshot = this.takeSnapshot();
+    const next = new Map(this.groupTransforms());
+    let changed = false;
+
+    for (const key of keys) {
+      const matrix = next.get(key);
+      if (!matrix) {
+        continue;
+      }
+      const angleDeg = (Math.atan2(matrix.b, matrix.a) * 180) / Math.PI;
+      if (Math.abs(angleDeg) < 1e-6) {
+        continue;
+      }
+      const local = this.computeLocalBBox(key);
+      if (!local) {
+        continue;
+      }
+      const center = applyMatrix(matrix, {
+        x: (local.minX + local.maxX) / 2,
+        y: (local.minY + local.maxY) / 2,
+      });
+      next.set(key, multiplyMatrices(rotateMatrix(-angleDeg, center.x, center.y), matrix));
+      changed = true;
+    }
+
+    if (!changed) {
+      return;
+    }
+
+    this.groupTransforms.set(next);
+    this.pushUndoSnapshot(snapshot);
+    // The selection itself hasn't changed, so — unlike duplicating/selecting a node — nothing else
+    // recomputes the marching-ants frame on its own; mirror what the selection-changed effect()
+    // does so it doesn't keep showing the pre-reset (rotated) frame.
+    this.selectionBaseFrame.set(this.computeBaseFrame(keys));
+    this.selectionFrameTransform.set(IDENTITY_MATRIX);
+    this.persistState();
+  }
+
+  /** Whether at least one shape in the current selection can be split into independent entities
+   * (see `groupSubpathsIntoEntities`) — gates the canvas context menu's "Explode" entry
+   * (`shapeContextMenuItems`), mirroring the tree's own "Explode" command. */
+  protected readonly canExplodeSelection = computed(() => {
+    const keys = this.selectedGroupKeys();
+    if (keys.size === 0) {
+      return false;
+    }
+    return this.documents().some((doc) =>
+      doc.shapes.some((shape) => keys.has(shape.groupKey) && shape.explodable),
+    );
+  });
+
+  /** Context menu shown when right-clicking inside the marching-ants selection frame (see
+   * `onCanvasContextMenu`). */
+  protected readonly shapeContextMenuItems = computed<MenuItem[]>(() => [
+    { label: 'Delete', command: () => this.deleteSelection() },
+    { label: 'Duplicate', command: () => this.duplicateSelection() },
+    { label: 'Reset rotation', command: () => this.resetRotationForSelection() },
+    { label: 'Explode', visible: this.canExplodeSelection(), command: () => this.explodeSelection() },
+  ]);
+
+  /** Opens `shapeContextMenuItems` on right-click inside the current marching-ants selection
+   * frame — the browser's own context menu is suppressed everywhere on the canvas regardless
+   * (native "Save image as..."/"Inspect" over a SVG editor is just confusing noise here), it's
+   * only actually replaced by ours inside the frame. */
+  protected onCanvasContextMenu(event: MouseEvent): void {
+    event.preventDefault();
+    const frame = this.selectionFrame();
+    if (!frame) {
+      return;
+    }
+    const point = this.clientToSvgPoint(event.clientX, event.clientY);
+    if (!this.isPointInPolygon(point, frame.corners)) {
+      return;
+    }
+    this.shapeContextMenu().show(event);
   }
 
   private readonly handleSizeMm = computed(() =>
@@ -1123,8 +1378,14 @@ export class SvgToGcodePage {
   }
 
   /** Clears the selection when clicking empty canvas — but not when clicking inside the
-   * marching-ants selection frame, even on the small margin around the shape itself. */
+   * marching-ants selection frame, even on the small margin around the shape itself, and not
+   * right after a marquee drag actually selected something (see `onCanvasPointerUp`, which sets
+   * `ignoreNextClick` exactly like a shape move/rotate drag already does). */
   protected onBackgroundClick(event: MouseEvent): void {
+    if (this.ignoreNextClick) {
+      this.ignoreNextClick = false;
+      return;
+    }
     const frame = this.selectionFrame();
     if (frame) {
       const point = this.clientToSvgPoint(event.clientX, event.clientY);
@@ -1342,17 +1603,20 @@ export class SvgToGcodePage {
     this.persistState();
   }
 
-  /** Converts a client (screen) point to mm-space, accounting for the current pan/zoom. */
+  /** Converts a client (screen) point to mm-space, accounting for the current pan/zoom — via the
+   * SVG element's own screen transform matrix rather than a manual ratio of
+   * `getBoundingClientRect()` to `viewBox()`, which would silently drift off whenever the two
+   * don't share the same aspect ratio: `preserveAspectRatio="xMidYMid meet"` then letterboxes the
+   * actual content inside the element's own box (e.g. the viewer panel is wider than the bed is),
+   * and a plain ratio doesn't know about that empty margin. */
   private clientToSvgPoint(clientX: number, clientY: number): { x: number; y: number } {
-    const rect = this.svgCanvas().nativeElement.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) {
+    const svg = this.svgCanvas().nativeElement;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) {
       return { x: 0, y: 0 };
     }
-    const view = this.viewBox();
-    return {
-      x: view.x + ((clientX - rect.left) / rect.width) * view.width,
-      y: view.y + ((clientY - rect.top) / rect.height) * view.height,
-    };
+    const point = new DOMPoint(clientX, clientY).matrixTransform(ctm.inverse());
+    return { x: point.x, y: point.y };
   }
 
   /** Zooms in/out around the cursor position, keeping the point under it fixed on screen. */
@@ -1376,46 +1640,139 @@ export class SvgToGcodePage {
     );
   }
 
-  /** Starts panning the view when the user presses the middle mouse button on the canvas. */
+  /** Starts panning the view on a middle-click, or a rubber-band ("marquee") selection on a
+   * left-click anywhere that isn't already claimed by a nested pointerdown handler (a selected
+   * shape being grabbed to move, or the rotate handle — both run first, since pointerdown bubbles
+   * from whatever was actually pressed up to the canvas, so `dragState` is already set by the time
+   * this runs if one of them claimed it). Handling the marquee here — rather than only on the
+   * background grid rect — is what lets it also select shapes sitting outside the cutting surface
+   * (an imported SVG can easily land there before it's ever moved onto the bed). */
   protected onCanvasPointerDown(event: PointerEvent): void {
-    if (event.button !== 1) {
+    if (event.button === 1) {
+      const rect = this.svgCanvas().nativeElement.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        return;
+      }
+
+      event.preventDefault();
+      const view = this.viewBox();
+      this.panState = {
+        pointerId: event.pointerId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startView: view,
+        mmPerPixelX: view.width / rect.width,
+        mmPerPixelY: view.height / rect.height,
+      };
+      (event.target as Element).setPointerCapture(event.pointerId);
       return;
     }
-    const rect = this.svgCanvas().nativeElement.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) {
+
+    if (event.button !== 0 || this.dragState) {
       return;
     }
 
     event.preventDefault();
-    const view = this.viewBox();
-    this.panState = {
+    this.marqueeState = {
       pointerId: event.pointerId,
+      start: this.clientToSvgPoint(event.clientX, event.clientY),
       startClientX: event.clientX,
       startClientY: event.clientY,
-      startView: view,
-      mmPerPixelX: view.width / rect.width,
-      mmPerPixelY: view.height / rect.height,
     };
     (event.target as Element).setPointerCapture(event.pointerId);
   }
 
   protected onCanvasPointerMove(event: PointerEvent): void {
     const pan = this.panState;
-    if (!pan || pan.pointerId !== event.pointerId) {
+    if (pan && pan.pointerId === event.pointerId) {
+      const dx = (event.clientX - pan.startClientX) * pan.mmPerPixelX;
+      const dy = (event.clientY - pan.startClientY) * pan.mmPerPixelY;
+      this.viewBox.set(
+        this.clampView({ ...pan.startView, x: pan.startView.x - dx, y: pan.startView.y - dy }),
+      );
       return;
     }
 
-    const dx = (event.clientX - pan.startClientX) * pan.mmPerPixelX;
-    const dy = (event.clientY - pan.startClientY) * pan.mmPerPixelY;
-    this.viewBox.set(
-      this.clampView({ ...pan.startView, x: pan.startView.x - dx, y: pan.startView.y - dy }),
-    );
+    const marquee = this.marqueeState;
+    if (!marquee || marquee.pointerId !== event.pointerId) {
+      return;
+    }
+    // Below the threshold, this might still just be a click — don't show a rectangle yet (and
+    // don't overwrite one already shown once the drag has actually started).
+    if (
+      this.marqueeRect() === null &&
+      Math.hypot(event.clientX - marquee.startClientX, event.clientY - marquee.startClientY) <
+        MARQUEE_THRESHOLD_PX
+    ) {
+      return;
+    }
+    const current = this.clientToSvgPoint(event.clientX, event.clientY);
+    this.marqueeRect.set({
+      x: Math.min(marquee.start.x, current.x),
+      y: Math.min(marquee.start.y, current.y),
+      width: Math.abs(current.x - marquee.start.x),
+      height: Math.abs(current.y - marquee.start.y),
+    });
   }
 
   protected onCanvasPointerUp(event: PointerEvent): void {
     if (this.panState?.pointerId === event.pointerId) {
       this.panState = null;
     }
+    if (this.marqueeState?.pointerId === event.pointerId) {
+      this.marqueeState = null;
+      const rect = this.marqueeRect();
+      this.marqueeRect.set(null);
+      // `rect` is still `null` if the drag never crossed `MARQUEE_THRESHOLD_PX` — leave this as a
+      // plain click, exactly as it was before the marquee existed (select/deselect a single shape).
+      if (rect) {
+        this.selectShapesInRect(rect);
+        // Same reasoning as a shape move/rotate drag (see `dragMoved`/`ignoreNextClick`): the
+        // trailing `click` this pointerup also fires on the background rect must not immediately
+        // clear the selection `selectShapesInRect` just made.
+        this.ignoreNextClick = true;
+      }
+    }
+  }
+
+  /** Selects every shape whose world-space bounding box overlaps `rect` at all (fully or
+   * partially) — see `onCanvasPointerDown`. Replaces the current selection, like clicking a
+   * single shape does. */
+  private selectShapesInRect(rect: { x: number; y: number; width: number; height: number }): void {
+    const rectMinX = rect.x;
+    const rectMinY = rect.y;
+    const rectMaxX = rect.x + rect.width;
+    const rectMaxY = rect.y + rect.height;
+
+    const selected: TreeNode<SvgTreeNodeData>[] = [];
+    for (const doc of this.documents()) {
+      for (const shape of doc.shapes) {
+        const matrix = this.groupTransforms().get(shape.groupKey) ?? IDENTITY_MATRIX;
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        let found = false;
+        for (const subpath of this.effectiveSubpaths(shape)) {
+          for (const point of subpath.points) {
+            found = true;
+            const p = applyMatrix(matrix, point);
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
+          }
+        }
+        if (!found || minX > rectMaxX || maxX < rectMinX || minY > rectMaxY || maxY < rectMinY) {
+          continue;
+        }
+        const node = this.nodeByKey().get(shape.groupKey);
+        if (node) {
+          selected.push(node);
+        }
+      }
+    }
+    this.selectedNodes.set(selected);
   }
 
   /** Keeps the view from drifting arbitrarily far from the bed — allows up to one view's worth
