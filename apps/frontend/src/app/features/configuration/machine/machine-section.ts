@@ -10,6 +10,7 @@ import { InputNumber } from '@openng/optimus-ui/inputnumber';
 import { Message } from '@openng/optimus-ui/message';
 import { Select } from '@openng/optimus-ui/select';
 import { ToggleSwitch } from '@openng/optimus-ui/toggleswitch';
+import { NotificationService } from '../../../shared/notifications/notification.service';
 import { parseLbdevProfile } from './lbdev-import';
 import { MachineApiService } from './machine-api.service';
 import { GcodeOrigin, SerialParity } from '@webcutter/shared';
@@ -61,6 +62,7 @@ const ORIGIN_OPTIONS: OriginOption[] = [
 })
 export class MachineSection {
   private readonly api = inject(MachineApiService);
+  private readonly notificationService = inject(NotificationService);
 
   private readonly lbdevInput = viewChild.required<ElementRef<HTMLInputElement>>('lbdevInput');
 
@@ -167,7 +169,12 @@ export class MachineSection {
         this.savedMessage.set(true);
       },
       error: () => {
-        this.errorMessage.set('Could not save the machine settings.');
+        this.notificationService.notify({
+          severity: 'danger',
+          origin: 'Machine',
+          summary: 'Save failed',
+          message: 'Could not save the machine settings.',
+        });
         this.saving.set(false);
       },
     });
@@ -188,9 +195,13 @@ export class MachineSection {
     try {
       const values = parseLbdevProfile(await file.text());
       this.form.patchValue(values);
-      this.errorMessage.set(null);
     } catch {
-      this.errorMessage.set('The lbdev file is invalid or unreadable.');
+      this.notificationService.notify({
+        severity: 'danger',
+        origin: 'Machine',
+        summary: 'Import failed',
+        message: 'The lbdev file is invalid or unreadable.',
+      });
     }
   }
 

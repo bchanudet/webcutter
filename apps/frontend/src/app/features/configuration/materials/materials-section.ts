@@ -5,6 +5,7 @@ import { Card } from '@openng/optimus-ui/card';
 import { ConfirmDialog } from '@openng/optimus-ui/confirmdialog';
 import { Message } from '@openng/optimus-ui/message';
 import { TableModule } from '@openng/optimus-ui/table';
+import { NotificationService } from '../../../shared/notifications/notification.service';
 import { TablerIcon } from '../../../shared/tabler-icon/tabler-icon';
 import { MaterialsApiService } from './materials-api.service';
 import { Material, Profile } from '@webcutter/shared';
@@ -32,6 +33,7 @@ import { ProfileFormDialog, ProfileSaveEvent } from './profile-form-dialog';
 export class MaterialsSection {
   private readonly api = inject(MaterialsApiService);
   private readonly confirmation = inject(ConfirmationService);
+  private readonly notificationService = inject(NotificationService);
 
   private readonly materialDialog = viewChild.required(MaterialFormDialog);
   private readonly profileDialog = viewChild.required(ProfileFormDialog);
@@ -68,7 +70,13 @@ export class MaterialsSection {
         : this.api.updateMaterial(event.id, event.payload);
     request.subscribe({
       next: () => this.refresh(),
-      error: () => this.errorMessage.set('Could not save the material.'),
+      error: () =>
+        this.notificationService.notify({
+          severity: 'danger',
+          origin: 'Materials',
+          summary: 'Save failed',
+          message: 'Could not save the material.',
+        }),
     });
   }
 
@@ -79,7 +87,13 @@ export class MaterialsSection {
       accept: () => {
         this.api.deleteMaterial(material.id).subscribe({
           next: () => this.refresh(),
-          error: () => this.errorMessage.set('Could not delete the material.'),
+          error: () =>
+            this.notificationService.notify({
+              severity: 'danger',
+              origin: 'Materials',
+              summary: 'Delete failed',
+              message: 'Could not delete the material.',
+            }),
         });
       },
     });
@@ -100,7 +114,13 @@ export class MaterialsSection {
         : this.api.updateProfile(event.id, event.payload);
     request.subscribe({
       next: () => this.refresh(),
-      error: () => this.errorMessage.set('Could not save the profile.'),
+      error: () =>
+        this.notificationService.notify({
+          severity: 'danger',
+          origin: 'Materials',
+          summary: 'Save failed',
+          message: 'Could not save the profile.',
+        }),
     });
   }
 
@@ -111,7 +131,13 @@ export class MaterialsSection {
       accept: () => {
         this.api.deleteProfile(profile.id).subscribe({
           next: () => this.refresh(),
-          error: () => this.errorMessage.set('Could not delete the profile.'),
+          error: () =>
+            this.notificationService.notify({
+              severity: 'danger',
+              origin: 'Materials',
+              summary: 'Delete failed',
+              message: 'Could not delete the profile.',
+            }),
         });
       },
     });

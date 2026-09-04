@@ -4,8 +4,8 @@ import { PrimeTemplate } from '@openng/optimus-ui/api';
 import { Button } from '@openng/optimus-ui/button';
 import { Dialog } from '@openng/optimus-ui/dialog';
 import { InputText } from '@openng/optimus-ui/inputtext';
-import { Message } from '@openng/optimus-ui/message';
 import { Slider } from '@openng/optimus-ui/slider';
+import { NotificationService } from '../../shared/notifications/notification.service';
 import { FontApiService } from './font-api.service';
 
 export interface TextInsertedEvent {
@@ -22,13 +22,14 @@ const DEFAULT_HEIGHT_MM = 10;
 
 @Component({
   selector: 'app-add-text-dialog',
-  imports: [Dialog, Button, InputText, Message, Slider, PrimeTemplate, ReactiveFormsModule],
+  imports: [Dialog, Button, InputText, Slider, PrimeTemplate, ReactiveFormsModule],
   templateUrl: './add-text-dialog.html',
   styleUrl: './add-text-dialog.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AddTextDialog {
   private readonly fontApi = inject(FontApiService);
+  private readonly notificationService = inject(NotificationService);
 
   protected readonly minHeightMm = MIN_HEIGHT_MM;
   protected readonly maxHeightMm = MAX_HEIGHT_MM;
@@ -39,7 +40,6 @@ export class AddTextDialog {
 
   protected readonly visible = signal(false);
   protected readonly inserting = signal(false);
-  protected readonly errorMessage = signal<string | null>(null);
 
   protected readonly form = new FormGroup({
     text: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(1)] }),
@@ -51,7 +51,6 @@ export class AddTextDialog {
 
   open(): void {
     this.form.reset({ text: '', heightMm: DEFAULT_HEIGHT_MM });
-    this.errorMessage.set(null);
     this.visible.set(true);
   }
 
@@ -63,7 +62,6 @@ export class AddTextDialog {
 
     const { text, heightMm } = this.form.getRawValue();
     this.inserting.set(true);
-    this.errorMessage.set(null);
     this.fontApi.textToSvg(text, heightMm).subscribe({
       next: ({ svg }) => {
         this.inserting.set(false);
@@ -72,9 +70,12 @@ export class AddTextDialog {
       },
       error: (error: unknown) => {
         this.inserting.set(false);
-        this.errorMessage.set(
-          (error as { error?: { message?: string } })?.error?.message ?? 'Could not generate the text.',
-        );
+        this.notificationService.notify({
+          severity: 'danger',
+          origin: 'Add text',
+          summary: 'Text generation failed',
+          message: (error as { error?: { message?: string } })?.error?.message ?? 'Could not generate the text.',
+        });
       },
     });
   }

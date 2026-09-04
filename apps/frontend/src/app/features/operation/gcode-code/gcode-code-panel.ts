@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, v
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { PrimeTemplate } from '@openng/optimus-ui/api';
+import { Message } from '@openng/optimus-ui/message';
 import { Scroller } from '@openng/optimus-ui/scroller';
 import { SelectButton } from '@openng/optimus-ui/selectbutton';
 import { catchError, map, of, switchMap } from 'rxjs';
@@ -30,7 +31,7 @@ const FOLLOW_OPTION = [{ label: 'Follow progression', value: 'follow' }];
  * and comments, neither of which the job ever sends) is matched up to that count. */
 @Component({
   selector: 'app-gcode-code-panel',
-  imports: [FormsModule, PrimeTemplate, Scroller, SelectButton, TablerIcon],
+  imports: [FormsModule, Message, PrimeTemplate, Scroller, SelectButton, TablerIcon],
   templateUrl: './gcode-code-panel.html',
   styleUrl: './gcode-code-panel.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -61,14 +61,11 @@
     }
 
     @if (checkResult(); as result) {
-      <p-message class="gcode-file__check-result" [severity]="result.severity" [closable]="false">
-        {{ result.text }}
-      </p-message>
-    }
-    @if (jobError(); as error) {
-      <p-message class="gcode-file__check-result" severity="error" [closable]="false">
-        {{ error }}
-      </p-message>
+      @if (result.severity === 'error') {
+        <p-message class="gcode-file__check-result" severity="error" [closable]="false">
+          {{ result.text }}
+        </p-message>
+      }
     }
   }
   @else {

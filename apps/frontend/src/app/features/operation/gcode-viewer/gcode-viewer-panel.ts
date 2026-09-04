@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { Message } from '@openng/optimus-ui/message';
 import { SelectButton } from '@openng/optimus-ui/selectbutton';
 import { Slider } from '@openng/optimus-ui/slider';
 import { catchError, map, of, switchMap } from 'rxjs';
@@ -44,7 +45,7 @@ const COLOR_MODE_OPTIONS: { label: string; value: GcodeColorMode }[] = [
  * the whole program. */
 @Component({
   selector: 'app-gcode-viewer-panel',
-  imports: [BedGridCanvas, FormsModule, SelectButton, Slider],
+  imports: [BedGridCanvas, FormsModule, Message, SelectButton, Slider],
   templateUrl: './gcode-viewer-panel.html',
   styleUrl: './gcode-viewer-panel.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

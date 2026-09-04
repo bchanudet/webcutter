@@ -4,7 +4,6 @@ import { PrimeTemplate } from '@openng/optimus-ui/api';
 import { Button } from '@openng/optimus-ui/button';
 import { Dialog } from '@openng/optimus-ui/dialog';
 import { InputNumber } from '@openng/optimus-ui/inputnumber';
-import { Message } from '@openng/optimus-ui/message';
 import { Select } from '@openng/optimus-ui/select';
 import { SelectButton } from '@openng/optimus-ui/selectbutton';
 import { ToggleSwitch } from '@openng/optimus-ui/toggleswitch';
@@ -49,7 +48,7 @@ const SHAPE_OPTIONS: { label: string; value: TestPatternShape }[] = [
 
 @Component({
   selector: 'app-test-pattern-dialog',
-  imports: [Dialog, Button, InputNumber, Message, Select, SelectButton, ToggleSwitch, PrimeTemplate, ReactiveFormsModule],
+  imports: [Dialog, Button, InputNumber, Select, SelectButton, ToggleSwitch, PrimeTemplate, ReactiveFormsModule],
   templateUrl: './test-pattern-dialog.html',
   styleUrl: './test-pattern-dialog.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -66,8 +65,6 @@ export class TestPatternDialog {
    * `TestPatternGeneratorService`) — disables "Generate" and shows a spinner instead of letting
    * the user fire off overlapping requests. */
   readonly generating = input(false);
-  /** Set by the caller when generation fails, shown as an inline error. */
-  readonly errorMessage = input<string | null>(null);
 
   /** Fires with the form's current values when "Generate" is clicked. */
   readonly generate = output<TestPatternParams>();
@@ -130,8 +127,8 @@ export class TestPatternDialog {
   }
 
   /** Doesn't close the dialog on its own — the caller calls `close()` once generation actually
-   * succeeds (see `SvgToGcodePage.onGenerateTestPattern`), so a failed attempt leaves the form and
-   * the visible error as-is to retry. */
+   * succeeds (see `SvgToGcodePage.onGenerateTestPattern`), so a failed attempt (surfaced as a
+   * notification, not an inline error here) leaves the form as-is to retry. */
   submit(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();

@@ -16,7 +16,7 @@
     </div>
   } @else if (loadError(); as error) {
     <div class="gcode-code__log gcode-code__log--empty">
-      <p class="gcode-code__empty gcode-code__empty--error">{{ error }}</p>
+      <p-message class="gcode-code__empty" severity="error" [closable]="false">{{ error }}</p-message>
     </div>
   } @else {
     <p-scroller class="gcode-code__log" [items]="rows()" [itemSize]="rowHeightPx" scrollHeight="100%">

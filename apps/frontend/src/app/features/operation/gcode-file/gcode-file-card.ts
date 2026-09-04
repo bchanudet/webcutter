@@ -127,14 +127,6 @@ export class GcodeFileCard {
     return job.totalLines > 0 ? Math.round((job.currentLine / job.totalLines) * 100) : 0;
   });
 
-  /** Text for the last job's failure, or `null` if it's still running or never failed — the
-   * global progress/success case is already visible via the menubar flashcard, so this only
-   * needs to surface an abnormal stop (a GRBL `error:N`, or the operator's emergency stop). */
-  protected readonly jobError = computed<string | null>(() => {
-    const status = this.cutterSocket.jobStatus();
-    return status.running ? null : status.error;
-  });
-
   /** Text + severity for the last check's outcome, or `null` before any check has run. Decodes
    * `alarmCode` into a human reason when the failure was a real GRBL alarm rather than a plain
    * `error:N` on one line (see `CheckService` on the backend). */

@@ -5,6 +5,7 @@ import { Card } from '@openng/optimus-ui/card';
 import { ConfirmDialog } from '@openng/optimus-ui/confirmdialog';
 import { Message } from '@openng/optimus-ui/message';
 import { TableModule } from '@openng/optimus-ui/table';
+import { NotificationService } from '../../../shared/notifications/notification.service';
 import { TablerIcon } from '../../../shared/tabler-icon/tabler-icon';
 import { GcodeApiService } from './gcode-api.service';
 import { GcodeFormDialog, GcodeSaveEvent } from './gcode-form-dialog';
@@ -21,6 +22,7 @@ import { Gcode } from '@webcutter/shared';
 export class GcodeSection {
   private readonly api = inject(GcodeApiService);
   private readonly confirmation = inject(ConfirmationService);
+  private readonly notificationService = inject(NotificationService);
 
   private readonly gcodeDialog = viewChild.required(GcodeFormDialog);
 
@@ -45,7 +47,13 @@ export class GcodeSection {
       event.id === null ? this.api.createGcode(event.payload) : this.api.updateGcode(event.id, event.payload);
     request.subscribe({
       next: () => this.refresh(),
-      error: () => this.errorMessage.set('Could not save the G-code.'),
+      error: () =>
+        this.notificationService.notify({
+          severity: 'danger',
+          origin: 'Gcode blocks',
+          summary: 'Save failed',
+          message: 'Could not save the G-code.',
+        }),
     });
   }
 
@@ -56,7 +64,13 @@ export class GcodeSection {
       accept: () => {
         this.api.deleteGcode(gcode.id).subscribe({
           next: () => this.refresh(),
-          error: () => this.errorMessage.set('Could not delete the G-code.'),
+          error: () =>
+            this.notificationService.notify({
+              severity: 'danger',
+              origin: 'Gcode blocks',
+              summary: 'Delete failed',
+              message: 'Could not delete the G-code.',
+            }),
         });
       },
     });

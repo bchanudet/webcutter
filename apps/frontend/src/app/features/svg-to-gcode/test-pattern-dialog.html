@@ -103,10 +103,6 @@
     </div>
   </form>
 
-  @if (errorMessage(); as message) {
-    <p-message severity="error" [closable]="false">{{ message }}</p-message>
-  }
-
   <ng-template pTemplate="footer">
     <p-button [text]="true" [disabled]="generating()" (onClick)="cancel()">Cancel</p-button>
     <p-button [disabled]="form.invalid || generating()" [loading]="generating()" (onClick)="submit()">

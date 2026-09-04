@@ -1,3 +1,4 @@
+<p-toast />
 <p-menubar [model]="menuItems" class="shell__menubar">
   <ng-template pTemplate="start">
     <span class="shell__brand">
@@ -7,7 +8,44 @@
   </ng-template>
 
   <ng-template pTemplate="end">
-    <app-machine-status-flashcard />
+    <div class="shell__end">
+      <p-overlayBadge
+        [severity]="notificationBadgeSeverity()"
+        [value]="notificationCount()"
+        [badgeDisabled]="notificationCount() === 0"
+      >
+        <p-button [text]="true" [rounded]="true" title="Notifications" (onClick)="openNotificationsPopover($event)">
+          <app-tabler-icon name="bell-ringing-2" [size]="20" />
+        </p-button>
+      </p-overlayBadge>
+      <p-popover #notificationsPopover [dismissable]="true">
+        <div class="notifications-popover">
+          <div class="notifications-popover__header">
+            <span class="notifications-popover__title">Notifications</span>
+            <p-button [text]="true" [disabled]="notificationCount() === 0" (onClick)="clearAllNotifications()">
+              Clear all
+            </p-button>
+          </div>
+          @if (notifications().length === 0) {
+            <p class="notifications-popover__empty">No notifications.</p>
+          } @else {
+            <div class="notifications-popover__list">
+              @for (notification of notifications(); track notification.id) {
+                <p-message
+                  [severity]="toMessageSeverity(notification.severity)"
+                  [closable]="true"
+                  (onClose)="clearNotification(notification.id)"
+                >
+                  <strong>{{ notification.origin }}</strong> — {{ notification.summary }}
+                  <div class="notifications-popover__message">{{ notification.message }}</div>
+                </p-message>
+              }
+            </div>
+          }
+        </div>
+      </p-popover>
+      <app-machine-status-flashcard />
+    </div>
   </ng-template>
 
   <ng-template #item let-item>

@@ -33,3 +33,47 @@
 .p-menubar-item-icon {
   display: inline-flex;
 }
+
+.shell__end {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.notifications-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 22rem;
+  max-width: 90vw;
+}
+
+.notifications-popover__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.notifications-popover__title {
+  font-weight: 600;
+}
+
+.notifications-popover__empty {
+  color: var(--p-text-muted-color, #6b7280);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.notifications-popover__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 24rem;
+  overflow-y: auto;
+}
+
+.notifications-popover__message {
+  font-size: 0.875rem;
+  opacity: 0.85;
+}

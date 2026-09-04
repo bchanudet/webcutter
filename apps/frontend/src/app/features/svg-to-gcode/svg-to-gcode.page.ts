@@ -30,6 +30,7 @@ import { PanelModule } from '@openng/optimus-ui/panel';
 import type { TreeNodeContextMenuSelectEvent } from '@openng/optimus-ui/types/tree';
 import { GcodeOrigin, Machine, Material, Profile, ProfileMode, SVG_NS, WEBCUTTER_NS } from '@webcutter/shared';
 import Offset from 'polygon-offset';
+import { NotificationService } from '../../shared/notifications/notification.service';
 import { TablerIcon } from '../../shared/tabler-icon/tabler-icon';
 import { MachineApiService } from '../configuration/machine/machine-api.service';
 import { MaterialsApiService } from '../configuration/materials/materials-api.service';
@@ -197,6 +198,7 @@ export class SvgToGcodePage {
   private readonly machineApi = inject(MachineApiService);
   private readonly workspaceApi = inject(WorkspaceApiService);
   private readonly testPatternGenerator = inject(TestPatternGeneratorService);
+  private readonly notificationService = inject(NotificationService);
   private readonly router = inject(Router);
 
   private readonly fileInput = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
@@ -288,13 +290,11 @@ export class SvgToGcodePage {
 
   protected readonly documents = signal<WorkspaceDocument[]>([]);
   protected readonly selectedNodes = signal<TreeNode<SvgTreeNodeData>[]>([]);
-  protected readonly errorMessage = signal<string | null>(null);
 
   protected readonly checking = signal(false);
   protected readonly downloadingGcode = signal(false);
   protected readonly sendingToOperation = signal(false);
   protected readonly checkErrors = signal<WorkspaceCheckError[] | null>(null);
-  protected readonly checkFailureMessage = signal<string | null>(null);
   protected readonly hasCheckErrors = computed(() => (this.checkErrors()?.length ?? 0) > 0);
   /** Whether a check has actually completed at least once since the last reset — `checkErrors()`
    * is `null` both before the first check and while one is in flight (see `checkWorkspace()`),
@@ -310,7 +310,6 @@ export class SvgToGcodePage {
   protected readonly errorsPanelCollapsed = signal(false);
 
   protected readonly generatingTestPattern = signal(false);
-  protected readonly testPatternErrorMessage = signal<string | null>(null);
 
   protected readonly materials = signal<Material[]>([]);
   protected readonly selectedMaterialId = signal<string | null>(null);
@@ -1104,12 +1103,16 @@ export class SvgToGcodePage {
   protected onGenerateTestPattern(params: TestPatternParams): void {
     const material = this.materials().find((candidate) => candidate.id === params.materialId);
     if (!material) {
-      this.testPatternErrorMessage.set('Select a material first.');
+      this.notificationService.notify({
+        severity: 'warn',
+        origin: 'Test pattern',
+        summary: 'No material selected',
+        message: 'Select a material before generating a test pattern.',
+      });
       return;
     }
 
     this.generatingTestPattern.set(true);
-    this.testPatternErrorMessage.set(null);
     this.testPatternGenerator
       .generate({
         ...params,
@@ -1130,9 +1133,12 @@ export class SvgToGcodePage {
         },
         error: (error: unknown) => {
           this.generatingTestPattern.set(false);
-          this.testPatternErrorMessage.set(
-            error instanceof Error ? error.message : 'Could not generate the test pattern.',
-          );
+          this.notificationService.notify({
+            severity: 'danger',
+            origin: 'Test pattern',
+            summary: 'Generation failed',
+            message: error instanceof Error ? error.message : 'Could not generate the test pattern.',
+          });
         },
       });
   }
@@ -1154,8 +1160,6 @@ export class SvgToGcodePage {
       return;
     }
 
-    this.errorMessage.set(null);
-
     try {
       const source = await file.text();
       if (isWorkspaceSvg(source)) {
@@ -1165,9 +1169,12 @@ export class SvgToGcodePage {
         this.addDocumentFromSource(source, file.name);
       }
     } catch (error) {
-      this.errorMessage.set(
-        error instanceof Error ? error.message : 'Could not read this SVG file.',
-      );
+      this.notificationService.notify({
+        severity: 'danger',
+        origin: 'SVG import',
+        summary: 'Could not read SVG file',
+        message: error instanceof Error ? error.message : `"${file.name}" could not be read.`,
+      });
     }
   }
 
@@ -1205,7 +1212,22 @@ export class SvgToGcodePage {
     this.documents.update((docs) => [...docs, workspaceDocument]);
 
     if (result.shapes.length === 0) {
-      this.errorMessage.set(`No cuttable shape (path, rect, circle...) found in "${label}".`);
+      this.notificationService.notify({
+        severity: 'danger',
+        origin: 'SVG import',
+        summary: 'No cuttable shape found',
+        message: `No cuttable shape (path, rect, circle...) found in "${label}".`,
+      });
+    }
+    if (result.skippedTags.length > 0) {
+      this.notificationService.notify({
+        severity: 'warn',
+        origin: 'SVG import',
+        summary: `Unsupported elements skipped in "${label}"`,
+        message:
+          `Skipped: ${result.skippedTags.join(', ')}. These aren't supported for cutting — ` +
+          `regenerate the SVG without them in your design software.`,
+      });
     }
     this.persistState();
   }
@@ -1220,7 +1242,12 @@ export class SvgToGcodePage {
     const id = `doc-${this.nextDocumentId++}`;
     const parsed = parseWorkspaceContent(source, id, fileName);
     if (!parsed) {
-      this.errorMessage.set(`"${fileName}" is not a valid workspace SVG.`);
+      this.notificationService.notify({
+        severity: 'danger',
+        origin: 'SVG import',
+        summary: 'Invalid workspace file',
+        message: `"${fileName}" is not a valid workspace SVG.`,
+      });
       return;
     }
 
@@ -1266,7 +1293,12 @@ export class SvgToGcodePage {
     // same as any shape with no `groupProfileAssignments` entry.
 
     if (parsed.shapes.length === 0) {
-      this.errorMessage.set(`No cuttable shape found in "${fileName}".`);
+      this.notificationService.notify({
+        severity: 'danger',
+        origin: 'SVG import',
+        summary: 'No cuttable shape found',
+        message: `No cuttable shape found in "${fileName}".`,
+      });
     }
     this.persistState();
   }
@@ -1279,7 +1311,6 @@ export class SvgToGcodePage {
    * (`FontApiService.textToSvg`) — drop it into the workspace exactly like an uploaded file, so
    * the user can assign it a profile like any other shape. */
   protected onTextInserted(event: TextInsertedEvent): void {
-    this.errorMessage.set(null);
     this.addDocumentFromSource(event.svg, `Text: "${event.text}"`);
   }
 
@@ -1958,7 +1989,6 @@ export class SvgToGcodePage {
     // Hides the toolbar "Check document" badge while this run is in flight, rather than leaving
     // a stale result showing until the new one comes back.
     this.checkErrors.set(null);
-    this.checkFailureMessage.set(null);
     this.workspaceApi.check(this.buildWorkspaceSvg()).subscribe({
       next: ({ errors }) => {
         this.checkErrors.set(errors);
@@ -1967,10 +1997,13 @@ export class SvgToGcodePage {
       },
       error: (error: unknown) => {
         this.checkErrors.set(null);
-        this.checkFailureMessage.set(
-          (error as { error?: { message?: string } })?.error?.message ?? 'La vérification a échoué.',
-        );
         this.checking.set(false);
+        this.notificationService.notify({
+          severity: 'danger',
+          origin: 'Workspace check',
+          summary: 'Check failed',
+          message: (error as { error?: { message?: string } })?.error?.message ?? 'The check failed.',
+        });
       },
     });
   }
@@ -2002,7 +2035,6 @@ export class SvgToGcodePage {
    * "Errors" card below, exactly like `checkWorkspace()`. */
   private generateAndDownloadGcode(fileName: string): void {
     this.downloadingGcode.set(true);
-    this.checkFailureMessage.set(null);
     this.workspaceApi.generate(this.buildWorkspaceSvg()).subscribe({
       next: ({ errors, gcode }) => {
         this.checkErrors.set(errors);
@@ -2013,10 +2045,13 @@ export class SvgToGcodePage {
       },
       error: (error: unknown) => {
         this.checkErrors.set(null);
-        this.checkFailureMessage.set(
-          (error as { error?: { message?: string } })?.error?.message ?? 'La génération du G-code a échoué.',
-        );
         this.downloadingGcode.set(false);
+        this.notificationService.notify({
+          severity: 'danger',
+          origin: 'Workspace check',
+          summary: 'G-code generation failed',
+          message: (error as { error?: { message?: string } })?.error?.message ?? 'The G-code generation failed.',
+        });
       },
     });
   }
@@ -2033,7 +2068,6 @@ export class SvgToGcodePage {
     }
 
     this.sendingToOperation.set(true);
-    this.checkFailureMessage.set(null);
     this.workspaceApi.sendToOperation(this.buildWorkspaceSvg()).subscribe({
       next: ({ errors, file }) => {
         this.checkErrors.set(errors);
@@ -2044,10 +2078,13 @@ export class SvgToGcodePage {
       },
       error: (error: unknown) => {
         this.checkErrors.set(null);
-        this.checkFailureMessage.set(
-          (error as { error?: { message?: string } })?.error?.message ?? "L'envoi vers Operation a échoué.",
-        );
         this.sendingToOperation.set(false);
+        this.notificationService.notify({
+          severity: 'danger',
+          origin: 'Workspace check',
+          summary: 'Sending to Operation failed',
+          message: (error as { error?: { message?: string } })?.error?.message ?? 'Sending to Operation failed.',
+        });
       },
     });
   }
@@ -2061,9 +2098,7 @@ export class SvgToGcodePage {
   reset(): void {
     this.documents.set([]);
     this.selectedNodes.set([]);
-    this.errorMessage.set(null);
     this.checkErrors.set(null);
-    this.checkFailureMessage.set(null);
     this.groupProfileAssignments.set(new Map());
     this.groupTransforms.set(new Map());
     this.shapeOffsets.set(new Map());

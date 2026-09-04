@@ -38,7 +38,8 @@ export type TablerIconName =
   | 'arrow-right'
   | 'point'
   | 'window-maximize'
-  | 'clipboard-check';
+  | 'clipboard-check'
+  | 'bell-ringing-2';
 
 export type TablerIconVariant = 'outline' | 'filled';
 
@@ -318,6 +319,13 @@ export const TABLER_ICON_PATHS: Record<TablerIconName, TablerIconDefinition> = {
     variant: 'filled',
     paths: `
       <path d="M17.997 4.17a3 3 0 0 1 2.003 2.83v12a3 3 0 0 1 -3 3h-10a3 3 0 0 1 -3 -3v-12a3 3 0 0 1 2.003 -2.83a4 4 0 0 0 3.997 3.83h4a4 4 0 0 0 3.98 -3.597zm-3.704 7.123l-3.293 3.292l-1.293 -1.292a1 1 0 1 0 -1.414 1.414l2 2a1 1 0 0 0 1.414 0l4 -4a1 1 0 0 0 -1.414 -1.414m-.293 -9.293a2 2 0 1 1 0 4h-4a2 2 0 1 1 0 -4z" />
+    `,
+  },
+  'bell-ringing-2': {
+    variant: 'outline',
+    paths: `
+      <path d="M19.364 4.636a2 2 0 0 1 0 2.828a7 7 0 0 1 -1.414 7.072l-2.122 2.12a4 4 0 0 0 -.707 3.536l-11.313 -11.312a4 4 0 0 0 3.535 -.707l2.121 -2.123a7 7 0 0 1 7.072 -1.414a2 2 0 0 1 2.828 0" />
+      <path d="M7.343 12.414l-.707 .707a3 3 0 0 0 4.243 4.243l.707 -.707" />
     `,
   },
 };

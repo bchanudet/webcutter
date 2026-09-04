@@ -129,7 +129,6 @@
     [maxSpeedMmPerMin]="maxFeedMmPerMin()"
     [materials]="materials()"
     [generating]="generatingTestPattern()"
-    [errorMessage]="testPatternErrorMessage()"
     (generate)="onGenerateTestPattern($event)"
   />
   <app-add-text-dialog (inserted)="onTextInserted($event)" />
@@ -154,17 +153,7 @@
             metaKeySelection="true"
           />
           <p-contextMenu #treeContextMenu [model]="treeContextMenuItems" />
-          
-          @if (skippedTags().length > 0) {
-            <p-message severity="warn" [closable]="false">
-              Skipped element(s), not supported for cutting: {{ skippedTags().join(', ') }}.
-            </p-message>
-          }
         </p-panel>
-
-        @if (errorMessage(); as message) {
-          <p-message severity="error" [closable]="false">{{ message }}</p-message>
-        }
 
         <p-panel header="Profiles" toggleable="true" toggler="header">
         @if (selectedMaterial(); as material) {
@@ -228,10 +217,6 @@
           [collapsed]="errorsPanelCollapsed()"
           (collapsedChange)="errorsPanelCollapsed.set(!!$event)"
         >
-          @if (checkFailureMessage(); as message) {
-            <p-message severity="error" [closable]="false">{{ message }}</p-message>
-          }
-
           @if (checkErrors(); as errors) {
             @if (errors.length === 0) {
               <p-message severity="success" [closable]="false">No error found.</p-message>

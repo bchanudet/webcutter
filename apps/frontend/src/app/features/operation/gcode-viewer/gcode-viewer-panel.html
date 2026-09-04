@@ -45,7 +45,7 @@
     @if (!file()) {
       <p class="gcode-viewer__empty">Upload a G-code file to preview it here.</p>
     } @else if (loadError(); as error) {
-      <p class="gcode-viewer__empty gcode-viewer__empty--error">{{ error }}</p>
+      <p-message class="gcode-viewer__empty" severity="error" [closable]="false">{{ error }}</p-message>
     }
   </div>
 
