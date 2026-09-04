@@ -1,5 +1,5 @@
-@if (file(); as file) {
-  <p-card header="Gcode file" class="gcode-file">
+<p-panel header="Gcode file" class="gcode-file" toggleable="true" toggler="header">
+    @if (file(); as file) {
     <div class="gcode-file__row">
       <span class="gcode-file__label">Name</span>
       <span class="gcode-file__value">{{ file.fileName }}</span>
@@ -70,5 +70,8 @@
         {{ error }}
       </p-message>
     }
-  </p-card>
-}
+  }
+  @else {
+    <p-message severity="secondary">No file selected</p-message>
+  }
+  </p-panel>

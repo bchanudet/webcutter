@@ -1,4 +1,4 @@
-<p-card [header]="machineName() ?? 'Machine'" class="machine-status">
+<p-panel [header]="machineName() ?? 'Machine'" class="machine-status" toggleable="true" toggler="header">
   <div class="machine-status__row">
     <p-tag [value]="statusLabel()" [severity]="statusSeverity()" />
   </div>
@@ -12,4 +12,4 @@
   } @else if (alarmReason(); as reason) {
     <p-message class="machine-status__message" severity="error" [closable]="false">{{ reason }}</p-message>
   }
-</p-card>
+</p-panel>

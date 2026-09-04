@@ -1,10 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Button } from '@openng/optimus-ui/button';
-import { Card } from '@openng/optimus-ui/card';
 import { InputNumber } from '@openng/optimus-ui/inputnumber';
 import { TablerIcon } from '../../../shared/tabler-icon/tabler-icon';
 import { CutterSocketService } from '../machine-status/cutter-socket.service';
+import { PanelModule } from '@openng/optimus-ui/panel';
+import { InputGroupModule } from '@openng/optimus-ui/inputgroup';
+import { InputGroupAddonModule } from '@openng/optimus-ui/inputgroupaddon';
 
 type JogAxis = 'X' | 'Y';
 
@@ -12,7 +14,7 @@ const DEFAULT_STEP_MM = 1;
 
 @Component({
   selector: 'app-position-card',
-  imports: [Button, Card, FormsModule, InputNumber, TablerIcon],
+  imports: [Button, PanelModule, FormsModule, InputNumber, TablerIcon, InputGroupModule, InputGroupAddonModule],
   templateUrl: './position-card.html',
   styleUrl: './position-card.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

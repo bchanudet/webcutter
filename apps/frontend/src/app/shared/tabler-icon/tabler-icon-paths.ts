@@ -36,7 +36,9 @@ export type TablerIconName =
   | 'arrow-down'
   | 'arrow-left'
   | 'arrow-right'
-  | 'point';
+  | 'point'
+  | 'window-maximize'
+  | 'clipboard-check';
 
 export type TablerIconVariant = 'outline' | 'filled';
 
@@ -74,10 +76,9 @@ export const TABLER_ICON_PATHS: Record<TablerIconName, TablerIconDefinition> = {
   'file-download': {
     variant: 'outline',
     paths: `
-      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-      <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2" />
-      <path d="M12 17v-6" />
-      <path d="M9.5 14.5l2.5 2.5l2.5 -2.5" />
+      <path d="M6 4h10l4 4v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2" />
+      <path d="M10 14a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+      <path d="M14 4l0 4l-6 0l0 -4" />
     `,
   },
   'layout-grid': {
@@ -302,6 +303,21 @@ export const TABLER_ICON_PATHS: Record<TablerIconName, TablerIconDefinition> = {
     variant: 'filled',
     paths: `
       <path d="M12 7a5 5 0 1 1 -4.995 5.217l-.005 -.217l.005 -.217a5 5 0 0 1 4.995 -4.783z" />
+    `,
+  },
+  'window-maximize': {
+    variant: 'outline',
+    paths: `
+      <path d="M3 17a1 1 0 0 1 1 -1h3a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-3a1 1 0 0 1 -1 -1l0 -3" />
+      <path d="M4 12v-6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-6" />
+      <path d="M12 8h4v4" />
+      <path d="M16 8l-5 5" />
+    `,
+  },
+  'clipboard-check': {
+    variant: 'filled',
+    paths: `
+      <path d="M17.997 4.17a3 3 0 0 1 2.003 2.83v12a3 3 0 0 1 -3 3h-10a3 3 0 0 1 -3 -3v-12a3 3 0 0 1 2.003 -2.83a4 4 0 0 0 3.997 3.83h4a4 4 0 0 0 3.98 -3.597zm-3.704 7.123l-3.293 3.292l-1.293 -1.292a1 1 0 1 0 -1.414 1.414l2 2a1 1 0 0 0 1.414 0l4 -4a1 1 0 0 0 -1.414 -1.414m-.293 -9.293a2 2 0 1 1 0 4h-4a2 2 0 1 1 0 -4z" />
     `,
   },
 };

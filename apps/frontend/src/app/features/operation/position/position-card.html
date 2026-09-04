@@ -1,4 +1,4 @@
-<p-card header="Position" class="position-card">
+<p-panel header="Laser" class="position-card" toggleable="true" toggler="header">
   @if (position(); as pos) {
     <div class="position-card__row">
       <span class="position-card__axis">X</span>
@@ -74,16 +74,20 @@
   </div>
 
   <div class="field">
-    <label for="jog-step">Step (mm)</label>
-    <p-inputnumber
-      inputId="jog-step"
-      [ngModel]="stepMm()"
-      (ngModelChange)="stepMm.set($event)"
-      [min]="0.001"
-      [step]="0.1"
-      [minFractionDigits]="0"
-      [maxFractionDigits]="3"
-      suffix=" mm"
-    />
+    <p-input-group>
+      <p-inputgroup-addon>
+        <label for="jog-step">Step (mm)</label>
+      </p-inputgroup-addon>
+      <p-inputnumber
+        inputId="jog-step"
+        [ngModel]="stepMm()"
+        (ngModelChange)="stepMm.set($event)"
+        [min]="0.001"
+        [step]="0.1"
+        [minFractionDigits]="0"
+        [maxFractionDigits]="3"
+      />
+      <p-inputgroup-addon>mm</p-inputgroup-addon>
+    </p-input-group>
   </div>
-</p-card>
+</p-panel>

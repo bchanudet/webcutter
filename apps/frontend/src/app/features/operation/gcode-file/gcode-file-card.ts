@@ -1,12 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
 import { Button } from '@openng/optimus-ui/button';
-import { Card } from '@openng/optimus-ui/card';
 import { Message } from '@openng/optimus-ui/message';
 import { ProgressBar } from '@openng/optimus-ui/progressbar';
 import { CutterSocketService } from '../machine-status/cutter-socket.service';
 import { describeAlarm } from '../machine-status/machine-status.model';
 import { formatElapsedMs, formatFileSize } from './gcode-file.model';
 import { GcodeFileService } from './gcode-file.service';
+import { PanelModule } from '@openng/optimus-ui/panel';
 
 /** How often the displayed elapsed time refreshes while the stopwatch is actively counting —
  * seconds-level granularity is all a "how long has this cut been running" readout needs. */
@@ -14,7 +14,7 @@ const STOPWATCH_TICK_MS = 1000;
 
 @Component({
   selector: 'app-gcode-file-card',
-  imports: [Button, Card, Message, ProgressBar],
+  imports: [Button, PanelModule, Message, ProgressBar],
   templateUrl: './gcode-file-card.html',
   styleUrl: './gcode-file-card.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

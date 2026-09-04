@@ -11,17 +11,22 @@ import {
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MenuItem, PrimeTemplate, TreeNode } from '@openng/optimus-ui/api';
+import { BadgeSeverity } from '@openng/optimus-ui/types/badge';
 import { Button } from '@openng/optimus-ui/button';
-import { Card } from '@openng/optimus-ui/card';
 import { ContextMenu } from '@openng/optimus-ui/contextmenu';
 import { InputNumber } from '@openng/optimus-ui/inputnumber';
 import { DividerModule } from "@openng/optimus-ui/divider";
 import { Message } from '@openng/optimus-ui/message';
 import { OverlayBadge } from '@openng/optimus-ui/overlaybadge';
+import { Popover } from '@openng/optimus-ui/popover';
 import { Select } from '@openng/optimus-ui/select';
 import { Splitter } from '@openng/optimus-ui/splitter';
 import { Toolbar } from '@openng/optimus-ui/toolbar';
 import { Tree } from '@openng/optimus-ui/tree';
+import { InputGroupModule } from '@openng/optimus-ui/inputgroup';
+import { InputGroupAddonModule } from '@openng/optimus-ui/inputgroupaddon';
+import { FieldsetModule } from '@openng/optimus-ui/fieldset';
+import { PanelModule } from '@openng/optimus-ui/panel';
 import type { TreeNodeContextMenuSelectEvent } from '@openng/optimus-ui/types/tree';
 import { GcodeOrigin, Machine, Material, Profile, ProfileMode, SVG_NS, WEBCUTTER_NS } from '@webcutter/shared';
 import Offset from 'polygon-offset';
@@ -42,6 +47,7 @@ import { TestPatternGeneratorService } from './test-pattern-generator.service';
 import { WorkspaceApiService, WorkspaceCheckError } from './workspace-api.service';
 import { isWorkspaceSvg, ParsedWorkspaceMaterial, parseWorkspaceContent } from './workspace-svg-content-parser';
 import { WorkspaceImportChoice, WorkspaceImportDialog } from './workspace-import-dialog';
+import { BadgeModule } from '@openng/optimus-ui/badge';
 
 /** A 2D affine transform, stored as the standard SVG `matrix(a b c d e f)` components. */
 interface AffineMatrix {
@@ -130,9 +136,12 @@ interface GroupProfileAssignment {
   mode: ProfileMode;
 }
 
-/** The part of the workspace that move/rotate/profile-assignment can undo — everything else
- * (selection, loaded documents, material, camera...) is left alone by undo/redo. */
+/** The part of the workspace that move/rotate/profile-assignment/delete can undo — everything
+ * else (selection, material, camera...) is left alone by undo/redo. `documents` is included so
+ * deleting a shape/group/document (see `deleteNodeAndDescendants`) is undoable too — duplicating
+ * and exploding still aren't (see their own doc comments), so they don't push a snapshot. */
 interface WorkspaceSnapshot {
+  documents: WorkspaceDocument[];
   groupTransforms: Map<string, AffineMatrix>;
   groupProfileAssignments: Map<string, GroupProfileAssignment>;
   shapeOffsets: Map<string, FlattenedSubpath[]>;
@@ -160,13 +169,13 @@ interface PersistedWorkspaceState {
     PrimeTemplate,
     AddTextDialog,
     Button,
-    Card,
     ContextMenu,
     InputNumber,
     DividerModule,
     FilenamePopover,
     Message,
     OverlayBadge,
+    Popover,
     Select,
     Splitter,
     TestPatternDialog,
@@ -174,6 +183,9 @@ interface PersistedWorkspaceState {
     Tree,
     TablerIcon,
     WorkspaceImportDialog,
+    InputGroupModule,
+    InputGroupAddonModule,
+    FieldsetModule, PanelModule, BadgeModule
   ],
   templateUrl: './svg-to-gcode.page.html',
   styleUrl: './svg-to-gcode.page.scss',
@@ -193,6 +205,7 @@ export class SvgToGcodePage {
   private readonly testPatternDialog = viewChild.required(TestPatternDialog);
   private readonly addTextDialog = viewChild.required(AddTextDialog);
   private readonly filenamePopover = viewChild.required(FilenamePopover);
+  private readonly laserOffsetPopover = viewChild.required(Popover);
   /** Which toolbar download is waiting on `filenamePopover`'s confirmed name — `null` means
    * nothing is pending (e.g. the popover was dismissed without confirming). */
   private pendingDownload: 'svg' | 'gcode' | null = null;
@@ -283,6 +296,18 @@ export class SvgToGcodePage {
   protected readonly checkErrors = signal<WorkspaceCheckError[] | null>(null);
   protected readonly checkFailureMessage = signal<string | null>(null);
   protected readonly hasCheckErrors = computed(() => (this.checkErrors()?.length ?? 0) > 0);
+  /** Whether a check has actually completed at least once since the last reset — `checkErrors()`
+   * is `null` both before the first check and while one is in flight (see `checkWorkspace()`),
+   * which is also what hides the toolbar "Check document" badge in the meantime. */
+  protected readonly hasChecked = computed(() => this.checkErrors() !== null);
+  protected readonly checkBadgeSeverity = computed<BadgeSeverity>(() =>
+    this.hasCheckErrors() ? 'danger' : 'success',
+  );
+  protected readonly checkBadgeValue = computed(() => this.checkErrors()?.length ?? 0);
+  /** Collapsed state of the sidebar "Errors" panel — driven automatically by `checkWorkspace()`'s
+   * result (expanded on errors, collapsed once clean) rather than only by the user's own
+   * toggle. */
+  protected readonly errorsPanelCollapsed = signal(false);
 
   protected readonly generatingTestPattern = signal(false);
   protected readonly testPatternErrorMessage = signal<string | null>(null);
@@ -356,6 +381,7 @@ export class SvgToGcodePage {
       label: 'Delete',
       command: () => {
         if (this.contextMenuNode) {
+          this.pushUndoSnapshot(this.takeSnapshot());
           this.deleteNodeAndDescendants(this.contextMenuNode);
         }
       },
@@ -432,6 +458,10 @@ export class SvgToGcodePage {
    * once a node's already gone (e.g. a descendant whose ancestor was deleted first) rather than
    * an error. */
   protected deleteSelection(): void {
+    if (this.selectedNodes().length === 0) {
+      return;
+    }
+    this.pushUndoSnapshot(this.takeSnapshot());
     for (const node of this.selectedNodes()) {
       this.deleteNodeAndDescendants(node);
     }
@@ -1291,6 +1321,10 @@ export class SvgToGcodePage {
     return this.shapeOffsets().get(shape.id) ?? shape.subpaths;
   }
 
+  protected openLaserOffsetPopover(event: Event): void {
+    this.laserOffsetPopover().show(event);
+  }
+
   /** Kerf-compensates every path in the workspace by `laserOffsetMm()`: outer contours grow,
    * holes shrink (or the reverse, for a negative value) — see `computeOffsetForShape`. */
   protected applyLaserOffset(): void {
@@ -1553,6 +1587,7 @@ export class SvgToGcodePage {
   /** Takes a snapshot of the undo/redo-tracked part of the workspace. */
   private takeSnapshot(): WorkspaceSnapshot {
     return {
+      documents: this.documents(),
       groupTransforms: new Map(this.groupTransforms()),
       groupProfileAssignments: new Map(this.groupProfileAssignments()),
       shapeOffsets: new Map(this.shapeOffsets()),
@@ -1560,6 +1595,7 @@ export class SvgToGcodePage {
   }
 
   private applySnapshot(snapshot: WorkspaceSnapshot): void {
+    this.documents.set(snapshot.documents);
     this.groupTransforms.set(new Map(snapshot.groupTransforms));
     this.groupProfileAssignments.set(new Map(snapshot.groupProfileAssignments));
     this.shapeOffsets.set(new Map(snapshot.shapeOffsets));
@@ -1919,11 +1955,15 @@ export class SvgToGcodePage {
     }
 
     this.checking.set(true);
+    // Hides the toolbar "Check document" badge while this run is in flight, rather than leaving
+    // a stale result showing until the new one comes back.
+    this.checkErrors.set(null);
     this.checkFailureMessage.set(null);
     this.workspaceApi.check(this.buildWorkspaceSvg()).subscribe({
       next: ({ errors }) => {
         this.checkErrors.set(errors);
         this.checking.set(false);
+        this.errorsPanelCollapsed.set(errors.length === 0);
       },
       error: (error: unknown) => {
         this.checkErrors.set(null);

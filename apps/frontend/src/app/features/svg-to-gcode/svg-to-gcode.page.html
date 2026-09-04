@@ -11,7 +11,38 @@
         <p-button [text]="true" [rounded]="true" title="Generate test pattern" (onClick)="openTestPatternDialog()">
           <app-tabler-icon name="layout-grid" [size]="20" />
         </p-button>
+        <p-button [text]="true" [rounded]="true" title="Offset all paths" (onClick)="openLaserOffsetPopover($event)">
+          <app-tabler-icon name="window-maximize" [size]="20" />
+        </p-button>
+        <p-popover #laserOffsetPopover [dismissable]="true">
+          <div class="laser-offset-popover field">
+            <label for="laser-offset">Apply Offset</label>
+            <p-input-group>
+              <p-inputnumber
+                inputId="laser-offset"
+                [ngModel]="laserOffsetMm()"
+                (ngModelChange)="laserOffsetMm.set($event)"
+                [step]="0.1"
+                [minFractionDigits]="0"
+                [maxFractionDigits]="2"
+              />
+              <p-inputgroup-addon>mm</p-inputgroup-addon>
+              <p-inputgroup-addon>
+                <p-button [disabled]="documents().length === 0" (onClick)="applyLaserOffset()">Apply</p-button>
+              </p-inputgroup-addon>
+            </p-input-group>
+          </div>
+        </p-popover>
         <p-divider layout="vertical"/>
+        <p-button
+          [text]="true"
+          [rounded]="true"
+          title="Save workspace SVG"
+          [disabled]="documents().length === 0"
+          (onClick)="openSaveSvgPopover($event)"
+        >
+          <app-tabler-icon name="file-download" [size]="20" />
+        </p-button>
         <p-button
           [text]="true"
           [rounded]="true"
@@ -20,6 +51,7 @@
           [disabled]="documents().length === 0"
           (onClick)="reset()"
         >
+        
           <app-tabler-icon name="trash-x" [size]="20" />
         </p-button>
         <p-divider layout="vertical"/>
@@ -34,33 +66,36 @@
           <app-tabler-icon name="arrow-right-dashed" [size]="20" />
         </p-button>
         <p-divider layout="vertical"/>
-        <p-button
-          [text]="true"
-          [rounded]="true"
-          title="Save workspace SVG"
-          [disabled]="documents().length === 0"
-          (onClick)="openSaveSvgPopover($event)"
-        >
-          <app-tabler-icon name="file-download" [size]="20" />
-        </p-button>
-        <p-overlayBadge severity="danger" [badgeDisabled]="!hasCheckErrors()">
+        <p-overlayBadge [severity]="checkBadgeSeverity()" [value]="checkBadgeValue()" [badgeDisabled]="!hasChecked()">
           <p-button
             [text]="true"
             [rounded]="true"
-            title="Download G-code"
-            [disabled]="documents().length === 0 || downloadingGcode()"
-            [loading]="downloadingGcode()"
-            (onClick)="openDownloadGcodePopover($event)"
+            title="Check document"
+            [disabled]="documents().length === 0 || checking()"
+            [loading]="checking()"
+            (onClick)="checkWorkspace()"
           >
-            <app-tabler-icon name="code-circle" [size]="20" />
+            <app-tabler-icon name="clipboard-check" [size]="20" />
           </p-button>
         </p-overlayBadge>
+        <p-divider layout="vertical"/>
+        <p-button
+          [text]="true"
+          [rounded]="true"
+          title="Download G-code"
+          [disabled]="documents().length === 0 || downloadingGcode() || hasCheckErrors()"
+          [loading]="downloadingGcode()"
+          (onClick)="openDownloadGcodePopover($event)"
+        >
+          <app-tabler-icon name="code-circle" [size]="20" />
+        </p-button>
+
         <app-filename-popover (confirmed)="onFilenameConfirmed($event)" />
         <p-button
           [text]="true"
           [rounded]="true"
           title="Send to Operation"
-          [disabled]="documents().length === 0 || sendingToOperation()"
+          [disabled]="documents().length === 0 || sendingToOperation() || hasCheckErrors()"
           [loading]="sendingToOperation()"
           (onClick)="sendToOperation()"
         >
@@ -103,32 +138,35 @@
   <p-splitter class="workspace__splitter" layout="horizontal" [panelSizes]="[25, 75]">
     <ng-template pTemplate="panel">
       <aside class="sidebar">
-        <p-tree
-          class="workspace-tree"
-          [value]="treeNodes()"
-          selectionMode="multiple"
-          [(selection)]="selectedNodes"
-          [contextMenu]="treeContextMenu"
-          (onNodeContextMenuSelect)="onTreeContextMenuSelect($event)"
-          [filter]="true"
-          filterBy="label"
-          filterPlaceholder="Search layers or files..."
-          emptyMessage="No SVG loaded yet."
-          metaKeySelection="true"
-        />
-        <p-contextMenu #treeContextMenu [model]="treeContextMenuItems" />
+        <p-panel header="Workspace" toggler="header" toggleable="true">
 
-        @if (skippedTags().length > 0) {
-          <p-message severity="warn" [closable]="false">
-            Skipped element(s), not supported for cutting: {{ skippedTags().join(', ') }}.
-          </p-message>
-        }
+          <p-tree
+            class="workspace-tree"
+            [value]="treeNodes()"
+            selectionMode="multiple"
+            [(selection)]="selectedNodes"
+            [contextMenu]="treeContextMenu"
+            (onNodeContextMenuSelect)="onTreeContextMenuSelect($event)"
+            [filter]="true"
+            filterBy="label"
+            filterPlaceholder="Search layers or files..."
+            emptyMessage="No SVG loaded yet."
+            metaKeySelection="true"
+          />
+          <p-contextMenu #treeContextMenu [model]="treeContextMenuItems" />
+          
+          @if (skippedTags().length > 0) {
+            <p-message severity="warn" [closable]="false">
+              Skipped element(s), not supported for cutting: {{ skippedTags().join(', ') }}.
+            </p-message>
+          }
+        </p-panel>
 
         @if (errorMessage(); as message) {
           <p-message severity="error" [closable]="false">{{ message }}</p-message>
         }
 
-        <p-card header="Profiles">
+        <p-panel header="Profiles" toggleable="true" toggler="header">
         @if (selectedMaterial(); as material) {
             @if (profiles().length === 0 && missingProfiles().length === 0) {
               <p class="hint">No profile defined for this material.</p>
@@ -181,37 +219,15 @@
         @else {
           <p-message severity="warn">Select a material first.</p-message>
         }
-        </p-card>
+        </p-panel>
 
-        <p-card header="Laser Offset">
-          <div class="field">
-            <label for="laser-offset">Offset (mm)</label>
-            <p-inputnumber
-              inputId="laser-offset"
-              [ngModel]="laserOffsetMm()"
-              (ngModelChange)="laserOffsetMm.set($event)"
-              [step]="0.1"
-              [minFractionDigits]="0"
-              [maxFractionDigits]="2"
-              suffix=" mm"
-            />
-          </div>
-          <div class="actions">
-            <p-button [disabled]="documents().length === 0" (onClick)="applyLaserOffset()">Apply</p-button>
-          </div>
-        </p-card>
-
-        <p-card header="Errors">
-          <div class="actions">
-            <p-button
-              [disabled]="documents().length === 0 || checking()"
-              [loading]="checking()"
-              (onClick)="checkWorkspace()"
-            >
-              Check
-            </p-button>
-          </div>
-
+        <p-panel
+          toggleable="true"
+          header="Errors"
+          toggler="header"
+          [collapsed]="errorsPanelCollapsed()"
+          (collapsedChange)="errorsPanelCollapsed.set(!!$event)"
+        >
           @if (checkFailureMessage(); as message) {
             <p-message severity="error" [closable]="false">{{ message }}</p-message>
           }
@@ -227,7 +243,7 @@
               </ul>
             }
           }
-        </p-card>
+        </p-panel>
       </aside>
     </ng-template>
 

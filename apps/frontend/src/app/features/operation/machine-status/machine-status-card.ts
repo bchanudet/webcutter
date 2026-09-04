@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Card } from '@openng/optimus-ui/card';
 import { Message } from '@openng/optimus-ui/message';
 import { Tag } from '@openng/optimus-ui/tag';
 import { MachineApiService } from '../../configuration/machine/machine-api.service';
 import { CutterSocketService } from './cutter-socket.service';
 import { describeAlarm, GRBL_STATE_LABELS, GRBL_STATE_SEVERITIES, StatusSeverity } from './machine-status.model';
+import { PanelModule } from '@openng/optimus-ui/panel';
 
 /** No Connect/Disconnect controls: `AutoConnectService` on the backend opens the connection on its
  * own the moment the configured serial port is available, and re-opens it just as fast after any
@@ -13,7 +13,7 @@ import { describeAlarm, GRBL_STATE_LABELS, GRBL_STATE_SEVERITIES, StatusSeverity
  * read-only status now. */
 @Component({
   selector: 'app-machine-status-card',
-  imports: [Card, Message, Tag],
+  imports: [Message, Tag, PanelModule],
   templateUrl: './machine-status-card.html',
   styleUrl: './machine-status-card.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
