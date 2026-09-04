@@ -1,12 +1,12 @@
 import { Injectable, OnDestroy, signal } from '@angular/core';
 import { Subject } from 'rxjs';
-import { GcodeFileInfo } from '../gcode-file/gcode-file.model';
 import {
   CheckStatusPayload,
+  GcodeFileInfo,
   JobStatusPayload,
   MachineStatusPayload,
   SerialMessagePayload,
-} from './machine-status.model';
+} from '@webcutter/shared';
 
 const RECONNECT_DELAY_MS = 2000;
 

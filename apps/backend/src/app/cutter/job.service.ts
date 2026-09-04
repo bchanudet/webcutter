@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import { Injectable, Logger } from '@nestjs/common';
 import { CutterCommunicationService } from '@webcutter/cutter-communication';
 import { GcodeFileService } from '../gcode-file/gcode-file.service';
-import { JobStatusPayload } from './cutter-ws.types';
+import { JobStatusPayload } from '@webcutter/shared';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

@@ -1,0 +1,44 @@
+<div class="gcode-code">
+  <div class="gcode-code__toolbar">
+    <p-selectButton
+      [options]="followOptions"
+      optionLabel="label"
+      optionValue="value"
+      [multiple]="true"
+      [ngModel]="followProgress()"
+      (ngModelChange)="followProgress.set($event)"
+    />
+  </div>
+
+  @if (!file()) {
+    <div class="gcode-code__log gcode-code__log--empty">
+      <p class="gcode-code__empty">Upload a G-code file to preview it here.</p>
+    </div>
+  } @else if (loadError(); as error) {
+    <div class="gcode-code__log gcode-code__log--empty">
+      <p class="gcode-code__empty gcode-code__empty--error">{{ error }}</p>
+    </div>
+  } @else {
+    <p-scroller class="gcode-code__log" [items]="rows()" [itemSize]="rowHeightPx" scrollHeight="100%">
+      <ng-template pTemplate="item" let-row>
+        <div class="code-line" [style.height.px]="rowHeightPx">
+          @if (row.status === 'current') {
+            <app-tabler-icon class="code-line__icon code-line__icon--current" name="arrow-badge-right" [size]="14" />
+          } @else {
+            <app-tabler-icon
+              class="code-line__icon"
+              [class.code-line__icon--sent]="row.status === 'sent'"
+              name="point"
+              [size]="14"
+            />
+          }
+          <span class="code-line__content"
+            >@for (token of row.tokens; track $index) {
+              <span [class]="token.cls ? 'code-token--' + token.cls : null">{{ token.text }}</span>
+            }</span
+          >
+        </div>
+      </ng-template>
+    </p-scroller>
+  }
+</div>

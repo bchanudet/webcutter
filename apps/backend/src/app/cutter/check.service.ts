@@ -1,15 +1,8 @@
 import { EventEmitter } from 'events';
 import { Injectable, Logger } from '@nestjs/common';
 import { CutterCommunicationService } from '@webcutter/cutter-communication';
+import { CheckOutcome } from '@webcutter/shared';
 import { GcodeFileService } from '../gcode-file/gcode-file.service';
-
-export interface CheckOutcome {
-  ok: boolean;
-  message: string;
-  /** Set only when `ok` is false and the failure was a real GRBL `ALARM:N` (e.g. a program that
-   * doesn't fit within the machine's travel) rather than a plain `error:N` on one line. */
-  alarmCode: number | null;
-}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

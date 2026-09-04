@@ -35,7 +35,8 @@ export type TablerIconName =
   | 'arrow-up'
   | 'arrow-down'
   | 'arrow-left'
-  | 'arrow-right';
+  | 'arrow-right'
+  | 'point';
 
 export type TablerIconVariant = 'outline' | 'filled';
 
@@ -295,6 +296,12 @@ export const TABLER_ICON_PATHS: Record<TablerIconName, TablerIconDefinition> = {
       <path d="M5 12l14 0" />
       <path d="M13 18l6 -6" />
       <path d="M13 6l6 6" />
+    `,
+  },
+  point: {
+    variant: 'filled',
+    paths: `
+      <path d="M12 7a5 5 0 1 1 -4.995 5.217l-.005 -.217l.005 -.217a5 5 0 0 1 4.995 -4.783z" />
     `,
   },
 };

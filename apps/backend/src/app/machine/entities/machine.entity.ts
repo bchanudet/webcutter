@@ -1,23 +1,10 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { GcodeOrigin, Machine as MachineData, SerialParity } from '@webcutter/shared';
 
-// SQLite has no native enum column type, so the parity is stored as varchar (see Profile.mode for precedent).
-export enum SerialParity {
-  NONE = 'none',
-  EVEN = 'even',
-  ODD = 'odd',
-}
-
-// Numeric values match the origin corner convention used by the G-code generator.
-export enum GcodeOrigin {
-  BOTTOM_LEFT = 0,
-  TOP_LEFT = 1,
-  TOP_RIGHT = 2,
-  BOTTOM_RIGHT = 4,
-  CENTER = 5,
-}
+export { GcodeOrigin, SerialParity };
 
 @Entity('machine')
-export class Machine {
+export class Machine implements MachineData {
   @PrimaryGeneratedColumn()
   id!: number;
 

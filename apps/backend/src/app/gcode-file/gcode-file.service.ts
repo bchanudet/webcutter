@@ -3,12 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-
-export interface GcodeFileInfo {
-  fileName: string;
-  sizeBytes: number;
-  commandCount: number;
-}
+import { GcodeFileInfo } from '@webcutter/shared';
 
 const UPLOAD_DIR = join(tmpdir(), 'webcutter-gcode');
 const STORED_FILE_PATH = join(UPLOAD_DIR, 'current.gcode');

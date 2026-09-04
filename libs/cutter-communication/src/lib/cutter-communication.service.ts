@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { GrblConnection } from './grbl-connection';
-import { CutterPortInfo, GrblConnectionOptions, GrblStatus } from './grbl.types';
+import { CutterPortInfo, GrblConnectionOptions, GrblStatus } from '@webcutter/shared';
 
 /**
  * Emits (in addition to lifecycle logging): 'sent' (string, raw bytes written to the cutter),

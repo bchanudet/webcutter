@@ -6,8 +6,9 @@ import { Slider } from '@openng/optimus-ui/slider';
 import { catchError, map, of, switchMap } from 'rxjs';
 import { BedGridCanvas } from '../../../shared/bed-grid/bed-grid-canvas';
 import { MachineApiService } from '../../configuration/machine/machine-api.service';
-import { Machine } from '../../configuration/machine/machine.model';
+import { Machine } from '@webcutter/shared';
 import { GcodeFileService } from '../gcode-file/gcode-file.service';
+import { CutterSocketService } from '../machine-status/cutter-socket.service';
 import { colorForValue, computeValueRange, GcodeColorMode, ValueRange } from './gcode-color-scale';
 import { gcodeToBedPoint, GcodeSegment, GcodeSegmentType, parseGcodeProgram } from './gcode-program-parser';
 
@@ -20,9 +21,14 @@ interface BedSegment {
   color: string | null;
 }
 
-const SEGMENT_TYPE_OPTIONS: { label: string; value: GcodeSegmentType }[] = [
+/** The segment types plus the live laser head marker — all three toggled from the same "visible
+ * layers" SelectButton, even though `'HEAD'` isn't a G-code command like the other two. */
+type ViewerLayer = GcodeSegmentType | 'HEAD';
+
+const SEGMENT_TYPE_OPTIONS: { label: string; value: ViewerLayer }[] = [
   { label: 'G0 (move)', value: 'G0' },
   { label: 'G1 (cut)', value: 'G1' },
+  { label: 'Head', value: 'HEAD' },
 ];
 
 const COLOR_MODE_OPTIONS: { label: string; value: GcodeColorMode }[] = [
@@ -46,6 +52,7 @@ const COLOR_MODE_OPTIONS: { label: string; value: GcodeColorMode }[] = [
 export class GcodeViewerPanel {
   private readonly gcodeFile = inject(GcodeFileService);
   private readonly machineApi = inject(MachineApiService);
+  private readonly cutterSocket = inject(CutterSocketService);
 
   protected readonly file = this.gcodeFile.current;
   protected readonly machine = signal<Machine | null>(null);
@@ -57,10 +64,27 @@ export class GcodeViewerPanel {
   protected readonly segmentTypeOptions = SEGMENT_TYPE_OPTIONS;
   protected readonly colorModeOptions = COLOR_MODE_OPTIONS;
 
-  /** Which segment types are drawn at all — independent of the slider, which only limits *how
-   * many* (chronologically) are considered in the first place. */
-  protected readonly visibleTypes = signal<GcodeSegmentType[]>(['G0', 'G1']);
+  /** Which layers are drawn at all — independent of the slider, which only limits *how many*
+   * (chronologically) G0/G1 segments are considered in the first place; the head marker isn't
+   * affected by the slider, it always tracks the cutter's actual live position. */
+  protected readonly visibleTypes = signal<ViewerLayer[]>(['G0', 'G1', 'HEAD']);
   protected readonly colorMode = signal<GcodeColorMode>('plain');
+
+  /** Position relative to the cutting surface origin (WPos) — same source and fallback to the raw
+   * machine position (MPos) as the sidebar's `PositionCard`, converted into the same bed-mm space
+   * every other segment on this canvas is drawn in. `null` until the first status report arrives. */
+  protected readonly headPosition = computed<{ x: number; y: number } | null>(() => {
+    if (!this.visibleTypes().includes('HEAD')) {
+      return null;
+    }
+    const grbl = this.cutterSocket.status().grbl;
+    const position = grbl?.workPosition ?? grbl?.machinePosition ?? null;
+    if (!position) {
+      return null;
+    }
+    const machine = this.machine();
+    return gcodeToBedPoint({ x: position.x, y: position.y }, machine, machine?.bedHeightMm ?? 100);
+  });
 
   protected readonly totalCommands = computed(() => this.segments().length);
 

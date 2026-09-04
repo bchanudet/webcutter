@@ -7,15 +7,13 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { ProfileMode, Profile as ProfileData } from '@webcutter/shared';
 import { Material } from './material.entity';
 
-export enum ProfileMode {
-  LINE = 'LINE',
-  FILL = 'FILL',
-}
+export { ProfileMode };
 
 @Entity('profile')
-export class Profile {
+export class Profile implements ProfileData {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 

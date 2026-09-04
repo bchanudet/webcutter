@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import { SerialPort } from 'serialport';
 import { ReadlineParser } from '@serialport/parser-readline';
 import { parseGrblStatus } from './grbl-status.parser';
-import { CutterPortInfo, GrblConnectionOptions, GrblStatus } from './grbl.types';
+import { CutterPortInfo, GrblConnectionOptions, GrblStatus } from '@webcutter/shared';
 
 const DEFAULT_BAUD_RATE = 115200;
 const STATUS_QUERY_TIMEOUT_MS = 2000;

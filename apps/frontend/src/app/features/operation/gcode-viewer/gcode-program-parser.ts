@@ -1,4 +1,4 @@
-import { Machine } from '../../configuration/machine/machine.model';
+import { Machine } from '@webcutter/shared';
 
 export type GcodeSegmentType = 'G0' | 'G1';
 

@@ -1,5 +1,4 @@
-import { GrblStatus } from '@webcutter/cutter-communication';
-import { CheckOutcome } from './check.service';
+import { GrblStatus } from './grbl.types';
 
 /** Broadcast to every client whenever the machine's connection or GRBL-reported state changes. */
 export interface MachineStatusPayload {
@@ -12,6 +11,13 @@ export interface MachineStatusPayload {
    * Surfaced so the UI has something more useful to show than "Disconnected" when e.g. the port
    * doesn't exist or the backend's user isn't in the `dialout` group. */
   connectionError: string | null;
+}
+
+/** Outcome of a `$C` check run — see the backend's `CheckService`. */
+export interface CheckOutcome {
+  ok: boolean;
+  message: string;
+  alarmCode: number | null;
 }
 
 /** Broadcast to every client whenever a `$C` check run starts or finishes — see `CheckService`. */
@@ -45,4 +51,12 @@ export interface SerialMessagePayload {
   direction: SerialMessageDirection;
   timestampMs: number;
   dataBase64: string;
+}
+
+/** The G-code file currently uploaded — broadcast over `/api/ws/cutter` on connect and on every
+ * change (upload/delete), and returned by the REST G-code file endpoints. */
+export interface GcodeFileInfo {
+  fileName: string;
+  sizeBytes: number;
+  commandCount: number;
 }

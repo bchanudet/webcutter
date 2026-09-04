@@ -18,6 +18,10 @@
   color: var(--p-text-muted-color, #6b7280);
 }
 
+.gcode-file__value--mono {
+  font-family: 'Courier New', monospace;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;

@@ -34,7 +34,8 @@
       <section class="viewer">
         <p-tabs [value]="activeTab()" class="viewer__tabs-nav">
           <p-tablist>
-            <p-tab value="gcode" (click)="navigateToTab('gcode')">G-code viewer</p-tab>
+            <p-tab value="gcode" (click)="navigateToTab('gcode')">Viewer</p-tab>
+            <p-tab value="code" (click)="navigateToTab('code')">Code</p-tab>
             <p-tab value="terminal" (click)="navigateToTab('terminal')">Terminal</p-tab>
           </p-tablist>
         </p-tabs>

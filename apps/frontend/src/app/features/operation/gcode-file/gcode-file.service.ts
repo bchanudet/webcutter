@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { CutterSocketService } from '../machine-status/cutter-socket.service';
-import { GcodeFileInfo } from './gcode-file.model';
+import { GcodeFileInfo } from '@webcutter/shared';
 
 /** The single G-code file currently uploaded and ready to be sent to the cutter (Operation page).
  * `current` mirrors `CutterSocketService.gcodeFile` — broadcast by the backend to every connected

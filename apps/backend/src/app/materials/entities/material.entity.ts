@@ -6,10 +6,11 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Material as MaterialData } from '@webcutter/shared';
 import { Profile } from './profile.entity';
 
 @Entity('material')
-export class Material {
+export class Material implements MaterialData {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 

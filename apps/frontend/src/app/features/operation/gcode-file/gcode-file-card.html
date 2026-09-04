@@ -12,6 +12,12 @@
       <span class="gcode-file__label">Commands</span>
       <span class="gcode-file__value">{{ file.commandCount }}</span>
     </div>
+    @if (stopwatchVisible()) {
+      <div class="gcode-file__row">
+        <span class="gcode-file__label">Elapsed</span>
+        <span class="gcode-file__value gcode-file__value--mono">{{ elapsedLabel() }}</span>
+      </div>
+    }
 
     @if (!jobRunning()) {
       <div class="actions">

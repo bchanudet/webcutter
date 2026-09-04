@@ -1,8 +1,8 @@
-export type TerminalMessageDirection = 'sent' | 'received';
+import { SerialMessageDirection } from '@webcutter/shared';
 
 export interface TerminalMessage {
   id: number;
-  direction: TerminalMessageDirection;
+  direction: SerialMessageDirection;
   timestampMs: number;
   bytes: Uint8Array;
 }

@@ -108,7 +108,8 @@ export class FramingService extends EventEmitter {
   private async finish(): Promise<void> {
     try {
       await this.cutterCommunication.sendCommand('M5');
-      await this.cutterCommunication.sendCommand('$H');
+      // Homing is a costly operation, no need to do it in the end.
+      await this.cutterCommunication.sendCommand('G0 X0 Y0');
     } catch (error) {
       this.logger.error('Could not cleanly stop framing.', error instanceof Error ? error.stack : undefined);
     } finally {

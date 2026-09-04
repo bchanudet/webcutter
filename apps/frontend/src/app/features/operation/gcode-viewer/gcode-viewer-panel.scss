@@ -85,3 +85,17 @@
   stroke: #dc2626;
   stroke-width: 0.3;
 }
+
+.gcode-head__halo {
+  fill: #6d28d9;
+  opacity: 0.35;
+  filter: blur(1px);
+  pointer-events: none;
+}
+
+.gcode-head__dot {
+  fill: #a855f7;
+  stroke: #ffffff;
+  stroke-width: 0.15;
+  pointer-events: none;
+}

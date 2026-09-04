@@ -1,4 +1,4 @@
-import { GrblMachineState, GrblPosition, GrblStatus } from './grbl.types';
+import { GrblMachineState, GrblPosition, GrblStatus } from '@webcutter/shared';
 
 const STATUS_REPORT_PATTERN = /^<([^|>]+)(?:\|([^>]*))?>$/;
 

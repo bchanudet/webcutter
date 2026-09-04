@@ -240,6 +240,20 @@
   pointer-events: none;
 }
 
+.axis-lock-guide {
+  stroke-width: 0.25;
+  stroke-dasharray: 1.5 1;
+  pointer-events: none;
+}
+
+.axis-lock-guide--x {
+  stroke: #dc2626;
+}
+
+.axis-lock-guide--y {
+  stroke: #16a34a;
+}
+
 .grid-legend {
   font-size: 2px;
   font-family: inherit;

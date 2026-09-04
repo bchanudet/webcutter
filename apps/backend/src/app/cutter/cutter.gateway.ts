@@ -8,19 +8,20 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { CutterCommunicationService, GrblStatus } from '@webcutter/cutter-communication';
-import { Server, WebSocket } from 'ws';
-import { GcodeFileInfo, GcodeFileService } from '../gcode-file/gcode-file.service';
-import { toGrblConnectionOptions } from '../machine/machine-connection-options';
-import { MachineService } from '../machine/machine.service';
-import { AutoConnectService } from './auto-connect.service';
-import { CheckService } from './check.service';
 import {
   CheckStatusPayload,
+  GcodeFileInfo,
   JobStatusPayload,
   MachineStatusPayload,
   SerialMessageDirection,
   SerialMessagePayload,
-} from './cutter-ws.types';
+} from '@webcutter/shared';
+import { Server, WebSocket } from 'ws';
+import { GcodeFileService } from '../gcode-file/gcode-file.service';
+import { toGrblConnectionOptions } from '../machine/machine-connection-options';
+import { MachineService } from '../machine/machine.service';
+import { AutoConnectService } from './auto-connect.service';
+import { CheckService } from './check.service';
 import { FramingService } from './framing.service';
 import { JobService } from './job.service';
 

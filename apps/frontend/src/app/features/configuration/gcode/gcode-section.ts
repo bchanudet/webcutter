@@ -8,7 +8,7 @@ import { TableModule } from '@openng/optimus-ui/table';
 import { TablerIcon } from '../../../shared/tabler-icon/tabler-icon';
 import { GcodeApiService } from './gcode-api.service';
 import { GcodeFormDialog, GcodeSaveEvent } from './gcode-form-dialog';
-import { Gcode } from './gcode.model';
+import { Gcode } from '@webcutter/shared';
 
 @Component({
   selector: 'app-gcode-section',

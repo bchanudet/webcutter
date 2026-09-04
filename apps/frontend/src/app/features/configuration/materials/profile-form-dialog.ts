@@ -6,13 +6,13 @@ import { Dialog } from '@openng/optimus-ui/dialog';
 import { InputText } from '@openng/optimus-ui/inputtext';
 import { InputNumber } from '@openng/optimus-ui/inputnumber';
 import { Select } from '@openng/optimus-ui/select';
-import { Profile, ProfileMode, ProfilePayload } from './material.model';
+import { CreateProfileDto, Profile, ProfileMode } from '@webcutter/shared';
 import { PROFILE_COLOR_PALETTE } from './profile-color-palette';
 
 export interface ProfileSaveEvent {
   materialId: string;
   id: string | null;
-  payload: ProfilePayload;
+  payload: CreateProfileDto;
 }
 
 interface ModeOption {
@@ -21,8 +21,8 @@ interface ModeOption {
 }
 
 const MODE_OPTIONS: ModeOption[] = [
-  { label: 'Line (follow the outline)', value: 'LINE' },
-  { label: 'Fill (sweep the enclosed area)', value: 'FILL' },
+  { label: 'Line (follow the outline)', value: ProfileMode.LINE },
+  { label: 'Fill (sweep the enclosed area)', value: ProfileMode.FILL },
 ];
 
 @Component({
@@ -47,7 +47,7 @@ export class ProfileFormDialog {
       validators: [Validators.required, Validators.minLength(1)],
     }),
     color: new FormControl(PROFILE_COLOR_PALETTE[0], { nonNullable: true, validators: [Validators.required] }),
-    mode: new FormControl<ProfileMode>('LINE', { nonNullable: true, validators: [Validators.required] }),
+    mode: new FormControl<ProfileMode>(ProfileMode.LINE, { nonNullable: true, validators: [Validators.required] }),
     powerPercent: new FormControl(100, {
       nonNullable: true,
       validators: [Validators.required, Validators.min(0), Validators.max(100)],
@@ -68,7 +68,7 @@ export class ProfileFormDialog {
   }
 
   protected get isFillMode(): boolean {
-    return this.form.controls.mode.value === 'FILL';
+    return this.form.controls.mode.value === ProfileMode.FILL;
   }
 
   openForCreate(materialId: string): void {
@@ -77,7 +77,7 @@ export class ProfileFormDialog {
     this.form.reset({
       name: '',
       color: PROFILE_COLOR_PALETTE[0],
-      mode: 'LINE',
+      mode: ProfileMode.LINE,
       powerPercent: 100,
       speedMmPerMin: 600,
       passes: 1,
@@ -108,9 +108,9 @@ export class ProfileFormDialog {
     }
 
     const value = this.form.getRawValue();
-    const payload: ProfilePayload = {
+    const payload: CreateProfileDto = {
       ...value,
-      lineSpacingMm: value.mode === 'FILL' ? value.lineSpacingMm : null,
+      lineSpacingMm: value.mode === ProfileMode.FILL ? value.lineSpacingMm : null,
     };
 
     this.save.emit({ materialId: this.materialId, id: this.editingId, payload });

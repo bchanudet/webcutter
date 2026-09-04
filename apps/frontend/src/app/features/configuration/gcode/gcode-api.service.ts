@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Gcode, GcodePayload } from './gcode.model';
+import { CreateGcodeDto, Gcode } from '@webcutter/shared';
 
 @Injectable({ providedIn: 'root' })
 export class GcodeApiService {
@@ -12,11 +12,11 @@ export class GcodeApiService {
     return this.http.get<Gcode[]>(this.baseUrl);
   }
 
-  createGcode(payload: GcodePayload): Observable<Gcode> {
+  createGcode(payload: CreateGcodeDto): Observable<Gcode> {
     return this.http.post<Gcode>(this.baseUrl, payload);
   }
 
-  updateGcode(id: number, payload: GcodePayload): Observable<Gcode> {
+  updateGcode(id: number, payload: CreateGcodeDto): Observable<Gcode> {
     return this.http.patch<Gcode>(`${this.baseUrl}/${id}`, payload);
   }
 

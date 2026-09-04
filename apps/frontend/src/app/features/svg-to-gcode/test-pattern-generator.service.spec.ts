@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
-import { Material } from '../configuration/materials/material.model';
+import { Material, ProfileMode } from '@webcutter/shared';
 import { FontApiService } from './font-api.service';
 import { GenerateTestPatternInput, TestPatternGeneratorService } from './test-pattern-generator.service';
 
@@ -8,7 +8,7 @@ const MATERIAL: Material = { id: 'material-1', name: 'Plywood', thicknessMm: 3, 
 
 function baseInput(overrides: Partial<GenerateTestPatternInput> = {}): GenerateTestPatternInput {
   return {
-    mode: 'LINE',
+    mode: ProfileMode.LINE,
     shape: 'square',
     material: MATERIAL,
     powerMinPercent: 10,
@@ -92,10 +92,10 @@ describe('TestPatternGeneratorService', () => {
   });
 
   it('uses the LINE mode as a stroke-only shape, and FILL as a filled one', () => {
-    const line = generate(baseInput({ mode: 'LINE' }));
+    const line = generate(baseInput({ mode: ProfileMode.LINE }));
     expect(line).toContain('fill="none" stroke="#FF7300"');
 
-    const fill = generate(baseInput({ mode: 'FILL' }));
+    const fill = generate(baseInput({ mode: ProfileMode.FILL }));
     expect(fill).toContain('fill="#FF7300" stroke="transparent"');
   });
 

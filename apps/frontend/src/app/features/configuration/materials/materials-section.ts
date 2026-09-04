@@ -7,7 +7,7 @@ import { Message } from '@openng/optimus-ui/message';
 import { TableModule } from '@openng/optimus-ui/table';
 import { TablerIcon } from '../../../shared/tabler-icon/tabler-icon';
 import { MaterialsApiService } from './materials-api.service';
-import { Material, Profile } from './material.model';
+import { Material, Profile } from '@webcutter/shared';
 import { MaterialFormDialog, MaterialSaveEvent } from './material-form-dialog';
 import { ProfileFormDialog, ProfileSaveEvent } from './profile-form-dialog';
 

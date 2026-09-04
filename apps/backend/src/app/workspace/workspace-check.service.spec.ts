@@ -1,7 +1,8 @@
+import { SVG_NS, WEBCUTTER_NS } from '@webcutter/shared';
 import { WorkspaceCheckService } from './workspace-check.service';
 
 const HEADER = (width: number, height: number) => `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${width}mm" height="${height}mm" viewBox="0 0 ${width} ${height}">`;
+<svg xmlns="${SVG_NS}" width="${width}mm" height="${height}mm" viewBox="0 0 ${width} ${height}">`;
 
 const metadata = (options: {
   profiles?: { id: number; materialId: number; name?: string }[];
@@ -16,7 +17,7 @@ const metadata = (options: {
   const material = options.material
     ? `<material id="${options.material.id}" name="${options.material.name ?? 'M'}" thicknessMm="3"/>`
     : '';
-  return `<metadata><webcutter xmlns="https://webcutter.infogones.com/ns/workspace"><version>1</version><profiles>${profiles}</profiles>${material}</webcutter></metadata>`;
+  return `<metadata><webcutter xmlns="${WEBCUTTER_NS}"><version>1</version><profiles>${profiles}</profiles>${material}</webcutter></metadata>`;
 };
 
 const path = (options: { id: string; d: string; profile?: number; transform?: string }) =>

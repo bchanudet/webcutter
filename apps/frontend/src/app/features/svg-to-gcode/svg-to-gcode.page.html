@@ -98,6 +98,7 @@
     (generate)="onGenerateTestPattern($event)"
   />
   <app-add-text-dialog (inserted)="onTextInserted($event)" />
+  <app-workspace-import-dialog (choice)="onWorkspaceImportChoice($event)" />
 
   <p-splitter class="workspace__splitter" layout="horizontal" [panelSizes]="[25, 75]">
     <ng-template pTemplate="panel">
@@ -338,6 +339,19 @@
             @if (selectionFrame(); as frame) {
             <polygon class="selection-frame selection-frame--black" [attr.points]="frame.points" />
             <polygon class="selection-frame selection-frame--white" [attr.points]="frame.points" />
+            }
+            @if (axisLockGuide(); as guide) {
+              <line
+                class="axis-lock-guide"
+                [class.axis-lock-guide--x]="guide.axis === 'x'"
+                [class.axis-lock-guide--y]="guide.axis === 'y'"
+                [attr.x1]="guide.x1"
+                [attr.y1]="guide.y1"
+                [attr.x2]="guide.x2"
+                [attr.y2]="guide.y2"
+              />
+            }
+            @if (selectionFrame(); as frame) {
             <g
               class="selection-handle"
               [attr.transform]="'translate(' + frame.handle.x + ' ' + frame.handle.y + ') rotate(' + frame.angleDeg + ')'"

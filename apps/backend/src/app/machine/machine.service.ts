@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { GcodeOrigin, SerialParity, UpdateMachineDto } from '@webcutter/shared';
 import { Repository } from 'typeorm';
-import { GcodeOrigin, Machine, SerialParity } from './entities/machine.entity';
-import { UpdateMachineDto } from './dto/update-machine.dto';
+import { Machine } from './entities/machine.entity';
 
 const DEFAULT_MACHINE: Omit<Machine, 'id' | 'createdAt' | 'updatedAt'> = {
   name: 'Atomstack',

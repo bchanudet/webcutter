@@ -17,6 +17,9 @@
     "paths": {
       "@webcutter/cutter-communication": [
         "./libs/cutter-communication/src/index.ts"
+      ],
+      "@webcutter/shared": [
+        "./libs/shared/src/index.ts"
       ]
     }
   },

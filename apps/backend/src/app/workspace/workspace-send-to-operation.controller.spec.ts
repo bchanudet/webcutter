@@ -1,4 +1,5 @@
-import { GcodeFileInfo, GcodeFileService } from '../gcode-file/gcode-file.service';
+import { GcodeFileInfo } from '@webcutter/shared';
+import { GcodeFileService } from '../gcode-file/gcode-file.service';
 import { WorkspaceGcodeGeneratorService } from './workspace-gcode-generator.service';
 import { WorkspaceSendToOperationController } from './workspace-send-to-operation.controller';
 

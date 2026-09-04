@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
+import { SerialMessagePayload } from '@webcutter/shared';
 import { CutterSocketService } from '../machine-status/cutter-socket.service';
-import { SerialMessagePayload } from '../machine-status/machine-status.model';
 import { TerminalMessage } from './terminal-message.model';
 
 /** Provided in root so the log survives navigating away from and back to the Operation page.

@@ -1,6 +1,7 @@
 import { BadRequestException, Controller, Get, NotFoundException, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { GcodeFileInfo, GcodeFileService } from './gcode-file.service';
+import { GcodeFileInfo } from '@webcutter/shared';
+import { GcodeFileService } from './gcode-file.service';
 
 /** Upload, plus reading the raw content for the Operation page's G-code viewer. Reading the
  * current file's *metadata* and deleting it are WebSocket messages instead (`gcodeFile` broadcast

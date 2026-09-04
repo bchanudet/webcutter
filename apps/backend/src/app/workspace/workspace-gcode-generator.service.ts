@@ -115,6 +115,15 @@ export class WorkspaceGcodeGeneratorService {
     return Math.round(profile.speedMmPerMin);
   }
 
+  /** Feed rate for every `G0` — this Atomstack board (unlike stock GRBL) requires an explicit `F`
+   * on a rapid move too: without one, it just keeps whatever `F` the last `G1` set, making travel
+   * moves crawl at cutting speed instead of actually being rapid. The smaller of the machine's own
+   * X/Y travel speeds, same convention as `FramingService` on the backend uses for its own G1
+   * travel moves. */
+  private travelFeedRate(machine: Machine): number {
+    return Math.round(Math.min(machine.travelSpeedXMmPerMin, machine.travelSpeedYMmPerMin));
+  }
+
   /** One G0 rapid + M4 (dynamic power) + a run of G1 moves + M5, per subpath, repeated
    * `profile.passes` times — a closed subpath gets an extra move back to its start so the cut
    * actually completes the loop (the flattened point list itself never repeats the first point). */
@@ -127,6 +136,7 @@ export class WorkspaceGcodeGeneratorService {
     const lines: string[] = [];
     const power = this.laserPowerValue(profile, machine);
     const feed = this.feedRate(profile);
+    const travelFeed = this.travelFeedRate(machine);
 
     for (let pass = 1; pass <= profile.passes; pass++) {
       lines.push(`; ${path.id} — pass ${pass}/${profile.passes}`);
@@ -138,7 +148,7 @@ export class WorkspaceGcodeGeneratorService {
         const [start, ...rest] = points;
         if (!start || rest.length === 0) continue;
 
-        lines.push(`G0 X${formatCoordinate(start.x)} Y${formatCoordinate(start.y)}`);
+        lines.push(`G0 X${formatCoordinate(start.x)} Y${formatCoordinate(start.y)} F${travelFeed}`);
         lines.push(`M4 S${power}`);
         for (const point of rest) {
           lines.push(`G1 X${formatCoordinate(point.x)} Y${formatCoordinate(point.y)} F${feed}`);
@@ -162,7 +172,7 @@ export class WorkspaceGcodeGeneratorService {
     const lines: string[] = [];
     const power = this.laserPowerValue(profile, machine);
     const feed = this.feedRate(profile);
-    const travelFeed = Math.round(Math.min(machine.travelSpeedXMmPerMin, machine.travelSpeedYMmPerMin));
+    const travelFeed = this.travelFeedRate(machine);
     // `findFillProfileErrors` already guarantees this is a positive number by the time we get here.
     const segments = computeHatchSegments(path.subpaths, profile.lineSpacingMm as number);
 
@@ -181,7 +191,7 @@ export class WorkspaceGcodeGeneratorService {
           lines.push(`G1 X${formatCoordinate(start.x)} Y${formatCoordinate(start.y)} F${travelFeed}`);
         } else {
           // G0 automatically turns the laser off, so no need for M5 / M4 shenanigans
-          lines.push(`G0 X${formatCoordinate(start.x)} Y${formatCoordinate(start.y)}`);
+          lines.push(`G0 X${formatCoordinate(start.x)} Y${formatCoordinate(start.y)} F${travelFeed}`);
         }
 
         lines.push(`G1 X${formatCoordinate(end.x)} Y${formatCoordinate(end.y)} F${feed}`);

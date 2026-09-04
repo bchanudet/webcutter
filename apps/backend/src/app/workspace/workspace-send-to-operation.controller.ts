@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
-import { GcodeFileInfo, GcodeFileService } from '../gcode-file/gcode-file.service';
+import { GcodeFileInfo } from '@webcutter/shared';
+import { GcodeFileService } from '../gcode-file/gcode-file.service';
 import { WorkspaceSvgDto } from './dto/workspace-svg.dto';
 import { WorkspaceCheckError } from './workspace-check.service';
 import { WorkspaceGcodeGeneratorService } from './workspace-gcode-generator.service';

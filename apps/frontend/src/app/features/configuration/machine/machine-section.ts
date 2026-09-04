@@ -10,7 +10,7 @@ import { Select } from '@openng/optimus-ui/select';
 import { ToggleSwitch } from '@openng/optimus-ui/toggleswitch';
 import { parseLbdevProfile } from './lbdev-import';
 import { MachineApiService } from './machine-api.service';
-import { GcodeOrigin, SerialParity } from './machine.model';
+import { GcodeOrigin, SerialParity } from '@webcutter/shared';
 
 interface ParityOption {
   label: string;
@@ -18,9 +18,9 @@ interface ParityOption {
 }
 
 const PARITY_OPTIONS: ParityOption[] = [
-  { label: 'None', value: 'none' },
-  { label: 'Even', value: 'even' },
-  { label: 'Odd', value: 'odd' },
+  { label: 'None', value: SerialParity.NONE },
+  { label: 'Even', value: SerialParity.EVEN },
+  { label: 'Odd', value: SerialParity.ODD },
 ];
 
 interface OriginOption {
@@ -97,7 +97,7 @@ export class MachineSection {
       nonNullable: true,
       validators: [Validators.required, Validators.min(1)],
     }),
-    parity: new FormControl<SerialParity>('none', {
+    parity: new FormControl<SerialParity>(SerialParity.NONE, {
       nonNullable: true,
       validators: [Validators.required],
     }),

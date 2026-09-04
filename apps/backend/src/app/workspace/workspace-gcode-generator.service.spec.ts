@@ -1,3 +1,4 @@
+import { SVG_NS, WEBCUTTER_NS } from '@webcutter/shared';
 import { Gcode, GcodeHook } from '../gcode/entities/gcode.entity';
 import { GcodeService } from '../gcode/gcode.service';
 import { Machine } from '../machine/entities/machine.entity';
@@ -6,7 +7,7 @@ import { WorkspaceCheckService } from './workspace-check.service';
 import { WorkspaceGcodeGeneratorService } from './workspace-gcode-generator.service';
 
 const HEADER = (width: number, height: number) => `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${width}mm" height="${height}mm" viewBox="0 0 ${width} ${height}">`;
+<svg xmlns="${SVG_NS}" width="${width}mm" height="${height}mm" viewBox="0 0 ${width} ${height}">`;
 
 interface ProfileFixture {
   id: number;
@@ -29,7 +30,7 @@ const metadata = (options: { profiles?: ProfileFixture[]; material?: { id: numbe
   const material = options.material
     ? `<material id="${options.material.id}" name="${options.material.name ?? 'M'}" thicknessMm="3"/>`
     : '';
-  return `<metadata><webcutter xmlns="https://webcutter.infogones.com/ns/workspace"><version>1</version><profiles>${profiles}</profiles>${material}</webcutter></metadata>`;
+  return `<metadata><webcutter xmlns="${WEBCUTTER_NS}"><version>1</version><profiles>${profiles}</profiles>${material}</webcutter></metadata>`;
 };
 
 const path = (options: { id: string; d: string; profile?: number; transform?: string }) =>
@@ -220,6 +221,35 @@ describe('WorkspaceGcodeGeneratorService', () => {
     expect(gcode.match(/^G0 /gm)?.length).toBe(1);
     expect(gcode.match(/^M5$/gm)?.length).toBe(1);
     expect(gcode).toContain('F9000');
+  });
+
+  it('sets F on every G0 to the smaller of the machine\'s own travel speeds, for both LINE and FILL profiles', async () => {
+    // This Atomstack board keeps whatever F a previous G1 left behind for a G0 with none of its
+    // own, instead of actually going full speed on a travel move — every G0 needs an explicit F.
+    machineService.get.mockResolvedValue(makeMachine(1000, 0, 0, 9000, 7000));
+    const svg = svgDoc(
+      100,
+      100,
+      metadata({
+        profiles: [
+          { id: 1, materialId: 5, mode: 'LINE' },
+          { id: 2, materialId: 5, mode: 'FILL', lineSpacingMm: 5 },
+        ],
+        material: { id: 5 },
+      }),
+      [
+        path({ id: 'a', d: SQUARE_10, profile: 1 }),
+        path({ id: 'b', d: SQUARE_10, profile: 2, transform: 'matrix(1 0 0 1 50 0)' }),
+      ],
+    );
+
+    const result = await service.generate(svg);
+    const gcode = result.gcode as string;
+
+    expect(result.errors).toEqual([]);
+    const g0Lines = gcode.split('\n').filter((line) => line.startsWith('G0 '));
+    expect(g0Lines.length).toBeGreaterThan(1);
+    expect(g0Lines.every((line) => line.endsWith('F7000'))).toBe(true);
   });
 
   it('emits a single M4 per fill pass and a plain G0 (GRBL cuts power on its own) for segments farther apart than the minimum travel distance', async () => {

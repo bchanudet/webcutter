@@ -8,7 +8,7 @@ import { Message } from '@openng/optimus-ui/message';
 import { Select } from '@openng/optimus-ui/select';
 import { SelectButton } from '@openng/optimus-ui/selectbutton';
 import { ToggleSwitch } from '@openng/optimus-ui/toggleswitch';
-import { Material, ProfileMode } from '../configuration/materials/material.model';
+import { Material, ProfileMode } from '@webcutter/shared';
 import { TestPatternShape } from './test-pattern-generator.service';
 
 export interface TestPatternParams {
@@ -38,8 +38,8 @@ interface TestPatternForm {
 }
 
 const MODE_OPTIONS: { label: string; value: ProfileMode }[] = [
-  { label: 'Cut', value: 'LINE' },
-  { label: 'Fill', value: 'FILL' },
+  { label: 'Cut', value: ProfileMode.LINE },
+  { label: 'Fill', value: ProfileMode.FILL },
 ];
 
 const SHAPE_OPTIONS: { label: string; value: TestPatternShape }[] = [
@@ -83,7 +83,7 @@ export class TestPatternDialog {
   );
 
   protected readonly form = new FormGroup<TestPatternForm>({
-    mode: new FormControl<ProfileMode>('LINE', { nonNullable: true }),
+    mode: new FormControl<ProfileMode>(ProfileMode.LINE, { nonNullable: true }),
     shape: new FormControl<TestPatternShape>('square', { nonNullable: true }),
     materialId: new FormControl<string | null>(null, { validators: [Validators.required] }),
     powerMinPercent: new FormControl(0, {
@@ -115,7 +115,7 @@ export class TestPatternDialog {
   open(): void {
     const maxSpeed = this.maxSpeedMmPerMin();
     this.form.reset({
-      mode: 'LINE',
+      mode: ProfileMode.LINE,
       shape: 'square',
       materialId: this.materials()[0]?.id ?? null,
       powerMinPercent: 10,

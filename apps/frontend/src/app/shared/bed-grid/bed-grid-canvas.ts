@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, input, output, signal, viewChild } from '@angular/core';
-import { GcodeOrigin, Machine } from '../../features/configuration/machine/machine.model';
+import { GcodeOrigin, Machine } from '@webcutter/shared';
 
 export interface ViewBox {
   x: number;

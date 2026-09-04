@@ -5,11 +5,11 @@ import { Button } from '@openng/optimus-ui/button';
 import { Dialog } from '@openng/optimus-ui/dialog';
 import { InputText } from '@openng/optimus-ui/inputtext';
 import { InputNumber } from '@openng/optimus-ui/inputnumber';
-import { Material, MaterialPayload } from './material.model';
+import { CreateMaterialDto, Material } from '@webcutter/shared';
 
 export interface MaterialSaveEvent {
   id: string | null;
-  payload: MaterialPayload;
+  payload: CreateMaterialDto;
 }
 
 @Component({

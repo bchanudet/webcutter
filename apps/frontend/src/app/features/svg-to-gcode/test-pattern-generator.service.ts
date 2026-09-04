@@ -1,8 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { forkJoin, map, Observable, of } from 'rxjs';
-import { Material, ProfileMode } from '../configuration/materials/material.model';
+import { Material, ProfileMode, SVG_NS, WEBCUTTER_NS } from '@webcutter/shared';
 import { FontApiService } from './font-api.service';
-import { SVG_NS, WEBCUTTER_NS } from './workspace-svg-constants';
 
 export type TestPatternShape = 'square' | 'circle';
 
@@ -231,7 +230,7 @@ export class TestPatternGeneratorService {
           materialId: input.material.id,
           name: 'Test pattern legend',
           color: LEGEND_COLOR,
-          mode: 'FILL',
+          mode: ProfileMode.FILL,
           powerPercent: LEGEND_POWER_PERCENT,
           speedMmPerMin: LEGEND_SPEED_MM_PER_MIN,
           passes: 1,

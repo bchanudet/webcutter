@@ -1,0 +1,19 @@
+<p-dialog [(visible)]="visible" [modal]="true" header="Load workspace SVG" [style]="{ width: '28rem' }">
+  <p>
+    "{{ fileName }}" is itself a saved workspace, with its own materials/profiles. What do you
+    want to do with it?
+  </p>
+  <ul class="choice-list">
+    <li><strong>Replace workspace</strong> — clear everything and load this file in its place.</li>
+    <li>
+      <strong>Import paths only</strong> — add its shapes to the current workspace, without their
+      profiles/material (they'll show up unassigned).
+    </li>
+  </ul>
+
+  <ng-template pTemplate="footer">
+    <p-button [text]="true" (onClick)="cancel()">Cancel</p-button>
+    <p-button [outlined]="true" (onClick)="pick('import')">Import paths only</p-button>
+    <p-button severity="danger" (onClick)="pick('replace')">Replace workspace</p-button>
+  </ng-template>
+</p-dialog>

@@ -1,4 +1,4 @@
-import { GcodeOrigin } from './machine.model';
+import { GcodeOrigin } from '@webcutter/shared';
 
 interface LbdevSettings {
   BaudRate?: number;

@@ -1,13 +1,10 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { GcodeHook, Gcode as GcodeData } from '@webcutter/shared';
 
-// SQLite has no native enum column type, so the hook is stored as varchar (see Profile.mode for precedent).
-export enum GcodeHook {
-  START = 'start',
-  END = 'end',
-}
+export { GcodeHook };
 
 @Entity('gcode')
-export class Gcode {
+export class Gcode implements GcodeData {
   @PrimaryGeneratedColumn()
   id!: number;
 

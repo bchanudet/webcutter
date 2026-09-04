@@ -22,14 +22,14 @@
           }
         ],
         "styles": ["apps/frontend/src/styles.scss"],
-        "allowedCommonJsDependencies": ["polygon-offset", "martinez-polygon-clipping"]
+        "allowedCommonJsDependencies": ["polygon-offset", "martinez-polygon-clipping", "validator"]
       },
       "configurations": {
         "production": {
           "budgets": [
             {
               "type": "initial",
-              "maximumWarning": "1.5mb",
+              "maximumWarning": "1.7mb",
               "maximumError": "2mb"
             },
             {

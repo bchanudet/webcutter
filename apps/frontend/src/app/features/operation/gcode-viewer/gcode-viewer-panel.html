@@ -34,6 +34,12 @@
           />
         }
       </svg:g>
+      @if (headPosition(); as head) {
+        <svg:g id="gcode-head">
+          <svg:circle class="gcode-head__halo" [attr.cx]="head.x" [attr.cy]="head.y" r="3" />
+          <svg:circle class="gcode-head__dot" [attr.cx]="head.x" [attr.cy]="head.y" r="1.2" />
+        </svg:g>
+      }
     </app-bed-grid-canvas>
 
     @if (!file()) {

@@ -7,11 +7,11 @@ import { InputText } from '@openng/optimus-ui/inputtext';
 import { InputNumber } from '@openng/optimus-ui/inputnumber';
 import { Select } from '@openng/optimus-ui/select';
 import { Textarea } from '@openng/optimus-ui/textarea';
-import { Gcode, GcodeHook, GcodePayload } from './gcode.model';
+import { CreateGcodeDto, Gcode, GcodeHook } from '@webcutter/shared';
 
 export interface GcodeSaveEvent {
   id: number | null;
-  payload: GcodePayload;
+  payload: CreateGcodeDto;
 }
 
 interface HookOption {
@@ -20,8 +20,8 @@ interface HookOption {
 }
 
 const HOOK_OPTIONS: HookOption[] = [
-  { label: 'Start of document', value: 'start' },
-  { label: 'End of document', value: 'end' },
+  { label: 'Start of document', value: GcodeHook.START },
+  { label: 'End of document', value: GcodeHook.END },
 ];
 
 @Component({
@@ -43,7 +43,7 @@ export class GcodeFormDialog {
       nonNullable: true,
       validators: [Validators.required, Validators.minLength(1), Validators.maxLength(255)],
     }),
-    hook: new FormControl<GcodeHook>('start', { nonNullable: true, validators: [Validators.required] }),
+    hook: new FormControl<GcodeHook>(GcodeHook.START, { nonNullable: true, validators: [Validators.required] }),
     order: new FormControl(0, { nonNullable: true, validators: [Validators.required] }),
     code: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
   });
@@ -54,7 +54,7 @@ export class GcodeFormDialog {
 
   openForCreate(): void {
     this.editingId = null;
-    this.form.reset({ name: '', hook: 'start', order: 0, code: '' });
+    this.form.reset({ name: '', hook: GcodeHook.START, order: 0, code: '' });
     this.visible.set(true);
   }
 

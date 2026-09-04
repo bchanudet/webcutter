@@ -1,0 +1,117 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.gcode-code {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.gcode-code__toolbar {
+  flex: 0 0 auto;
+}
+
+.gcode-code__log {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+
+  // p-scroller renders its own internal markup (not projected content), so styling it from here
+  // needs ::ng-deep — same reasoning/constraints as TerminalPanel's own log (no padding on
+  // -content, it would throw off the library's translate3d-based row positioning math).
+  ::ng-deep .p-virtualscroller {
+    width: 100%;
+    background: var(--p-surface-100, #f1f5f9);
+    border-radius: 6px;
+    font-family: 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
+    font-size: 0.8125rem;
+  }
+}
+
+.gcode-code__log--empty {
+  align-items: center;
+  justify-content: center;
+  background: var(--p-surface-100, #f1f5f9);
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.8125rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .gcode-code__log ::ng-deep .p-virtualscroller,
+  .gcode-code__log--empty {
+    background: var(--p-surface-950, #09090b);
+  }
+}
+
+.gcode-code__empty {
+  margin: 0;
+  color: var(--p-text-muted-color, #6b7280);
+}
+
+.gcode-code__empty--error {
+  color: var(--p-red-500, #ef4444);
+}
+
+.code-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.75rem;
+}
+
+.code-line__icon {
+  flex: 0 0 auto;
+  color: #4b5563;
+}
+
+.code-line__icon--sent {
+  color: #16a34a;
+}
+
+.code-line__icon--current {
+  color: #7c3aed;
+}
+
+.code-line__content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--p-text-color, inherit);
+}
+
+.code-token--comment {
+  color: #4b5563;
+  font-style: italic;
+}
+
+.code-token--g0 {
+  color: #2563eb;
+  font-weight: bold;
+}
+
+.code-token--g1 {
+  color: #dc2626;
+  font-weight: bold;
+}
+
+.code-token--mcode {
+  color: #16a34a;
+  font-weight: bold;
+}
+
+.code-token--param {
+  color: var(--p-primary-color, #ff7300);
+}
+
+.code-token--number {
+  color: #cf3aed;
+}

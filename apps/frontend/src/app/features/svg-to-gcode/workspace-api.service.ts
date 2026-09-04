@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { GcodeFileInfo } from '../operation/gcode-file/gcode-file.model';
+import { GcodeFileInfo } from '@webcutter/shared';
 
 export interface WorkspaceCheckError {
   code: string;

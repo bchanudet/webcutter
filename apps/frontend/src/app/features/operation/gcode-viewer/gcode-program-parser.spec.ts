@@ -1,4 +1,4 @@
-import { Machine } from '../../configuration/machine/machine.model';
+import { Machine } from '@webcutter/shared';
 import { gcodeToBedPoint, parseGcodeProgram } from './gcode-program-parser';
 
 describe('parseGcodeProgram', () => {
