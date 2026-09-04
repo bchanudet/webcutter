@@ -29,7 +29,7 @@ NOTE: n'utilise JAMAIS pnpm, seulement npm.
   - coupure automatique en cas d'ouverture de porte
   - **Confirmé physiquement** : sur cette machine, l'ouverture de la porte fait bien
     remonter un état `Door` (ex. `<Door:1|...>`) dans les rapports de statut (`?`) — le
-    parsing gère ce cas (voir `grbl-status.parser.ts`). ⚠️ Seul l'*affichage* du statut
+    parsing gère ce cas (voir `grbl-status.parser.ts`). ⚠️ Seul l'_affichage_ du statut
     "Door open" est implémenté ; aucune logique de blocage automatique des opérations
     n'est encore construite sur cette base.
   - **Quirk confirmé de cette carte** : après une alarme matérielle (ex. `ALARM:1`,
@@ -182,12 +182,12 @@ NOTE: n'utilise JAMAIS pnpm, seulement npm.
   - `status` (`MachineStatusPayload { connected, grbl }`) — poll every 1s tant que
     connecté + broadcast immédiat sur tout changement d'alarme, dédupliqué sinon.
   - `serial` (`SerialMessagePayload { direction: 'sent'|'received', timestampMs,
-    dataBase64 }`) — rejoue en direct absolument tout ce qui transite sur le port
+dataBase64 }`) — rejoue en direct absolument tout ce qui transite sur le port
     série (alimente l'onglet Terminal). Le payload est encodé en base64 pour rester
     "binary-safe" même si GRBL renvoie un jour des octets non-ASCII.
   - `gcodeFile` (fichier G-code actuellement uploadé), `checkResult` (état d'un run
     `$C`), `jobStatus` (`JobStatusPayload { running, paused, fileName, currentLine,
-    totalLines, error }` — progression d'un job en cours, voir `JobService` plus
+totalLines, error }` — progression d'un job en cours, voir `JobService` plus
     haut ; surfacé à la fois par la flashcard du menubar et la card "Gcode file" de la
     page Operation).
 - Le statut renvoyé applique le verrou d'alarme logiciel (`applyAlarmLatch`) : tant que
@@ -290,7 +290,7 @@ NOTE: n'utilise JAMAIS pnpm, seulement npm.
 <!-- nx configuration start-->
 <!-- Leave the start & end comments to automatically receive updates. -->
 
-# General Guidelines for working with Nx
+## General Guidelines for working with Nx
 
 - For navigating/exploring the workspace, invoke the `nx-workspace` skill first - it has patterns for querying projects, targets, and dependencies
 - When running tasks (for example build, lint, test, e2e, etc.), always prefer running the task through `nx` (i.e. `nx run`, `nx run-many`, `nx affected`) instead of using the underlying tooling directly
