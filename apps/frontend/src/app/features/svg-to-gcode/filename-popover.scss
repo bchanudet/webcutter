@@ -1,0 +1,32 @@
+.filename-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  min-width: 16rem;
+}
+
+.filename-popover__row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+
+  input {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.filename-popover__extension {
+  color: var(--p-text-muted-color, #6b7280);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.filename-popover__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}

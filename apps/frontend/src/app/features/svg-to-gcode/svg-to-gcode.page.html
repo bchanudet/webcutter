@@ -39,7 +39,7 @@
           [rounded]="true"
           title="Save workspace SVG"
           [disabled]="documents().length === 0"
-          (onClick)="saveSvg()"
+          (onClick)="openSaveSvgPopover($event)"
         >
           <app-tabler-icon name="file-download" [size]="20" />
         </p-button>
@@ -50,11 +50,12 @@
             title="Download G-code"
             [disabled]="documents().length === 0 || downloadingGcode()"
             [loading]="downloadingGcode()"
-            (onClick)="downloadGeneratedGcode()"
+            (onClick)="openDownloadGcodePopover($event)"
           >
             <app-tabler-icon name="code-circle" [size]="20" />
           </p-button>
         </p-overlayBadge>
+        <app-filename-popover (confirmed)="onFilenameConfirmed($event)" />
         <p-button
           [text]="true"
           [rounded]="true"

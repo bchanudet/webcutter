@@ -1,0 +1,13 @@
+<p-popover [dismissable]="true">
+  <form class="filename-popover" [formGroup]="form" (ngSubmit)="confirm()">
+    <label for="filename-popover-input">File name</label>
+    <div class="filename-popover__row">
+      <input id="filename-popover-input" type="text" pInputText formControlName="name" />
+      <span class="filename-popover__extension">{{ extension }}</span>
+    </div>
+    <div class="filename-popover__actions">
+      <p-button type="button" [text]="true" (onClick)="cancel()">Cancel</p-button>
+      <p-button type="submit" [disabled]="form.invalid">Download</p-button>
+    </div>
+  </form>
+</p-popover>

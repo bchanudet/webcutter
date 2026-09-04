@@ -30,6 +30,7 @@ import { MaterialsApiService } from '../configuration/materials/materials-api.se
 import { GcodeOrigin, Machine } from '../configuration/machine/machine.model';
 import { MachineApiService } from '../configuration/machine/machine-api.service';
 import { AddTextDialog, TextInsertedEvent } from './add-text-dialog';
+import { FilenamePopover } from './filename-popover';
 import {
   FlattenedShape,
   FlattenedSubpath,
@@ -167,6 +168,7 @@ interface ParsedWorkspaceImport {
     ContextMenu,
     InputNumber,
     DividerModule,
+    FilenamePopover,
     Message,
     OverlayBadge,
     Select,
@@ -192,6 +194,10 @@ export class SvgToGcodePage {
   private readonly svgCanvas = viewChild.required<ElementRef<SVGSVGElement>>('svgCanvas');
   private readonly testPatternDialog = viewChild.required(TestPatternDialog);
   private readonly addTextDialog = viewChild.required(AddTextDialog);
+  private readonly filenamePopover = viewChild.required(FilenamePopover);
+  /** Which toolbar download is waiting on `filenamePopover`'s confirmed name — `null` means
+   * nothing is pending (e.g. the popover was dismissed without confirming). */
+  private pendingDownload: 'svg' | 'gcode' | null = null;
   private nextDocumentId = 0;
   private nextExplodeId = 0;
   private dragState: {
@@ -1588,16 +1594,19 @@ export class SvgToGcodePage {
     this.persistState();
   }
 
-  saveSvg(): void {
+  /** Opens the file-name popover for "Save workspace SVG" — the actual download only happens once
+   * the user confirms a name (see `onFilenameConfirmed`), instead of always saving as a literal
+   * "workspace.svg" that the browser then silently disambiguates on every repeat download. */
+  protected openSaveSvgPopover(event: Event): void {
     if (this.documents().length === 0) {
       return;
     }
-
-    this.downloadTextFile(this.buildWorkspaceSvg(), 'workspace.svg', 'image/svg+xml');
+    this.pendingDownload = 'svg';
+    this.filenamePopover().open(event, 'workspace', '.svg');
   }
 
-  /** Builds the same SVG as `saveSvg()`, sends it to the backend's pre-flight check, and shows
-   * whatever rule violations come back (empty means the workspace is ready for g-code). */
+  /** Builds the same SVG as `openSaveSvgPopover()`, sends it to the backend's pre-flight check,
+   * and shows whatever rule violations come back (empty means the workspace is ready for g-code). */
   protected checkWorkspace(): void {
     if (this.documents().length === 0) {
       return;
@@ -1620,14 +1629,32 @@ export class SvgToGcodePage {
     });
   }
 
-  /** Toolbar "download g-code" action: generates the workspace SVG, sends it to the backend. A
-   * workspace with rule violations downloads nothing — the violations surface as the toolbar
-   * button's danger badge and in the "Errors" card below, exactly like `checkWorkspace()`. */
-  protected downloadGeneratedGcode(): void {
+  /** Opens the file-name popover for "Download G-code" — the actual generate-and-download only
+   * happens once the user confirms a name (see `onFilenameConfirmed`). */
+  protected openDownloadGcodePopover(event: Event): void {
     if (this.documents().length === 0) {
       return;
     }
+    this.pendingDownload = 'gcode';
+    this.filenamePopover().open(event, 'workspace', '.gcode');
+  }
 
+  /** Fired once the user confirms a name in `filenamePopover`, for whichever toolbar download
+   * (`openSaveSvgPopover`/`openDownloadGcodePopover`) opened it. */
+  protected onFilenameConfirmed(fileName: string): void {
+    const pending = this.pendingDownload;
+    this.pendingDownload = null;
+    if (pending === 'svg') {
+      this.downloadTextFile(this.buildWorkspaceSvg(), fileName, 'image/svg+xml');
+    } else if (pending === 'gcode') {
+      this.generateAndDownloadGcode(fileName);
+    }
+  }
+
+  /** Generates the workspace SVG, sends it to the backend. A workspace with rule violations
+   * downloads nothing — the violations surface as the toolbar button's danger badge and in the
+   * "Errors" card below, exactly like `checkWorkspace()`. */
+  private generateAndDownloadGcode(fileName: string): void {
     this.downloadingGcode.set(true);
     this.checkFailureMessage.set(null);
     this.workspaceApi.generate(this.buildWorkspaceSvg()).subscribe({
@@ -1635,7 +1662,7 @@ export class SvgToGcodePage {
         this.checkErrors.set(errors);
         this.downloadingGcode.set(false);
         if (errors.length === 0 && gcode) {
-          this.downloadTextFile(gcode, 'workspace.gcode', 'text/plain');
+          this.downloadTextFile(gcode, fileName, 'text/plain');
         }
       },
       error: (error: unknown) => {
