@@ -21,7 +21,9 @@ import { WorkspaceModule } from './workspace/workspace.module';
   imports: [
     TypeOrmModule.forRoot({
       type: 'sqlite',
-      database: 'dev.db',
+      // Overridable so a one-off/test run of the backend (e.g. an agent session) can point at its
+      // own throwaway file instead of the real dev database — see CLAUDE.md.
+      database: process.env.DATABASE_PATH || 'dev.db',
       autoLoadEntities: true,
       synchronize: true,
     }),

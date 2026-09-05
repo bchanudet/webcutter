@@ -1,305 +1,360 @@
-# Projet — Contrôleur web pour découpeuse laser (type OctoPrint, pour laser)
+# Project — Web controller for a laser cutter (OctoPrint-like, but for a laser)
 
-## Objectif
+## Goal
 
-Application locale permettant de piloter une découpeuse laser Atomstack (firmware GRBL)
-via USB : envoi de G-code, suivi temps réel, import SVG → G-code avec presets matériaux.
-Équivalent d'OctoPrint mais pour laser, pas pour imprimante 3D.
+Local application to drive an Atomstack laser cutter (GRBL firmware) over USB: sending
+G-code, real-time tracking, SVG → G-code import with material presets. The equivalent of
+OctoPrint, but for a laser cutter instead of a 3D printer.
 
-## Stack technique
+## Tech stack
 
-- **Monorepo** : Nx
-- **Backend** : NestJS (choisi car connu par le dev, plutôt que .NET)
-- **Frontend** : Angular + Optimus UI
-- **Communication série** : `serialport` (Node) — équivalent de `pyserial` côté OctoPrint
-- **Stockage** : SQLite via **TypeORM** — pas besoin de plus, usage local mono-utilisateur.
-  Prisma a été essayé puis abandonné (frictions répétées avec Prisma 7) ; voir mémoire
+- **Monorepo**: Nx
+- **Backend**: NestJS (chosen because the dev already knows it, over .NET)
+- **Frontend**: Angular + Optimus UI
+- **Serial communication**: `serialport` (Node) — the equivalent of `pyserial` on the OctoPrint side
+- **Storage**: SQLite via **TypeORM** — nothing more is needed, this is local single-user usage.
+  Prisma was tried and then dropped (repeated friction with Prisma 7); see the memory
   `project_prisma_materials_backend`.
-- **Temps réel** : WebSocket via `@nestjs/websockets` + `@nestjs/platform-ws` (lib `ws`
-  brute, pas socket.io), diffusant statut GRBL et trafic série brut à l'UI
+- **Real-time**: WebSocket via `@nestjs/websockets` + `@nestjs/platform-ws` (the raw `ws`
+  lib, not socket.io), broadcasting GRBL status and raw serial traffic to the UI
 
-NOTE: n'utilise JAMAIS pnpm, seulement npm.
+NOTE: NEVER use pnpm, only npm.
 
-## Matériel cible
+## Target hardware
 
-- Découpeuse **Atomstack**, firmware **GRBL 1.1**, clone de carte
-- Connexion **USB série**
-- Sécurité déjà gérée au niveau matériel par la machine :
-  - coupure automatique en cas de surchauffe
-  - coupure automatique en cas d'ouverture de porte
-  - **Confirmé physiquement** : sur cette machine, l'ouverture de la porte fait bien
-    remonter un état `Door` (ex. `<Door:1|...>`) dans les rapports de statut (`?`) — le
-    parsing gère ce cas (voir `grbl-status.parser.ts`). ⚠️ Seul l'_affichage_ du statut
-    "Door open" est implémenté ; aucune logique de blocage automatique des opérations
-    n'est encore construite sur cette base.
-  - **Quirk confirmé de cette carte** : après une alarme matérielle (ex. `ALARM:1`,
-    butée dure atteinte), la carte peut se réinitialiser silencieusement et se
-    remettre à annoncer `Idle` sans que `$H`/`$X` n'ait été envoyé — il ne faut donc
-    jamais se fier uniquement au dernier statut `?` pour savoir si la machine est en
-    sécurité. Le logiciel maintient son propre verrou côté logiciel (voir
-    `GrblConnection.alarmed` dans `grbl-connection.ts`) : une fois une `ALARM:` reçue,
-    toute commande autre que `$H`/`$X` est rejetée avant même d'être envoyée sur le
-    port série, jusqu'à ce que l'une des deux réussisse (réponse `ok`) — même si la
-    machine se déclare "Idle" entre-temps. Le même verrou s'engage aussi après un
-    arrêt d'urgence logiciel (`GrblConnection.abort()`, voir plus bas) : GRBL peut
-    revenir en "Idle" après un reset temps réel sans avoir réellement rehominé.
-  - **`$H` (homing)** : n'est **plus** injecté dans le G-code généré/téléchargé
-    (`WorkspaceGcodeGeneratorService.generate()`) — certains visualisateurs G-code
-    externes le rejettent comme commande invalide. C'est désormais `JobService.start()`
-    qui envoie `$H` une seule fois, juste avant de streamer le fichier vers la
-    découpeuse (voir plus bas). Le programme généré se termine par `M30` (pas `M5`) :
-    fin de programme GRBL, qui coupe tout (laser, moteurs, ventilateur d'extraction,
-    etc.), pas seulement le laser.
+- **Atomstack** cutter, **GRBL 1.1** firmware, board clone
+- **USB serial** connection
+- Safety is already handled at the hardware level by the machine itself:
+  - automatic cutoff on overheating
+  - automatic cutoff when the door is opened
+  - **Physically confirmed**: on this machine, opening the door does report a `Door`
+    state (e.g. `<Door:1|...>`) in status reports (`?`) — parsing already handles this
+    case (see `grbl-status.parser.ts`). ⚠️ Only the _display_ of the "Door open" status
+    is implemented; no automatic blocking logic has been built on top of it yet.
+  - **Confirmed quirk of this board**: after a hardware alarm (e.g. `ALARM:1`, hard
+    limit reached), the board can silently reset itself and start reporting `Idle`
+    again without `$H`/`$X` ever having been sent — so the last `?` status alone can
+    never be trusted to tell whether the machine is actually safe. The software
+    maintains its own software-side lock (see `GrblConnection.alarmed` in
+    `grbl-connection.ts`): once an `ALARM:` is received, every command other than
+    `$H`/`$X` is rejected before it's even sent over the serial port, until one of
+    those two succeeds (an `ok` response) — even if the machine reports "Idle" in the
+    meantime. The same lock also engages after a software emergency stop
+    (`GrblConnection.abort()`, see below): GRBL can come back to "Idle" after a
+    real-time reset without having actually re-homed.
+  - **`$H` (homing)**: is **no longer** injected into the generated/downloaded G-code
+    (`WorkspaceGcodeGeneratorService.generate()`) — some external G-code viewers reject
+    it as an invalid command. It's now `JobService.start()` that sends `$H` exactly
+    once, right before streaming the file to the cutter (see below). The generated
+    program ends with `M30` (not `M5`): GRBL's own end-of-program command, which cuts
+    everything (laser, motors, exhaust fan, etc.), not just the laser.
 
-## Contraintes de déploiement
+## Deployment constraints
 
-- Usage **local uniquement**
-- **Pas d'authentification**, pas de gestion multi-utilisateurs
-- Pas de besoin de sécurité applicative avancée (réseau non exposé)
-- Un environnement de dev physique peut tourner en parallèle du tien (conteneur
-  partagé, `--device=/dev/ttyUSB0` dans `.devcontainer/devcontainer.json`) avec la
-  machine réelle branchée : ne jamais tuer un process sur les ports 3000/4200 sans
-  vérifier au préalable (`sudo lsof -i:PORT`) qu'il ne s'agit pas de cette session-là,
-  et ne jamais cliquer Connect/Disconnect/jog ou envoyer une commande arbitraire sans
-  autorisation explicite si une vraie machine peut être branchée.
-  - **Garde-fou `ALLOW_PHYSICAL_CONNECTION`** : `AutoConnectService` (voir plus bas)
-    n'ouvre le port série tout seul (poll chaque seconde dès que le port configuré
-    redevient accessible) que si la variable d'environnement
-    `ALLOW_PHYSICAL_CONNECTION=true` est présente au démarrage du backend — sinon il
-    ne fait strictement rien (juste un warning au boot). Le script `npm run serve` du
-    dev (setup physique réel) est censé la positionner lui-même ; **une session
-    Claude Code ne doit JAMAIS la positionner** en lançant/testant le backend
-    (`nx serve backend`, `nx build backend`, etc.) — sans elle, démarrer le backend
-    est sans risque même si `/dev/ttyUSB0` existe dans le conteneur. Ce garde-fou ne
-    couvre que la connexion *automatique* : les actions manuelles (bouton Connect,
-    jog, commande brute) restent interdites sans autorisation explicite, comme
-    au-dessus.
+- **Local use only**
+- **No authentication**, no multi-user management
+- No need for advanced application-level security (not exposed on the network)
+- A physical dev environment may be running in parallel to yours (shared container,
+  `--device=/dev/ttyUSB0` in `.devcontainer/devcontainer.json`) with the real machine
+  plugged in: never kill a process on ports 3000/4200 without first checking
+  (`sudo lsof -i:PORT`) that it isn't that other session, and never click
+  Connect/Disconnect/jog or send an arbitrary command without explicit authorization
+  if a real machine could be plugged in.
+  - **`ALLOW_PHYSICAL_CONNECTION` safeguard**: `AutoConnectService` (see below) only
+    opens the serial port on its own (polling every second as soon as the configured
+    port becomes accessible) if the `ALLOW_PHYSICAL_CONNECTION=true` environment
+    variable is present when the backend starts — otherwise it does strictly nothing
+    (just a warning at boot). The dev's own `npm run serve` script (real physical
+    setup) is expected to set it itself; **a Claude Code session must NEVER set it**
+    when launching/testing the backend (`nx serve backend`, `nx build backend`, etc.)
+    — without it, starting the backend is safe even if `/dev/ttyUSB0` exists in the
+    container. This safeguard only covers *automatic* connection: manual actions
+    (Connect button, jog, raw command) remain forbidden without explicit authorization,
+    as above.
+  - **Isolating your own test runs**: even when no process is listening on 3000/4200,
+    prefer not to reuse them for your own ad hoc backend boots — a `nx serve backend`
+    invocation gets coalesced by the Nx daemon with any other already-running
+    `backend:serve` task (from a parallel session), which can make you wait on/attach
+    to somebody else's process instead of getting your own. Instead, `nx build backend`
+    then run the built artifact directly with `node dist/apps/backend/main.js`
+    (bypasses Nx's task dedup entirely), with `PORT=<some other port>` (backend already
+    reads `process.env.PORT`, see `main.ts`) and `DATABASE_PATH=<a throwaway file, e.g.
+    under /tmp>` (backend reads `process.env.DATABASE_PATH`, falling back to `dev.db`,
+    see `app.module.ts`) so your test run never touches the real dev database or binds
+    a port someone else might be using.
 
-## Points techniques clés à ne pas oublier
+## Key technical points to keep in mind
 
-- **Protocole GRBL** : plutôt que le character-counting façon OctoPrint (remplir le
-  buffer RX de 128 octets de GRBL en comptant les octets en vol), l'implémentation
-  actuelle (`GrblConnection`) envoie les commandes **une par une** et attend le
-  `ok`/`error:N` correspondant avant d'envoyer la suivante (file d'attente FIFO
-  interne). Plus simple et plus sûr, au prix d'un débit de commandes plus faible —
-  suffisant pour du jog/pilotage manuel et du streaming de programmes ligne à ligne.
-  À revisiter seulement si le débit devient un problème réel (ex. gravure avec
-  beaucoup de petits segments).
-  - En parallèle de cette file `ok`/`error`, trois octets **temps réel** GRBL sont
-    envoyés directement sur le port, hors file d'attente, sans attendre de réponse :
-    `!` (feed hold, `GrblConnection.pause()`), `~` (cycle start/resume,
-    `GrblConnection.resume()`), et `Ctrl-X`/`0x18` (soft reset, `GrblConnection.abort()`
-    — l'arrêt d'urgence, voir `JobService` plus bas). `abort()` engage aussi le verrou
-    d'alarme logiciel (comme une vraie `ALARM:`), `pause()`/`resume()` non — rien n'est
-    considéré en défaut lors d'un simple feed hold.
-- Import **SVG → G-code** : le pipeline actuel se limite à des segments de ligne
-  droite (M/L) — les courbes/arcs ne sont pas supportés (`UNSUPPORTED_PATH_COMMAND`
-  dans `WorkspaceCheckService`). Le flattening SVG → sous-chemins mm se fait
-  entièrement côté frontend (`SvgFlattenerService`) ; le backend ne fait que valider
-  un "workspace SVG" déjà aplati et annoté (voir `docs/workspace-svg-format.md`) avant
-  génération du G-code.
-- Bibliothèque de presets matériaux (`Material` → plusieurs `Profile` : mode
-  LIGNE/REMPLISSAGE, puissance %, vitesse en **mm/min**, passes, espacement de
-  hachures) stockée en base et éditable depuis la page Configuration. Toutes les
-  vitesses de l'application (profils, machine, générateur de pattern de test) sont en
-  mm/min — unité native du feed rate G-code (`F`), alignée sur le standard des autres
-  logiciels (LightBurn, etc.) plutôt que sur mm/s.
-- La puissance d'un profil est un **pourcentage**, converti en valeur `S` du G-code en
-  la mettant à l'échelle du `$30` (max spindle/laser) de GRBL, stocké côté `Machine`
-  (`sMax`).
-- **Décalage d'origine machine** (`Machine.offsetXMm`/`offsetYMm`) : écart fixe entre
-  l'origine réellement homée par GRBL (butées physiques) et le "zéro logique" de la
-  machine — ajouté à toutes les coordonnées X/Y émises en G-code
-  (`WorkspaceGcodeGeneratorService.toMachinePoint()`), donc `G0 X0 Y0` n'atterrit pas
-  forcément au coin de la surface. Visualisé sur la page Gcode par un point bleu séparé
-  du repère habituel (`SvgToGcodePage.homePoint()`, distinct de `originPoint()` qui
-  reste ancré au coin/à l'origine choisie et ne bouge jamais avec l'offset — flèches
-  d'axe et légende du quadrillage restent donc alignées sur le bord de la surface, qui
-  elle-même ne bouge pas). Les coordonnées G-code peuvent désormais être négatives
-  (offset négatif) : volontaire, GRBL s'en accommode très bien.
-- **Optimisation du G-code en mode FILL** (hachurage) : historiquement, chaque segment
-  de hachurage coupait le laser (`M5`/`G0`/`M4`) même entre deux segments très proches
-  (ex. petites courbes d'un caractère de texte), ce qui donnait une découpe en
-  pointillés et sollicitait inutilement les moteurs par à-coups. Désormais, un seul
-  `M4` est émis en tête de chaque passe (la puissance reste constante sur toute la
-  passe), et un `G0` entre deux segments coupe nativement le laser (mode laser
-  dynamique GRBL) sans `M5` explicite. En dessous de `MIN_TRAVEL_DISTANCE_MM`
-  (constante dans `workspace-gcode-generator.service.ts`) entre la fin d'un segment et
-  le début du suivant, le déplacement se fait via un simple `G1` (au feed rate de
-  déplacement de la machine) au lieu d'un `G0`, laser resté allumé en continu à travers
-  l'écart. Valeur ajustée après tests réels sur la machine — ne pas la modifier sans
-  demande explicite.
+- **GRBL protocol**: rather than OctoPrint-style character counting (filling GRBL's
+  128-byte RX buffer by counting in-flight bytes), the current implementation
+  (`GrblConnection`) sends commands **one at a time** and waits for the matching
+  `ok`/`error:N` before sending the next one (an internal FIFO queue). Simpler and
+  safer, at the cost of lower command throughput — plenty for manual jog/driving and
+  line-by-line program streaming. Only worth revisiting if throughput becomes an
+  actual problem (e.g. engraving with lots of tiny segments).
+  - Alongside this `ok`/`error` queue, three GRBL **real-time** bytes are sent directly
+    on the port, outside the queue, without waiting for a response: `!` (feed hold,
+    `GrblConnection.pause()`), `~` (cycle start/resume, `GrblConnection.resume()`), and
+    `Ctrl-X`/`0x18` (soft reset, `GrblConnection.abort()` — the emergency stop, see
+    `JobService` below). `abort()` also engages the software alarm lock (like a real
+    `ALARM:` would), `pause()`/`resume()` don't — nothing is considered faulted by a
+    plain feed hold.
+- **SVG → G-code** import: the current pipeline is limited to straight line segments
+  (M/L) — curves/arcs aren't supported (`UNSUPPORTED_PATH_COMMAND` in
+  `WorkspaceCheckService`). Flattening SVG → mm sub-paths happens entirely on the
+  frontend (`SvgFlattenerService`); the backend only validates an already-flattened,
+  annotated "workspace SVG" (see `docs/workspace-svg-format.md`) before generating
+  G-code.
+- Material preset library (`Material` → several `Profile`s: LINE/FILL mode, power %,
+  speed in **mm/min**, passes, hatch spacing) stored in the database and editable from
+  the Configuration page. Every speed in the app (profiles, machine, test pattern
+  generator) is in mm/min — the native unit of G-code's feed rate (`F`), matching the
+  convention of other software (LightBurn, etc.) rather than mm/s.
+- A profile's power is a **percentage**, converted to the G-code `S` value by scaling
+  it against GRBL's `$30` (max spindle/laser), stored on `Machine` (`sMax`).
+- **Machine origin offset** (`Machine.offsetXMm`/`offsetYMm`): a fixed gap between the
+  origin GRBL actually homes to (physical limit switches) and the machine's "logical
+  zero" — added to every X/Y coordinate emitted in G-code
+  (`WorkspaceGcodeGeneratorService.toMachinePoint()`), so `G0 X0 Y0` doesn't
+  necessarily land at the corner of the surface. Shown on the Gcode page as a blue dot
+  separate from the usual axes (`SvgToGcodePage.homePoint()`, distinct from
+  `originPoint()`, which stays anchored to the chosen corner/origin and never moves
+  with the offset — so the axis arrows and grid legend stay aligned with the edge of
+  the surface, which itself never moves). G-code coordinates can now be negative (with
+  a negative offset): intentional, GRBL handles it just fine.
+- **G-code optimization in FILL mode** (hatching): historically, every hatch segment
+  cut the laser (`M5`/`G0`/`M4`) even between two very close segments (e.g. small
+  curves in a text character), producing a dotted-looking cut and needlessly jerking
+  the motors around. Now, a single `M4` is emitted at the start of each pass (power
+  stays constant for the whole pass), and a `G0` between two segments natively cuts the
+  laser (GRBL's dynamic laser mode) without an explicit `M5`. Below
+  `MIN_TRAVEL_DISTANCE_MM` (a constant in `workspace-gcode-generator.service.ts`)
+  between the end of one segment and the start of the next, the move is done via a
+  plain `G1` (at the machine's travel feed rate) instead of a `G0`, keeping the laser
+  on continuously across the gap. Value tuned after real tests on the machine — don't
+  change it without an explicit request.
 
-## Architecture backend (NestJS)
+## Backend architecture (NestJS)
 
-- `apps/backend/src/app/cutter/` — `CutterController` (REST : `/cutter/ports`,
-  `/connect`, `/disconnect`, `/status`, `/command`) et `CutterGateway` (WebSocket temps
-  réel, voir ci-dessous). Les deux appellent `CutterCommunicationService`.
-  - `JobService` — streame le fichier G-code actuellement uploadé vers la découpeuse,
-    une ligne à la fois (même primitive `send`/ok-error que `CheckService`/
-    `FramingService`), en trackant `currentLine`/`totalLines` pour la progression.
-    Envoie `$H` une fois avant de démarrer. Supporte pause (`pause()`, feed hold GRBL
-    `!`, la boucle d'envoi attend sur un signal de reprise sans envoyer la ligne
-    suivante), reprise (`resume()`, `~`), et arrêt d'urgence (`stop()`,
-    `GrblConnection.abort()` — reset temps réel, ne rejoint le `ok`/`error` normal,
-    voir plus haut). Émet `changed` à chaque démarrage/pause/reprise/avancement/fin.
-  - `AutoConnectService` — poll toutes les secondes (`OnModuleInit`) : si aucune
-    connexion active et que le port série configuré (`Machine.serialPortPath`) est
-    accessible (`fs.access`), tente une connexion automatiquement (mêmes options que
-    le bouton "Connect" manuel, via `machine-connection-options.ts` partagé). Ne fait
-    rien si la machine est éteinte/débranchée (le port n'existe juste pas). Un flag
-    `connecting` dans `GrblConnection` évite qu'une tentative manuelle et une tentative
-    automatique n'ouvrent le port en même temps. **Le poll lui-même ne démarre que si
-    `ALLOW_PHYSICAL_CONNECTION=true`** (voir "Contraintes de déploiement" plus haut) —
-    sinon `onModuleInit` ne fait qu'un warning et ne programme aucun poll.
-- `libs/cutter-communication` — lib partagée, indépendante de NestJS :
-  - `GrblConnection` — connexion série bas niveau (`serialport`), file de commandes
-    ok/error, requêtes de statut temps réel (`?`), verrou logiciel d'alarme (voir
-    plus haut), commandes temps réel `pause`/`resume`/`abort` (voir plus haut). Émet
-    `sent`/`received` (trafic brut, pour le terminal), `status`, `alarm`, `data`,
-    `error`, `disconnected`.
-  - `grbl-status.parser.ts` — parse un rapport `<État|MPos:...|WPos:...>`, y compris
-    les sous-états `Door:n`/`Hold:n`.
-  - `CutterCommunicationService` — wrapper Nest-injectable de `GrblConnection`.
-- `apps/backend/src/app/machine/` — CRUD (TypeORM/SQLite) des réglages machine :
-  nom, dimensions du plateau, port série, bauds/dataBits/stopBits/parité, miroirs X/Y,
-  origine, décalage d'origine (`offsetXMm`/`offsetYMm`, voir plus haut), accélérations
-  max, vitesse de travail (`maxSpeedXMmPerMin`/`YMmPerMin`, utilisée pour les `G1`
-  laser allumé) et vitesse de déplacement (`travelSpeedXMmPerMin`/`YMmPerMin`, utilisée
-  pour les `G0`), `sMax`. `machine-connection-options.ts` centralise la conversion
-  `Machine` → options de connexion série, partagée entre `CutterGateway` (connexion
-  manuelle) et `AutoConnectService`.
-- `apps/backend/src/app/materials/` — CRUD matériaux + profils de découpe/gravure.
-- `apps/backend/src/app/gcode/` — CRUD des blocs de G-code personnalisés injectés en
-  début (`start`) / fin (`end`) de programme, avec un ordre d'exécution (`order`).
-- `apps/backend/src/app/workspace-check/` — parse et valide un "workspace SVG" exporté
-  par le frontend (profils manquants/inconnus, matériau non sélectionné, path hors
-  plateau, paths qui se croisent, commandes de path non supportées) avant génération
-  de G-code.
-- `apps/backend/src/app/workspace/workspace-gcode-generator.service.ts` — génère le
-  G-code final à partir d'un workspace validé (voir `docs/workspace-svg-format.md`
-  pour la structure exacte du programme).
-- Pas encore construit : file d'attente de jobs (un seul job actif à la fois,
-  `JobService` n'a pas de notion de queue) et historique de jobs.
+- `apps/backend/src/app/cutter/` — `CutterController` (REST: `/cutter/ports`,
+  `/connect`, `/disconnect`, `/status`, `/command`) and `CutterGateway` (real-time
+  WebSocket, see below). Both call `CutterCommunicationService`.
+  - `JobService` — streams the currently uploaded G-code file to the cutter, one line
+    at a time (the same send/ok-error primitive as `CheckService`/`FramingService`),
+    tracking `currentLine`/`totalLines` for progress. Sends `$H` once before starting.
+    Supports pause (`pause()`, GRBL feed hold `!`, the send loop waits on a resume
+    signal without sending the next line), resume (`resume()`, `~`), and emergency stop
+    (`stop()`, `GrblConnection.abort()` — a real-time reset, doesn't go through the
+    normal `ok`/`error` path, see above). Emits `changed` on every
+    start/pause/resume/progress/end. Also opens/finalizes a `HistoryEntry` around each
+    run (see the "Job history" section below).
+  - `AutoConnectService` — polls every second (`OnModuleInit`): if there's no active
+    connection and the configured serial port (`Machine.serialPortPath`) is accessible
+    (`fs.access`), attempts to connect automatically (the same options as the manual
+    "Connect" button, via the shared `machine-connection-options.ts`). Does nothing if
+    the machine is off/unplugged (the port just doesn't exist). A `connecting` flag in
+    `GrblConnection` keeps a manual attempt and an automatic one from opening the port
+    at the same time. **The poll itself only starts if `ALLOW_PHYSICAL_CONNECTION=true`**
+    (see "Deployment constraints" above) — otherwise `onModuleInit` just logs a warning
+    and schedules no poll.
+- `libs/cutter-communication` — shared lib, independent of NestJS:
+  - `GrblConnection` — low-level serial connection (`serialport`), ok/error command
+    queue, real-time status requests (`?`), software alarm lock (see above), real-time
+    `pause`/`resume`/`abort` commands (see above). Emits `sent`/`received` (raw
+    traffic, for the terminal), `status`, `alarm`, `data`, `error`, `disconnected`.
+  - `grbl-status.parser.ts` — parses a `<State|MPos:...|WPos:...>` report, including
+    the `Door:n`/`Hold:n` sub-states.
+  - `CutterCommunicationService` — Nest-injectable wrapper around `GrblConnection`.
+- `apps/backend/src/app/machine/` — CRUD (TypeORM/SQLite) for machine settings: name,
+  bed dimensions, serial port, baud/dataBits/stopBits/parity, X/Y mirroring, origin,
+  origin offset (`offsetXMm`/`offsetYMm`, see above), max accelerations, work speed
+  (`maxSpeedXMmPerMin`/`YMmPerMin`, used for laser-on `G1`s) and travel speed
+  (`travelSpeedXMmPerMin`/`YMmPerMin`, used for `G0`s), `sMax`.
+  `machine-connection-options.ts` centralizes the `Machine` → serial connection options
+  conversion, shared between `CutterGateway` (manual connection) and
+  `AutoConnectService`.
+- `apps/backend/src/app/materials/` — CRUD for materials + cutting/engraving profiles.
+- `apps/backend/src/app/gcode/` — CRUD for custom G-code blocks injected at the start
+  (`start`) / end (`end`) of a program, with an execution order (`order`).
+- `apps/backend/src/app/workspace-check/` — parses and validates a "workspace SVG"
+  exported by the frontend (missing/unknown profiles, no material selected, path
+  outside the bed, crossing paths, unsupported path commands) before G-code generation.
+- `apps/backend/src/app/workspace/workspace-gcode-generator.service.ts` — generates the
+  final G-code from a validated workspace (see `docs/workspace-svg-format.md` for the
+  program's exact structure).
+- `apps/backend/src/app/history/` — job history, see the "Job history" section below.
+- Not yet built: a job queue (only one active job at a time, `JobService` has no queue
+  concept).
+
+### Job history (`HistoryModule`)
+
+- `history_entry` table (TypeORM, `HistoryEntry` entity in
+  `history/entities/history-entry.entity.ts`): GUID primary key, nullable
+  `machine`/`machineId` FK to `Machine` with `ON DELETE SET NULL` (**not** `CASCADE`,
+  unlike `Profile.material`) — a history entry must outlive the machine it ran on, e.g.
+  the machine being replaced by a new one; the frontend shows "<Unknown machine>" once
+  `machineName` comes back `null`. Also stores `fileName`, `fileSizeBytes`,
+  `commandCount`, a `thumbnailBase64` (64x64 PNG, base64-encoded, no `data:` prefix),
+  `startDatetime`, and a nullable `endDatetime`/`result` (`HistoryResult`:
+  `success`/`error`/`aborted`, stored as varchar — SQLite has no native enum column).
+- Lifecycle lives entirely inside `JobService.start()` (not a separate REST call from
+  the frontend): a `HistoryEntry` is created (best-effort, wrapped in try/catch — a
+  history-write failure must never block the actual cut) right after the job's
+  `fileName`/`totalLines` are known, with `endDatetime`/`result` left `NULL`; it's
+  finalized in the same method's `finally` block once the run actually ends. The
+  three-way outcome is derived from state `JobService` already tracks: the existing
+  `stopRequested` flag (set only by the emergency-stop path, `stop()`) means
+  `ABORTED`; otherwise a non-null `lastError` means `ERROR`; otherwise `SUCCESS`. No
+  separate abort/error flag was needed.
+- `machineId`, `fileName`, `fileSizeBytes`, `commandCount` are all deduced backend-side
+  (from `MachineService.get()` and the already-uploaded `GcodeFileService.get()`) —
+  only the thumbnail travels over the wire, as `{ thumbnailBase64 }` in the `startJob`
+  WebSocket message (see below).
+- `GET /api/history/summary` → `{ success, error, aborted }` counts. `GET /api/history?
+from=<ISO>&to=<ISO>` → the list of **finished** entries only (`endDatetime IS NOT
+  NULL`, which always implies `result` is set too), optionally narrowed to a
+  `startDatetime` range, most recent first. Both live in `HistoryController`/
+  `HistoryService`; `JobService` calls `HistoryService.create()`/`.finish()` directly,
+  not over REST.
+- Frontend thumbnail (`renderGcodeThumbnail()`, in
+  `apps/frontend/src/app/features/operation/gcode-viewer/gcode-thumbnail.ts`): rendered
+  from the G-code file's own toolpath (reusing `parseGcodeProgram()`), *not* a literal
+  DOM/SVG screenshot of the Viewer tab — the Operation page's three tabs share one
+  `<router-outlet>`, so the Viewer might not even be mounted when "Start" is clicked
+  (the button lives in the always-visible `GcodeFileCard` sidebar). Only `G1` (cut)
+  segments are drawn, scaled/centered onto an offscreen 64×64 canvas.
 
 ### WebSocket (`CutterGateway`, `@nestjs/websockets` + `@nestjs/platform-ws`)
 
-- Un seul gateway, chemin `/api/ws/cutter`, adapter `WsAdapter` (lib `ws` brute, pas
-  socket.io) enregistré dans `main.ts`. Convention de message : `{ event, data }`.
-- La connexion à la découpeuse ne s'ouvre pas uniquement sur un message `connect` —
-  voir `AutoConnectService` plus haut, qui l'ouvre de lui-même dès que le port série
-  configuré redevient accessible.
-- Client → serveur : `connect`, `disconnect`, `sendCommand({ command })`,
-  `deleteGcodeFile`, `startFrame`, `stopFrame`, `startCheck`, `startJob`, `stopJob`,
-  `pauseJob`, `resumeJob`.
-- Serveur → client :
-  - `status` (`MachineStatusPayload { connected, grbl }`) — poll every 1s tant que
-    connecté + broadcast immédiat sur tout changement d'alarme, dédupliqué sinon.
+- A single gateway, path `/api/ws/cutter`, `WsAdapter` (raw `ws` lib, not socket.io)
+  registered in `main.ts`. Message convention: `{ event, data }`.
+- The connection to the cutter isn't only opened by a `connect` message — see
+  `AutoConnectService` above, which opens it on its own as soon as the configured
+  serial port becomes accessible again.
+- Client → server: `connect`, `disconnect`, `sendCommand({ command })`,
+  `deleteGcodeFile`, `startFrame`, `stopFrame`, `startCheck`, `startJob({
+thumbnailBase64 })`, `stopJob`, `pauseJob`, `resumeJob`.
+- Server → client:
+  - `status` (`MachineStatusPayload { connected, grbl }`) — polled every 1s while
+    connected + broadcast immediately on any alarm change, deduplicated otherwise.
   - `serial` (`SerialMessagePayload { direction: 'sent'|'received', timestampMs,
-dataBase64 }`) — rejoue en direct absolument tout ce qui transite sur le port
-    série (alimente l'onglet Terminal). Le payload est encodé en base64 pour rester
-    "binary-safe" même si GRBL renvoie un jour des octets non-ASCII.
-  - `gcodeFile` (fichier G-code actuellement uploadé), `checkResult` (état d'un run
-    `$C`), `jobStatus` (`JobStatusPayload { running, paused, fileName, currentLine,
-totalLines, error }` — progression d'un job en cours, voir `JobService` plus
-    haut ; surfacé à la fois par la flashcard du menubar et la card "Gcode file" de la
-    page Operation).
-- Le statut renvoyé applique le verrou d'alarme logiciel (`applyAlarmLatch`) : tant que
-  `CutterCommunicationService.isAlarmed()` est vrai, l'état renvoyé au client est forcé
-  à `Alarm`, quoi que rapporte réellement GRBL.
+dataBase64 }`) — replays live absolutely everything that goes over the serial port
+    (feeds the Terminal tab). The payload is base64-encoded to stay "binary-safe" even
+    if GRBL ever sends back non-ASCII bytes.
+  - `gcodeFile` (the currently uploaded G-code file), `checkResult` (state of a `$C`
+    run), `jobStatus` (`JobStatusPayload { running, paused, fileName, currentLine,
+totalLines, error }` — progress of a running job, see `JobService` above; surfaced
+    both by the menubar flashcard and the "Gcode file" card on the Operation page).
+- The status sent back applies the software alarm lock (`applyAlarmLatch`): as long as
+  `CutterCommunicationService.isAlarmed()` is true, the state sent to the client is
+  forced to `Alarm`, whatever GRBL itself actually reports.
 
 ## Frontend (Angular + Optimus UI)
 
-- **Shell** (`apps/frontend/src/app/shell/`) — menubar commun à toutes les pages, avec
-  `MachineStatusFlashcard` à droite (`ng-template pTemplate="end"` du menubar) :
-  visible depuis n'importe quelle page, affiche nom de la machine, statut GRBL sous
-  forme de tag coloré (couleurs/libellés partagés avec `MachineStatusCard` via
-  `GRBL_STATE_LABELS`/`GRBL_STATE_SEVERITIES` dans `machine-status.model.ts`), nom du
-  fichier chargé, et — si un job est en cours — barre de progression + bouton d'arrêt
-  d'urgence (icône octogone plein rouge, sans confirmation : un vrai bouton d'arrêt
-  d'urgence n'attend pas de "êtes-vous sûr").
-- **Page "Gcode"** (`/gcode`, `SvgToGcodePage`) — import SVG multi-documents, arbre des
-  calques/groupes, sélection/déplacement/rotation des formes (drag + poignée de
-  rotation), pan/zoom du canvas (molette + clic molette), undo/redo, "explode" d'un
-  groupe en entités indépendantes, offset laser (compensation de trait de découpe,
-  via `polygon-offset`, en tenant compte de l'imbrication des sous-chemins pour
-  distinguer contour extérieur/trou), assignation de profils matériau par
-  glisser-clic, export/vérification d'un "workspace SVG" (voir
-  `docs/workspace-svg-format.md`). État persisté en `sessionStorage`
-  (`webcutter.svg-to-gcode.workspace`) : sources SVG ré-aplaties au chargement plutôt
-  que désérialisées telles quelles, pour rester cohérentes avec le code de parsing.
-  - Visualisateur : quadrillage + légende + flèches d'axe toujours ancrés au coin/à
-    l'origine choisie (`originPoint()`), inchangés par le décalage machine — un point
-    bleu séparé (`homePoint()`) montre où `G0 X0 Y0` atterrit réellement compte tenu du
-    décalage (voir plus haut).
-  - Générateur de "pattern de test" (`TestPatternGeneratorService`) : grille de formes
-    avec profils interpolant puissance/vitesse, légendes optionnelles. Profil des
-    légendes/étiquette matériau fixé à 50% de puissance et 6000 mm/min, indépendant de
-    la plage testée. L'unité "mm/min" (qui prend beaucoup de place) n'est plus répétée
-    sur chaque ligne : un seul libellé en haut à gauche de la grille, au-dessus de la
-    plus grande valeur.
-  - Boutons "Save workspace SVG"/"Download G-code" : ouvrent un popover
-    (`FilenamePopover`, `app-filename-popover`) demandant un nom de fichier avant le
-    téléchargement, au lieu de toujours nommer "workspace.svg"/"workspace.gcode" (ce
-    qui créait des doublons dans le dossier de téléchargement). ⚠️ Un `<form>` avec un
-    champ lié par un simple `[formControl]` (sans `[formGroup]` sur le `<form>`
-    lui-même) ne bloque pas la soumission native : `(ngSubmit)` ne se déclenche jamais
-    et le navigateur recharge la page — toujours envelopper dans un vrai `FormGroup` +
-    `[formGroup]` sur le `<form>`, jamais un `FormControl` nu avec `(ngSubmit)`.
-- **Page "Operation"** (`/operation`, `OperationPage`) — toolbar + `p-splitter`
-  25/75 :
-  - Barre latérale gauche : `MachineStatusCard` (nom de la machine en header, statut
-    connexion/GRBL sous forme de tag coloré, boutons Connect/Disconnect — désactivé
-    pendant un job en cours, confirmation avant déconnexion) et `PositionCard`
-    (position X/Y depuis `WPos` — relative à l'origine de la surface de découpe, donc
-    négative si la tête est à gauche/en dessous de l'origine — avec repli sur
-    `MPos` si le masque de rapport `$10` de la carte n'inclut pas `WPos`, D-pad
-    de jog avec bouton central `$H`, pas réglable en mm ; jog désactivé pendant un job).
-  - `GcodeFileCard` — infos du fichier chargé, boutons Start/Frame/Check quand rien ne
-    tourne ; pendant un job : barre de progression + boutons Pause/Resume (feed
-    hold/resume GRBL) et Abort (arrêt d'urgence, `JobService.stop()`, sans
-    confirmation). Affiche l'erreur du dernier job en échec (arrêt anormal).
-  - Panneau droit : onglets routés (`/operation/gcode` par défaut, `/operation/terminal`) :
-    - `GcodeViewerPanel` — **implémenté** (n'est plus un placeholder) : prévisualisation
-      du trajet du fichier G-code actuellement uploadé, rendu comme des `<line>` SVG
-      dans le même composant de grille/caméra que la page Gcode
-      (`gcode-program-parser.ts` parse le G-code — état modal X/Y/mode/F/S, un segment
-      par `G0`/`G1`, arcs `G2`/`G3` non émis mais suivis pour la position — et
-      `gcodeToBedPoint()` inverse la conversion bed→machine du générateur backend,
-      décalage d'origine inclus). Filtres G0/G1 affichables, mode couleur
-      plain/vitesse/puissance (dégradé sur toute la plage du fichier), slider limitant
-      le nombre de segments affichés (utile sur un gros fichier).
-    - `TerminalPanel` — historique complet des trames échangées avec la machine (icône
-      de sens, timestamp HH:MM:SS.mmm, contenu ASCII ou hex si non imprimable), rendu
-      via `p-scroller` (virtual scrolling, hauteur de ligne fixe 22px — donc le texte
-      long est tronqué avec ellipsis plutôt que passer à la ligne) pour rester
-      performant avec un historique important. Toggle "Autoscroll" (activé par défaut,
-      désactivé par tout scroll manuel détecté en pixels, pas par index — le tolerance
-      buffer du virtual scroller rend la détection par index peu fiable sur une petite
-      liste), boutons "Clear" (vide l'historique en mémoire) et "Export" (télécharge
-      `terminal.log`, une ligne par message : `[timestamp ISO 8601] -> ou <- contenu`),
-      et champ de saisie pour envoyer une commande brute.
-  - `CutterSocketService` — client WebSocket unique (`providedIn: 'root'`), signaux de
-    statut/fichier/check/job (`jobStatus`) + `Subject` de messages série, reconnexion
-    automatique.
-- **Page "Configuration"** (`/configuration`) — réglages machine (card "Machine"
-  organisée en accordéon par catégorie : Général, Coordinates, Laser, Speeds,
-  Connection — voir les nouveaux champs machine plus haut), bibliothèque de
-  matériaux/profils (vitesse en mm/min), blocs de G-code personnalisés (start/end).
-  Libellés entièrement en anglais (langue officielle de l'application).
-- Icônes : système Tabler "fait main" (`tabler-icon-paths.ts`), tracés SVG copiés
-  directement depuis le package `@tabler/icons` plutôt qu'une dépendance dédiée (voir
-  mémoire `project_frontend_stack_choices`).
+- **Shell** (`apps/frontend/src/app/shell/`) — menubar common to every page, with a
+  `MachineStatusFlashcard` on the right (the menubar's `ng-template pTemplate="end"`):
+  visible from any page, shows the machine's name, GRBL status as a colored tag
+  (colors/labels shared with `MachineStatusCard` via `GRBL_STATE_LABELS`/
+  `GRBL_STATE_SEVERITIES` in `machine-status.model.ts`), the loaded file's name, and —
+  if a job is running — a progress bar + an emergency stop button (solid red octagon
+  icon, no confirmation: a real emergency stop button doesn't wait for an "are you
+  sure").
+- **"Gcode" page** (`/gcode`, `SvgToGcodePage`) — multi-document SVG import, a
+  layer/group tree, shape selection/move/rotate (drag + rotation handle), canvas
+  pan/zoom (wheel + middle-click drag), undo/redo, "explode" a group into independent
+  entities, laser offset (kerf compensation, via `polygon-offset`, accounting for
+  sub-path nesting to tell an outer contour from a hole), assigning material profiles
+  by drag-click, exporting/checking a "workspace SVG" (see
+  `docs/workspace-svg-format.md`). State persisted in `sessionStorage`
+  (`webcutter.svg-to-gcode.workspace`): SVG sources are re-flattened on load rather
+  than deserialized as-is, to stay consistent with the parsing code.
+  - Viewer: grid + legend + axis arrows always anchored to the chosen corner/origin
+    (`originPoint()`), unaffected by the machine offset — a separate blue dot
+    (`homePoint()`) shows where `G0 X0 Y0` actually lands given the offset (see
+    above).
+  - "Test pattern" generator (`TestPatternGeneratorService`): a grid of shapes with
+    profiles interpolating power/speed, optional legends. The legend/material-label
+    profile is fixed at 50% power and 6000 mm/min, independent of the range being
+    tested. The "mm/min" unit (which takes up a lot of room) is no longer repeated on
+    every line: a single label at the top-left of the grid, above the largest value.
+  - "Save workspace SVG"/"Download G-code" buttons: open a popover
+    (`FilenamePopover`, `app-filename-popover`) asking for a file name before
+    downloading, instead of always naming it "workspace.svg"/"workspace.gcode" (which
+    created duplicates in the downloads folder). ⚠️ A `<form>` with a field bound via a
+    plain `[formControl]` (without a `[formGroup]` on the `<form>` itself) doesn't
+    block native submission: `(ngSubmit)` never fires and the browser reloads the page
+    — always wrap it in a real `FormGroup` + `[formGroup]` on the `<form>`, never a bare
+    `FormControl` with `(ngSubmit)`.
+- **"Operation" page** (`/operation`, `OperationPage`) — toolbar + `p-splitter` 25/75:
+  - Left sidebar: `MachineStatusCard` (machine name in the header, connection/GRBL
+    status as a colored tag, Connect/Disconnect buttons — disabled while a job is
+    running, confirmation before disconnecting) and `PositionCard` (X/Y position from
+    `WPos` — relative to the cutting surface's origin, so negative if the head is to
+    the left/below the origin — falling back to `MPos` if the board's `$10` report
+    mask doesn't include `WPos`, a jog D-pad with a central `$H` button, adjustable
+    step in mm; jog disabled while a job is running).
+  - `GcodeFileCard` — info about the loaded file, Start/Frame/Check buttons when
+    nothing is running; while a job is running: progress bar + Pause/Resume (GRBL feed
+    hold/resume) and Abort (emergency stop, `JobService.stop()`, no confirmation)
+    buttons. Shows the last failed job's error (abnormal stop). `startJob()` renders a
+    thumbnail from the file's own toolpath (see `renderGcodeThumbnail()`, "Job history"
+    above) before sending `startJob` over the socket.
+  - Right panel: routed tabs (`/operation/gcode` by default,
+    `/operation/terminal`):
+    - `GcodeViewerPanel` — **implemented** (no longer a placeholder): previews the path
+      of the currently uploaded G-code file, rendered as SVG `<line>`s in the same
+      grid/camera component as the Gcode page (`gcode-program-parser.ts` parses the
+      G-code — modal X/Y/mode/F/S state, one segment per `G0`/`G1`, `G2`/`G3` arcs not
+      drawn but tracked for position — and `gcodeToBedPoint()` inverts the backend
+      generator's bed→machine conversion, including the origin offset). Toggleable
+      G0/G1 filters, plain/speed/power color mode (gradient across the whole file's
+      range), a slider limiting how many segments are drawn (useful on a large file).
+    - `TerminalPanel` — full history of frames exchanged with the machine (direction
+      icon, HH:MM:SS.mmm timestamp, ASCII or hex content if not printable), rendered
+      via `p-scroller` (virtual scrolling, fixed 22px row height — so long text is
+      truncated with an ellipsis rather than wrapping) to stay performant with a large
+      history. An "Autoscroll" toggle (on by default, turned off by any manual scroll
+      detected in pixels, not by index — the virtual scroller's tolerance buffer makes
+      index-based detection unreliable on a short list), "Clear" (wipes the in-memory
+      history) and "Export" (downloads `terminal.log`, one line per message:
+      `[ISO 8601 timestamp] -> or <- content`) buttons, and an input field to send a
+      raw command.
+  - `CutterSocketService` — single WebSocket client (`providedIn: 'root'`),
+    status/file/check/job (`jobStatus`) signals + a `Subject` of serial messages,
+    automatic reconnection.
+- **"Configuration" page** (`/configuration`) — machine settings (a "Machine" card
+  organized into an accordion by category: General, Coordinates, Laser, Speeds,
+  Connection — see the new machine fields above), material/profile library (speed in
+  mm/min), custom G-code blocks (start/end). Labels are entirely in English (the app's
+  official language).
+- **"History" page** (`/history`, `HistoryPage`) — past jobs: thumbnails, results,
+  dates. Two cards:
+  - `HistorySummaryCard` — a `MeterGroup` (`@openng/optimus-ui/metergroup`) showing the
+    proportion of success/error/aborted among every finished job, from `GET
+/api/history/summary` (`HistoryApiService`). Colors/labels for each `HistoryResult`
+    live in `history-result.model.ts` (`HISTORY_RESULT_LABELS`/
+    `HISTORY_RESULT_SEVERITIES`/`HISTORY_RESULT_COLORS`), the same pattern as
+    `GRBL_STATE_LABELS`/`GRBL_STATE_SEVERITIES`.
+  - `HistoryJobsCard` — from/to date filters (empty by default, narrowing
+    `startDatetime`), a `SelectButton` toggling between a `DataView` (default: list of
+    thumbnail + file info + result `Tag`) and a `Timeline` (start date on the left/
+    opposite side, the same content as a card on the right). Both are first uses of
+    their respective Optimus UI components in this codebase — check
+    `node_modules/@openng/optimus-ui/types/` for the exact API if extending them
+    (they match vanilla PrimeNG's v20 API, since Optimus UI is the org's own
+    wrapper/rebrand around it).
+- Icons: a "hand-rolled" Tabler system (`tabler-icon-paths.ts`), SVG paths copied
+  directly from the `@tabler/icons` package rather than a dedicated dependency (see the
+  memory `project_frontend_stack_choices`).
 
-## Pas encore fait
+## Not yet done
 
-- File d'attente de jobs (un seul job actif à la fois) et historique des jobs passés.
-- Logique de blocage automatique basée sur l'état `Door` (seul l'affichage existe).
-- Application du miroir X/Y et de l'origine (`Machine.origin`, autre que le coin
-  bas-gauche implicite) dans la génération réelle de G-code côté backend — ces
-  réglages existent et s'affichent dans le visualisateur, mais
-  `WorkspaceGcodeGeneratorService` ne les applique pas encore lui-même (seul le
-  décalage `offsetXMm`/`offsetYMm` l'est).
+- Job queue (only one active job at a time).
+- Automatic blocking logic based on the `Door` state (only the display exists).
+- Applying X/Y mirroring and the origin (`Machine.origin`, other than the implicit
+  bottom-left corner) in actual backend G-code generation — these settings exist and
+  are shown in the viewer, but `WorkspaceGcodeGeneratorService` doesn't apply them
+  itself yet (only the `offsetXMm`/`offsetYMm` offset is).
 
 <!-- nx configuration start-->
 <!-- Leave the start & end comments to automatically receive updates. -->
