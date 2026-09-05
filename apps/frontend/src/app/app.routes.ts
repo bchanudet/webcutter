@@ -13,15 +13,15 @@ export const appRoutes: Route[] = [
     path: '',
     component: Shell,
     children: [
-      { path: '', redirectTo: 'gcode', pathMatch: 'full' },
-      { path: 'gcode', component: SvgToGcodePage, title: 'Gcode' },
+      { path: '', redirectTo: 'design', pathMatch: 'full' },
+      { path: 'design', component: SvgToGcodePage, title: 'Design' },
       {
         path: 'operation',
         component: OperationPage,
         title: 'Operation',
         children: [
-          { path: '', redirectTo: 'gcode', pathMatch: 'full' },
-          { path: 'gcode', component: GcodeViewerPanel, title: 'Operation · Viewer' },
+          { path: '', redirectTo: 'viewer', pathMatch: 'full' },
+          { path: 'viewer', component: GcodeViewerPanel, title: 'Operation · Viewer' },
           { path: 'code', component: GcodeCodePanel, title: 'Operation · Code' },
           { path: 'terminal', component: TerminalPanel, title: 'Operation · Terminal' },
         ],

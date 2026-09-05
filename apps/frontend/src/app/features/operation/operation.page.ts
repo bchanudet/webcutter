@@ -13,7 +13,7 @@ import { GcodeFileService } from './gcode-file/gcode-file.service';
 import { MachineStatusCard } from './machine-status/machine-status-card';
 import { PositionCard } from './position/position-card';
 
-type OperationTab = 'gcode' | 'code' | 'terminal';
+type OperationTab = 'viewer' | 'code' | 'terminal';
 
 @Component({
   selector: 'app-operation-page',
@@ -60,7 +60,7 @@ export class OperationPage {
     if (this.router.url.endsWith('/code')) {
       return 'code';
     }
-    return 'gcode';
+    return 'viewer';
   }
 
   protected navigateToTab(tab: OperationTab): void {

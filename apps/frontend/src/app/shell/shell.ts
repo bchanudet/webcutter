@@ -60,7 +60,7 @@ export class Shell {
   private readonly notificationsPopover = viewChild.required(Popover);
 
   protected readonly menuItems: AppMenuItem[] = [
-    { label: 'Gcode', iconName: 'code', routerLink: '/gcode' },
+    { label: 'Design', iconName: 'code', routerLink: '/design' },
     { label: 'Operation', iconName: 'building-factory-2', routerLink: '/operation' },
     { label: 'Configuration', iconName: 'settings', routerLink: '/configuration' },
     { label: 'History', iconName: 'history', routerLink: '/history' },
