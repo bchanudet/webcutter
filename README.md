@@ -124,16 +124,15 @@ Everything needed to stand this up lives in [`deploy/`](deploy/):
 
 [`.github/workflows/release.yml`](.github/workflows/release.yml) builds the backend and
 frontend on every push to `main` and publishes them as tarballs on a new GitHub
-Release. `deploy/deploy.sh` downloads the latest release (via `gh release download`),
-extracts it, runs `npm ci --omit=dev` only inside the pruned backend folder (installs
-the `serialport`/`sqlite3` native bindings for that machine), and restarts the
-service.
+Release. `deploy/deploy.sh` downloads the latest release (`curl`+`jq` against the
+public GitHub API — no auth needed, the repo and its releases are public), extracts it,
+runs `npm ci --omit=dev` only inside the pruned backend folder (installs the
+`serialport`/`sqlite3` native bindings for that machine), and restarts the service.
 
 ### One-time server setup
 
-1. Install Node (matching the version the workflow builds with), the
-   [GitHub CLI](https://cli.github.com/) (`gh auth login`, needs read access to this
-   repo), and [Caddy](https://caddyserver.com/docs/install).
+1. Install Node (matching the version the workflow builds with), `curl` and `jq`, and
+   [Caddy](https://caddyserver.com/docs/install).
 2. Create a `webcutter` system user, in the `dialout` group, owning `/opt/webcutter`.
 3. Copy `deploy/Caddyfile` to `/etc/caddy/Caddyfile` and
    `deploy/webcutter-backend.service` to `/etc/systemd/system/`, then:

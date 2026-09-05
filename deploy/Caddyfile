@@ -1,0 +1,20 @@
+# Webcutter reverse proxy — single external port, no TLS (LAN-only, see CLAUDE.md
+# "Deployment constraints"). `http://` forces plain HTTP and stops Caddy from
+# attempting automatic HTTPS/ACME, which needs a real domain + port 443.
+http://:80 {
+	encode gzip
+
+	# REST + WebSocket API -> NestJS backend (global prefix set in main.ts, so the
+	# /api prefix must reach the backend as-is — `handle`, not `handle_path`).
+	# Caddy proxies WebSocket upgrades transparently, no extra config needed.
+	handle /api/* {
+		reverse_proxy localhost:3000
+	}
+
+	# Angular SPA static build
+	handle {
+		root * /opt/webcutter/frontend
+		try_files {path} /index.html
+		file_server
+	}
+}

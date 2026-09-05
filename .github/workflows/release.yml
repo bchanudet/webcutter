@@ -1,0 +1,80 @@
+name: Release build artifacts
+
+# Builds backend + frontend and publishes them as a GitHub Release every time
+# main is updated. The production server never runs `npm ci`/`nx build` itself —
+# see deploy/deploy.sh, which just downloads these release assets.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: 24
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      # `prune` (see apps/backend/project.json) builds, then trims package.json/
+      # package-lock.json down to backend's actual runtime deps and copies any
+      # workspace libs it needs — the exact folder `npm ci --omit=dev` expects.
+      - run: npx nx run backend:prune
+      - run: tar czf backend-dist.tar.gz -C dist/apps/backend .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-dist
+          path: backend-dist.tar.gz
+          retention-days: 14
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx nx run frontend:build:production
+      - run: tar czf frontend-dist.tar.gz -C dist/apps/frontend/browser .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend-dist.tar.gz
+          retention-days: 14
+
+  release:
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA::7}"
+          tag="build-${{ github.run_number }}-${short_sha}"
+          gh release create "$tag" \
+            --repo "${{ github.repository }}" \
+            --title "$tag" \
+            --notes "Automated build from ${GITHUB_SHA}" \
+            backend-dist.tar.gz frontend-dist.tar.gz
