@@ -63,6 +63,7 @@ export class Shell {
     { label: 'Gcode', iconName: 'code', routerLink: '/gcode' },
     { label: 'Operation', iconName: 'building-factory-2', routerLink: '/operation' },
     { label: 'Configuration', iconName: 'settings', routerLink: '/configuration' },
+    { label: 'History', iconName: 'history', routerLink: '/history' },
   ];
 
   protected readonly notifications = this.notificationService.notifications;

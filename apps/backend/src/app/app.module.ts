@@ -11,6 +11,7 @@ import { FramingService } from './cutter/framing.service';
 import { FontModule } from './font/font.module';
 import { GcodeFileModule } from './gcode-file/gcode-file.module';
 import { GcodeModule } from './gcode/gcode.module';
+import { HistoryModule } from './history/history.module';
 import { JobService } from './cutter/job.service';
 import { MachineModule } from './machine/machine.module';
 import { MaterialsModule } from './materials/materials.module';
@@ -29,6 +30,7 @@ import { WorkspaceModule } from './workspace/workspace.module';
     MachineModule,
     GcodeModule,
     GcodeFileModule,
+    HistoryModule,
     WorkspaceModule,
     FontModule,
   ],

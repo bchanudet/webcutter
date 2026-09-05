@@ -75,8 +75,8 @@ export class CutterSocketService implements OnDestroy {
     this.send('startCheck');
   }
 
-  startJob(): void {
-    this.send('startJob');
+  startJob(thumbnailBase64: string): void {
+    this.send('startJob', { thumbnailBase64 });
   }
 
   /** Emergency stop — cuts communication with the cutter immediately, see the backend's

@@ -2,7 +2,9 @@ import { EventEmitter } from 'events';
 import { Injectable, Logger } from '@nestjs/common';
 import { CutterCommunicationService } from '@webcutter/cutter-communication';
 import { GcodeFileService } from '../gcode-file/gcode-file.service';
-import { JobStatusPayload } from '@webcutter/shared';
+import { HistoryResult, JobStatusPayload } from '@webcutter/shared';
+import { HistoryService } from '../history/history.service';
+import { MachineService } from '../machine/machine.service';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -33,10 +35,15 @@ export class JobService extends EventEmitter {
   /** Resolved by `resume()` (or `stop()`, to unblock a paused job so it can observe
    * `stopRequested`) — `null` whenever not currently paused. */
   private resumeSignal: { promise: Promise<void>; resolve: () => void } | null = null;
+  /** Id of the history entry opened by the current run (see `HistoryService`), or `null` if none
+   * was created (e.g. the write itself failed — see `start()`) or no job is running. */
+  private currentHistoryEntryId: string | null = null;
 
   constructor(
     private readonly cutterCommunication: CutterCommunicationService,
     private readonly gcodeFileService: GcodeFileService,
+    private readonly machineService: MachineService,
+    private readonly historyService: HistoryService,
   ) {
     super();
   }
@@ -56,8 +63,10 @@ export class JobService extends EventEmitter {
     };
   }
 
-  /** No-op if already running, there's no G-code file uploaded, or the machine is alarmed. */
-  async start(): Promise<void> {
+  /** No-op if already running, there's no G-code file uploaded, or the machine is alarmed.
+   * `thumbnailBase64` (a 64x64 PNG, base64-encoded, rendered client-side from the file's toolpath —
+   * see the frontend's `renderGcodeThumbnail()`) is only used to open this run's history entry. */
+  async start(thumbnailBase64?: string): Promise<void> {
     if (this.running) {
       return;
     }
@@ -79,6 +88,22 @@ export class JobService extends EventEmitter {
     this.lastError = null;
     this.emit('changed');
 
+    // Best-effort: a history-write failure must never block the actual cut.
+    try {
+      const machine = await this.machineService.get();
+      const entry = await this.historyService.create({
+        machineId: machine.id,
+        fileName: file.fileName,
+        fileSizeBytes: file.sizeBytes,
+        commandCount: file.commandCount,
+        thumbnailBase64: thumbnailBase64 ?? '',
+      });
+      this.currentHistoryEntryId = entry.id;
+    } catch (error) {
+      this.currentHistoryEntryId = null;
+      this.logger.warn(`Could not create a history entry: ${errorMessage(error)}`);
+    }
+
     try {
       for (const line of lines) {
         if (this.stopRequested) {
@@ -99,6 +124,17 @@ export class JobService extends EventEmitter {
       this.running = false;
       this.paused = false;
       this.resumeSignal = null;
+      if (this.currentHistoryEntryId) {
+        const result = this.stopRequested
+          ? HistoryResult.ABORTED
+          : this.lastError
+            ? HistoryResult.ERROR
+            : HistoryResult.SUCCESS;
+        this.historyService
+          .finish(this.currentHistoryEntryId, result)
+          .catch((error) => this.logger.warn(`Could not finalize history entry: ${errorMessage(error)}`));
+        this.currentHistoryEntryId = null;
+      }
       this.emit('changed');
     }
   }

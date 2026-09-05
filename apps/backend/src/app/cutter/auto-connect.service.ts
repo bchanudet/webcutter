@@ -12,6 +12,12 @@ import { MachineService } from '../machine/machine.service';
  * physically being plugged in or powered on. */
 const POLL_INTERVAL_MS = 1000;
 
+/** Automatic (re)connection is opt-in via this environment variable — a dev/CI/agent session
+ * running the backend (e.g. just to check it boots, or to run tests) must never silently open the
+ * real serial port. Set it (e.g. in the physical dev setup's own `npm run serve` invocation) only
+ * where a real machine is actually meant to be attached. */
+const ALLOW_PHYSICAL_CONNECTION_ENV_VAR = 'ALLOW_PHYSICAL_CONNECTION';
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -22,6 +28,9 @@ function errorMessage(error: unknown): string {
  * disconnected: a poll tick is a complete no-op whenever `CutterCommunicationService.isConnected()`
  * is already true, whatever the reason (already connected, or a connect attempt — manual or from a
  * previous tick — still in flight).
+ *
+ * Entirely disabled unless `ALLOW_PHYSICAL_CONNECTION=true` is set in the environment (see
+ * `ALLOW_PHYSICAL_CONNECTION_ENV_VAR` above) — see `CLAUDE.md`.
  *
  * Emits 'changed' after every attempt it makes (success or failure), carrying the outcome in
  * `error`, so `CutterGateway` can fold it into the same `connectionError` it already broadcasts for
@@ -47,6 +56,12 @@ export class AutoConnectService extends EventEmitter implements OnModuleInit, On
   }
 
   onModuleInit(): void {
+    if (process.env[ALLOW_PHYSICAL_CONNECTION_ENV_VAR] !== 'true') {
+      this.logger.warn(
+        `Automatic connection to the cutter is disabled (set ${ALLOW_PHYSICAL_CONNECTION_ENV_VAR}=true to enable it — only where a real machine is actually meant to be attached).`,
+      );
+      return;
+    }
     this.pollInterval = setInterval(() => void this.tick(), POLL_INTERVAL_MS);
   }
 

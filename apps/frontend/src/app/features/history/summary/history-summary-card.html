@@ -1,0 +1,9 @@
+<p-card header="Summary" class="history-summary-card">
+  @if (errorMessage(); as message) {
+    <p-message severity="error" [closable]="false">{{ message }}</p-message>
+  } @else if (!loading() && totalJobs() === 0) {
+    <p class="history-summary-card__empty">No finished jobs yet.</p>
+  } @else if (!loading()) {
+    <p-meterGroup [value]="meterItems()" labelPosition="end" />
+  }
+</p-card>

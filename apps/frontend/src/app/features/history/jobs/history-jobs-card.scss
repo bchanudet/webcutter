@@ -1,0 +1,68 @@
+.history-jobs-card {
+  &__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+
+  &__filters {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  &__empty {
+    color: var(--p-text-muted-color, #64748b);
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+
+.history-job {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0;
+
+  &--timeline {
+    padding: 0;
+  }
+
+  &__thumbnail {
+    border-radius: 4px;
+    border: 1px solid var(--p-surface-300, #cbd5e1);
+    flex-shrink: 0;
+  }
+
+  &__info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__filename {
+    font-weight: 600;
+  }
+
+  &__meta {
+    color: var(--p-text-muted-color, #64748b);
+    font-size: 0.85rem;
+  }
+
+  &__date {
+    color: var(--p-text-muted-color, #64748b);
+    white-space: nowrap;
+  }
+
+  &__badge {
+    flex-shrink: 0;
+  }
+}

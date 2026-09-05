@@ -6,6 +6,7 @@ import { GcodeCodePanel } from './features/operation/gcode-code/gcode-code-panel
 import { GcodeViewerPanel } from './features/operation/gcode-viewer/gcode-viewer-panel';
 import { TerminalPanel } from './features/operation/terminal/terminal-panel';
 import { ConfigurationPage } from './features/configuration/configuration.page';
+import { HistoryPage } from './features/history/history.page';
 
 export const appRoutes: Route[] = [
   {
@@ -26,6 +27,7 @@ export const appRoutes: Route[] = [
         ],
       },
       { path: 'configuration', component: ConfigurationPage, title: 'Configuration' },
+      { path: 'history', component: HistoryPage, title: 'History' },
     ],
   },
 ];

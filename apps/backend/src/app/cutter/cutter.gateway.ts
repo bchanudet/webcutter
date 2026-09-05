@@ -190,8 +190,8 @@ export class CutterGateway
   /** Not awaited — `start()` only resolves once the job actually finishes (or is stopped), and the
    * gateway shouldn't block handling other messages (e.g. `stopJob`) until then. */
   @SubscribeMessage('startJob')
-  handleStartJobMessage(): void {
-    void this.jobService.start();
+  handleStartJobMessage(@MessageBody() data: { thumbnailBase64?: string }): void {
+    void this.jobService.start(data?.thumbnailBase64);
   }
 
   /** Emergency stop — see `JobService.stop()`. */

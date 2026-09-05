@@ -7,6 +7,7 @@ import { describeAlarm } from '../machine-status/machine-status.model';
 import { formatElapsedMs, formatFileSize } from './gcode-file.model';
 import { GcodeFileService } from './gcode-file.service';
 import { PanelModule } from '@openng/optimus-ui/panel';
+import { renderGcodeThumbnail } from '../gcode-viewer/gcode-thumbnail';
 
 /** How often the displayed elapsed time refreshes while the stopwatch is actively counting —
  * seconds-level granularity is all a "how long has this cut been running" readout needs. */
@@ -158,9 +159,17 @@ export class GcodeFileCard {
 
   /** Streams the current file to the cutter — see the backend's `JobService`. A compact summary
    * (state, progress, emergency stop) also stays visible from any page via the menubar flashcard;
-   * this card additionally offers pause/resume while on the Operation page. */
+   * this card additionally offers pause/resume while on the Operation page.
+   *
+   * Renders a thumbnail from the file's own toolpath (see `renderGcodeThumbnail()`) rather than
+   * screenshotting the Viewer tab, since that tab may not even be mounted right now (the Operation
+   * page's three tabs share one `<router-outlet>`) — falls back to no thumbnail rather than blocking
+   * the job if fetching the file's content fails. */
   protected startJob(): void {
-    this.cutterSocket.startJob();
+    this.gcodeFile.fetchContent().subscribe({
+      next: ({ content }) => this.cutterSocket.startJob(renderGcodeThumbnail(content)),
+      error: () => this.cutterSocket.startJob(''),
+    });
   }
 
   /** Feed hold / cycle start — the in-flight move (if any) still completes being queued, but GRBL

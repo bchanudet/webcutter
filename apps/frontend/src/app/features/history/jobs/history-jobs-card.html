@@ -1,0 +1,86 @@
+<p-card header="Jobs" class="history-jobs-card">
+  <div class="history-jobs-card__toolbar">
+    <div class="history-jobs-card__filters">
+      <p-datePicker
+        placeholder="From"
+        [showIcon]="true"
+        [showButtonBar]="true"
+        [showTime]="true"
+        [ngModel]="from()"
+        (ngModelChange)="onFromChange($event)"
+      />
+      <p-datePicker
+        placeholder="To"
+        [showIcon]="true"
+        [showButtonBar]="true"
+        [showTime]="true"
+        [ngModel]="to()"
+        (ngModelChange)="onToChange($event)"
+      />
+    </div>
+
+    <p-selectButton
+      [options]="viewModeOptions"
+      optionLabel="label"
+      optionValue="value"
+      [allowEmpty]="false"
+      [ngModel]="viewMode()"
+      (ngModelChange)="viewMode.set($event)"
+    />
+  </div>
+
+  @if (errorMessage(); as message) {
+    <p-message severity="error" [closable]="false">{{ message }}</p-message>
+  } @else if (!loading() && entries().length === 0) {
+    <p class="history-jobs-card__empty">No finished jobs in this range.</p>
+  } @else if (!loading()) {
+    @if (viewMode() === 'dataview') {
+      <p-dataView [value]="entries()" layout="list">
+        <ng-template pTemplate="list" let-jobs>
+          <div class="history-jobs-card__list">
+            @for (entry of jobs; track entry.id) {
+              <div class="history-job">
+                <img class="history-job__thumbnail" [src]="thumbnailSrc(entry)" alt="" width="64" height="64" />
+                <div class="history-job__info">
+                  <span class="history-job__filename">{{ entry.fileName }}</span>
+                  <span class="history-job__meta">
+                    {{ machineLabel(entry) }} · {{ formatFileSize(entry.fileSizeBytes) }} ·
+                    {{ entry.commandCount }} commands · {{ entry.startDatetime | date: 'medium' }}
+                  </span>
+                </div>
+                <p-tag
+                  [value]="resultLabel(entry.result)"
+                  [severity]="resultSeverity(entry.result)"
+                  class="history-job__badge"
+                />
+              </div>
+            }
+          </div>
+        </ng-template>
+      </p-dataView>
+    } @else {
+      <p-timeline [value]="entries()" align="left">
+        <ng-template pTemplate="opposite" let-entry>
+          <span class="history-job__date">{{ entry.startDatetime | date: 'medium' }}</span>
+        </ng-template>
+        <ng-template pTemplate="content" let-entry>
+          <div class="history-job history-job--timeline">
+            <img class="history-job__thumbnail" [src]="thumbnailSrc(entry)" alt="" width="64" height="64" />
+            <div class="history-job__info">
+              <span class="history-job__filename">{{ entry.fileName }}</span>
+              <span class="history-job__meta">
+                {{ machineLabel(entry) }} · {{ formatFileSize(entry.fileSizeBytes) }} ·
+                {{ entry.commandCount }} commands
+              </span>
+            </div>
+            <p-tag
+              [value]="resultLabel(entry.result)"
+              [severity]="resultSeverity(entry.result)"
+              class="history-job__badge"
+            />
+          </div>
+        </ng-template>
+      </p-timeline>
+    }
+  }
+</p-card>

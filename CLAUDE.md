@@ -62,6 +62,18 @@ NOTE: n'utilise JAMAIS pnpm, seulement npm.
   vérifier au préalable (`sudo lsof -i:PORT`) qu'il ne s'agit pas de cette session-là,
   et ne jamais cliquer Connect/Disconnect/jog ou envoyer une commande arbitraire sans
   autorisation explicite si une vraie machine peut être branchée.
+  - **Garde-fou `ALLOW_PHYSICAL_CONNECTION`** : `AutoConnectService` (voir plus bas)
+    n'ouvre le port série tout seul (poll chaque seconde dès que le port configuré
+    redevient accessible) que si la variable d'environnement
+    `ALLOW_PHYSICAL_CONNECTION=true` est présente au démarrage du backend — sinon il
+    ne fait strictement rien (juste un warning au boot). Le script `npm run serve` du
+    dev (setup physique réel) est censé la positionner lui-même ; **une session
+    Claude Code ne doit JAMAIS la positionner** en lançant/testant le backend
+    (`nx serve backend`, `nx build backend`, etc.) — sans elle, démarrer le backend
+    est sans risque même si `/dev/ttyUSB0` existe dans le conteneur. Ce garde-fou ne
+    couvre que la connexion *automatique* : les actions manuelles (bouton Connect,
+    jog, commande brute) restent interdites sans autorisation explicite, comme
+    au-dessus.
 
 ## Points techniques clés à ne pas oublier
 
@@ -137,7 +149,9 @@ NOTE: n'utilise JAMAIS pnpm, seulement npm.
     le bouton "Connect" manuel, via `machine-connection-options.ts` partagé). Ne fait
     rien si la machine est éteinte/débranchée (le port n'existe juste pas). Un flag
     `connecting` dans `GrblConnection` évite qu'une tentative manuelle et une tentative
-    automatique n'ouvrent le port en même temps.
+    automatique n'ouvrent le port en même temps. **Le poll lui-même ne démarre que si
+    `ALLOW_PHYSICAL_CONNECTION=true`** (voir "Contraintes de déploiement" plus haut) —
+    sinon `onModuleInit` ne fait qu'un warning et ne programme aucun poll.
 - `libs/cutter-communication` — lib partagée, indépendante de NestJS :
   - `GrblConnection` — connexion série bas niveau (`serialport`), file de commandes
     ok/error, requêtes de statut temps réel (`?`), verrou logiciel d'alarme (voir
