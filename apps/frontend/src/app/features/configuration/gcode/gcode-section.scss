@@ -19,10 +19,13 @@
   gap: 0.5rem;
 }
 
+.col-name{
+  width: 50%
+}
 .col-actions {
-  width: 6rem;
   display: flex;
   gap: 0.25rem;
+  justify-content: flex-end;
 }
 
 .col-code {

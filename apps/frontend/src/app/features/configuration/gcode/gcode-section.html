@@ -12,10 +12,9 @@
   <p-table [value]="gcodes()" dataKey="id" [loading]="loading()">
     <ng-template pTemplate="header">
       <tr>
-        <th>Name</th>
+        <th class="col-name">Name</th>
         <th>Hook</th>
         <th>Order</th>
-        <th>G-code</th>
         <th class="col-actions">&nbsp;</th>
       </tr>
     </ng-template>
@@ -31,7 +30,6 @@
         <td>{{ gcode.name }}</td>
         <td>{{ gcode.hook === 'start' ? 'Start of document' : 'End of document' }}</td>
         <td>{{ gcode.order }}</td>
-        <td class="col-code"><code>{{ gcode.code }}</code></td>
         <td class="col-actions">
           <p-button [text]="true" [rounded]="true" title="Edit G-code" (onClick)="openEdit(gcode)">
             <app-tabler-icon name="pencil" [size]="16" />

@@ -6,6 +6,8 @@ import { Dialog } from '@openng/optimus-ui/dialog';
 import { InputText } from '@openng/optimus-ui/inputtext';
 import { InputNumber } from '@openng/optimus-ui/inputnumber';
 import { CreateMaterialDto, Material } from '@webcutter/shared';
+import { InputGroupModule } from '@openng/optimus-ui/inputgroup';
+import { InputGroupAddonModule } from '@openng/optimus-ui/inputgroupaddon';
 
 export interface MaterialSaveEvent {
   id: string | null;
@@ -14,7 +16,7 @@ export interface MaterialSaveEvent {
 
 @Component({
   selector: 'app-material-form-dialog',
-  imports: [Dialog, Button, InputText, InputNumber, PrimeTemplate, ReactiveFormsModule],
+  imports: [Dialog, Button, InputText, InputNumber, PrimeTemplate, ReactiveFormsModule, InputGroupModule, InputGroupAddonModule],
   templateUrl: './material-form-dialog.html',
   styleUrl: './material-form-dialog.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

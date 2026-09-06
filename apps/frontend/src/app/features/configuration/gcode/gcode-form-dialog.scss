@@ -12,12 +12,6 @@
   font-size: 0.875rem;
   font-weight: 500;
   flex: 1;
-
-  input,
-  p-inputnumber,
-  p-select {
-    width: 100%;
-  }
 }
 
 .field-row {
@@ -29,4 +23,8 @@
   width: 100%;
   font-family: var(--p-font-family-monospace, ui-monospace, monospace);
   resize: vertical;
+}
+
+.p-inputnumber-input{
+  width: 100%;
 }

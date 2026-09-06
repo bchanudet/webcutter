@@ -4,9 +4,8 @@
 #
 # One-time prerequisites on the server:
 #   - node, npm (matching the version release.yml builds with)
-#   - curl and jq (both packaged for every mainstream distro — no GitHub auth needed,
-#     this repo and its releases are public)
-#   - Caddy installed (https://caddy.community/) with deploy/Caddyfile copied to
+#   - curl and jq (both packaged for every mainstream distro
+#   - Caddy installed (https://caddyserver.com/) with deploy/Caddyfile copied to
 #     /etc/caddy/Caddyfile, and `systemctl enable --now caddy`
 #   - deploy/webcutter-backend.service copied to /etc/systemd/system/, then:
 #       sudo systemctl daemon-reload && sudo systemctl enable webcutter-backend

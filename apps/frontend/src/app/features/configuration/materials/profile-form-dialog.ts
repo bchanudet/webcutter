@@ -8,6 +8,8 @@ import { InputNumber } from '@openng/optimus-ui/inputnumber';
 import { Select } from '@openng/optimus-ui/select';
 import { CreateProfileDto, Profile, ProfileMode } from '@webcutter/shared';
 import { PROFILE_COLOR_PALETTE } from './profile-color-palette';
+import { InputGroupModule } from '@openng/optimus-ui/inputgroup';
+import { InputGroupAddonModule } from '@openng/optimus-ui/inputgroupaddon';
 
 export interface ProfileSaveEvent {
   materialId: string;
@@ -27,7 +29,7 @@ const MODE_OPTIONS: ModeOption[] = [
 
 @Component({
   selector: 'app-profile-form-dialog',
-  imports: [Dialog, Button, InputText, InputNumber, Select, PrimeTemplate, ReactiveFormsModule],
+  imports: [Dialog, Button, InputText, InputNumber, Select, PrimeTemplate, ReactiveFormsModule, InputGroupModule, InputGroupAddonModule],
   templateUrl: './profile-form-dialog.html',
   styleUrl: './profile-form-dialog.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

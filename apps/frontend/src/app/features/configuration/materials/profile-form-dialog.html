@@ -40,12 +40,18 @@
 
     <div class="field-row">
       <div class="field">
-        <label for="profile-power">Laser power (%)</label>
-        <p-inputnumber inputId="profile-power" formControlName="powerPercent" [min]="0" [max]="100" suffix=" %" />
+        <label for="profile-power">Laser power</label>
+        <p-input-group>
+          <p-inputnumber inputId="profile-power" formControlName="powerPercent" [min]="0" [max]="100"/>
+          <p-inputgroup-addon>%</p-inputgroup-addon>
+        </p-input-group>
       </div>
       <div class="field">
-        <label for="profile-speed">Speed (mm/min)</label>
-        <p-inputnumber inputId="profile-speed" formControlName="speedMmPerMin" [min]="0" suffix=" mm/min" />
+        <label for="profile-speed">Speed</label>
+        <p-input-group>
+          <p-inputnumber inputId="profile-speed" formControlName="speedMmPerMin" [min]="0" />
+          <p-inputgroup-addon>mm/min</p-inputgroup-addon>
+        </p-input-group>
       </div>
     </div>
 
@@ -56,15 +62,17 @@
       </div>
       @if (isFillMode) {
         <div class="field">
-          <label for="profile-line-spacing">Line spacing (mm)</label>
-          <p-inputnumber
-            inputId="profile-line-spacing"
-            formControlName="lineSpacingMm"
-            [min]="0"
-            [step]="0.05"
-            [minFractionDigits]="2"
-            suffix=" mm"
-          />
+          <label for="profile-line-spacing">Line spacing</label>
+          <p-input-group>
+            <p-inputnumber
+              inputId="profile-line-spacing"
+              formControlName="lineSpacingMm"
+              [min]="0"
+              [step]="0.05"
+              [minFractionDigits]="2"
+            />
+            <p-inputgroup-addon>mm</p-inputgroup-addon>
+          </p-input-group>
         </div>
       }
     </div>

@@ -10,8 +10,11 @@
       <input id="material-name" type="text" pInputText formControlName="name" />
     </div>
     <div class="field">
-      <label for="material-thickness">Thickness (mm)</label>
-      <p-inputnumber inputId="material-thickness" formControlName="thicknessMm" [min]="0" [step]="0.1" [minFractionDigits]="1" suffix=" mm" />
+      <label for="material-thickness">Thickness</label>
+      <p-input-group>
+        <p-inputnumber inputId="material-thickness" formControlName="thicknessMm" [min]="0" [step]="0.1" [minFractionDigits]="1"/>
+        <p-inputgroup-addon>mm</p-inputgroup-addon>
+      </p-input-group>
     </div>
   </form>
 
