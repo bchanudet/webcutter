@@ -1,255 +1,203 @@
-<p-card header="Machine" class="machine-card">
-  @if (errorMessage(); as message) {
-    <p-message severity="error" [closable]="false" class="section-message">{{ message }}</p-message>
-  }
-  @if (savedMessage()) {
-    <p-message severity="success" [closable]="false" class="section-message">Machine settings saved.</p-message>
-  }
+@if (errorMessage(); as message) {
+  <p-message severity="error" [closable]="false" class="section-message">{{ message }}</p-message>
+}
+@if (savedMessage()) {
+  <p-message severity="success" [closable]="false" class="section-message">Machine settings saved.</p-message>
+}
 
-  <form [formGroup]="form" class="form-stack" (ngSubmit)="submit()">
-    <p-accordion [multiple]="true" [value]="['general', 'coordinates']">
-      <p-accordion-panel value="general">
-        <p-accordion-header>General</p-accordion-header>
-        <p-accordion-content>
-          <div class="fieldset">
-            <div class="field">
-              <label for="machine-name">Name</label>
-              <input id="machine-name" type="text" pInputText formControlName="name" />
-            </div>
-          </div>
-        </p-accordion-content>
-      </p-accordion-panel>
+<form [formGroup]="form" class="cards-stack" (ngSubmit)="submit()">
+  <div class="section-toolbar">
+    <p-button type="button" [text]="true" (onClick)="triggerLbdevImport()">Import lbdev</p-button>
+    <input #lbdevInput type="file" accept=".lbdev" class="hidden-file-input" (change)="onLbdevFileSelected($event)" />
+    <div class="spacer"></div>
+    <p-button type="submit" [disabled]="form.invalid || saving()" [loading]="saving()">Save</p-button>
+  </div>
 
-      <p-accordion-panel value="coordinates">
-        <p-accordion-header>Coordinates</p-accordion-header>
-        <p-accordion-content>
-          <div class="fieldset">
-            <div class="field-row">
-              <div class="field">
-                <label for="machine-bed-width">Work area width</label>
-                <p-inputgroup>
-                  <p-inputnumber inputId="machine-bed-width" formControlName="bedWidthMm" [min]="1"/>
-                  <p-inputgroup-addon>mm</p-inputgroup-addon>
-                </p-inputgroup>
-              </div>
-              <div class="field">
-                <label for="machine-bed-height">Work area height</label>
-                <p-input-group>
-                  <p-inputnumber inputId="machine-bed-height" formControlName="bedHeightMm" [min]="1"/>
-                  <p-inputgroup-addon>mm</p-inputgroup-addon>
-                </p-input-group>
-              </div>
-            </div>
-
-            <div class="field">
-              <label for="machine-origin">Origin</label>
-              <p-select
-                inputId="machine-origin"
-                formControlName="origin"
-                [options]="originOptions"
-                optionLabel="label"
-                optionValue="value"
-              />
-            </div>
-
-            <div class="field-row">
-              <div class="field field--inline">
-                <label for="machine-mirror-x">Mirror X</label>
-                <p-toggleswitch inputId="machine-mirror-x" formControlName="mirrorX" />
-              </div>
-              <div class="field field--inline">
-                <label for="machine-mirror-y">Mirror Y</label>
-                <p-toggleswitch inputId="machine-mirror-y" formControlName="mirrorY" />
-              </div>
-            </div>
-
-            <div class="field-row">
-              <div class="field">
-                <label for="machine-offset-x">Offset X (mm)</label>
-                <p-input-group>
-                  <p-inputnumber
-                  inputId="machine-offset-x"
-                  formControlName="offsetXMm"
-                  [step]="0.1"
-                  [minFractionDigits]="0"
-                  [maxFractionDigits]="3"
-                />
-                <p-inputgroup-addon>mm</p-inputgroup-addon>
-                </p-input-group>
-              </div>
-              <div class="field">
-                <label for="machine-offset-y">Offset Y (mm)</label>
-                <p-input-group>
-                  <p-inputnumber
-                  inputId="machine-offset-y"
-                  formControlName="offsetYMm"
-                  [step]="0.1"
-                  [minFractionDigits]="0"
-                  [maxFractionDigits]="3"
-                />
-                <p-inputgroup-addon>mm</p-inputgroup-addon>
-                </p-input-group>
-              </div>
-            </div>
-          </div>
-        </p-accordion-content>
-      </p-accordion-panel>
-
-      <p-accordion-panel value="laser">
-        <p-accordion-header>Laser</p-accordion-header>
-        <p-accordion-content>
-          <div class="fieldset">
-            <div class="field">
-              <label for="machine-s-max">Max laser power (S max)</label>
-              <p-inputnumber inputId="machine-s-max" formControlName="sMax" [min]="1" [useGrouping]="false" />
-            </div>
-          </div>
-        </p-accordion-content>
-      </p-accordion-panel>
-
-      <p-accordion-panel value="speeds">
-        <p-accordion-header>Speeds</p-accordion-header>
-        <p-accordion-content>
-          <div class="fieldset">
-            <div class="field-row">
-              <div class="field">
-                <label for="machine-max-accel-x">Max acceleration X</label>
-                <p-input-group>
-                  <p-inputnumber
-                    inputId="machine-max-accel-x"
-                    formControlName="maxAccelerationXMmPerSec2"
-                    [min]="0"
-                  />
-                  <p-inputgroup-addon>mm/s²</p-inputgroup-addon>
-                </p-input-group>
-              </div>
-              <div class="field">
-                <label for="machine-max-accel-y">Max acceleration Y</label>
-                <p-input-group>
-
-                  <p-inputnumber
-                  inputId="machine-max-accel-y"
-                  formControlName="maxAccelerationYMmPerSec2"
-                  [min]="0"
-                  
-                />
-                <p-inputgroup-addon>mm/s²</p-inputgroup-addon>
-                </p-input-group>
-              </div>
-            </div>
-
-            <div class="field-row">
-              <div class="field">
-                <label for="machine-max-speed-x">Work speed X</label>
-                <p-input-group>
-                  <p-inputnumber
-                    inputId="machine-max-speed-x"
-                    formControlName="maxSpeedXMmPerMin"
-                    [min]="0"
-                  />
-                  <p-inputgroup-addon>mm/min</p-inputgroup-addon>
-              </p-input-group>
-                
-              </div>
-              <div class="field">
-                <label for="machine-max-speed-y">Work speed Y</label>
-                <p-input-group>
-                  <p-inputnumber
-                    inputId="machine-max-speed-y"
-                    formControlName="maxSpeedYMmPerMin"
-                    [min]="0"
-                  />
-                  <p-inputgroup-addon>mm/min</p-inputgroup-addon>
-                </p-input-group>
-              </div>
-            </div>
-
-            <div class="field-row">
-              <div class="field">
-                <label for="machine-travel-speed-x">Travel speed X</label>
-                <p-input-group>
-                    <p-inputnumber
-                    inputId="machine-travel-speed-x"
-                    formControlName="travelSpeedXMmPerMin"
-                    [min]="0"
-                  />
-                  <p-inputgroup-addon>mm/min</p-inputgroup-addon>
-                </p-input-group>
-              </div>
-              <div class="field">
-                <label for="machine-travel-speed-y">Travel speed Y</label>
-                <p-input-group>
-                    <p-inputnumber
-                    inputId="machine-travel-speed-y"
-                    formControlName="travelSpeedYMmPerMin"
-                    [min]="0"
-                  />
-                  <p-inputgroup-addon>mm/min</p-inputgroup-addon>
-                </p-input-group>
-              </div>
-            </div>
-          </div>
-        </p-accordion-content>
-      </p-accordion-panel>
-
-      <p-accordion-panel value="connection">
-        <p-accordion-header>Connection</p-accordion-header>
-        <p-accordion-content>
-          <div class="fieldset">
-            <div class="field">
-              <label for="machine-serial-path">Serial port path</label>
-              <input
-                id="machine-serial-path"
-                type="text"
-                pInputText
-                formControlName="serialPortPath"
-                placeholder="/dev/ttyUSB0"
-              />
-            </div>
-
-            <div class="field-row">
-              <div class="field">
-                <label for="machine-baud-rate">Baud rate</label>
-                <p-inputnumber inputId="machine-baud-rate" formControlName="baudRate" [min]="1" [useGrouping]="false" />
-              </div>
-              <div class="field">
-                <label for="machine-data-bits">Data bits</label>
-                <p-inputnumber inputId="machine-data-bits" formControlName="dataBits" [min]="5" [max]="8" />
-              </div>
-            </div>
-
-            <div class="field-row">
-              <div class="field">
-                <label for="machine-stop-bits">Stop bits</label>
-                <p-inputnumber inputId="machine-stop-bits" formControlName="stopBits" [min]="1" [max]="2" />
-              </div>
-              <div class="field">
-                <label for="machine-parity">Parity</label>
-                <p-select
-                  inputId="machine-parity"
-                  formControlName="parity"
-                  [options]="parityOptions"
-                  optionLabel="label"
-                  optionValue="value"
-                />
-              </div>
-            </div>
-          </div>
-        </p-accordion-content>
-      </p-accordion-panel>
-    </p-accordion>
-
-    <div class="section-toolbar">
-      <p-button type="button" [text]="true" (onClick)="triggerLbdevImport()">Import lbdev</p-button>
-      <input
-        #lbdevInput
-        type="file"
-        accept=".lbdev"
-        class="hidden-file-input"
-        (change)="onLbdevFileSelected($event)"
-      />
-      <div class="spacer"></div>
-      <p-button type="submit" [disabled]="form.invalid || saving()" [loading]="saving()">Save</p-button>
+  <p-card header="General" class="machine-card">
+    <div class="fieldset">
+      <div class="field">
+        <label for="machine-name">Name</label>
+        <input id="machine-name" type="text" pInputText formControlName="name" />
+      </div>
     </div>
-  </form>
-</p-card>
+  </p-card>
+
+  <p-card header="Coordinates" class="machine-card">
+    <div class="fieldset">
+      <div class="field-row">
+        <div class="field">
+          <label for="machine-bed-width">Work area width</label>
+          <p-inputgroup>
+            <p-inputnumber inputId="machine-bed-width" formControlName="bedWidthMm" [min]="1" />
+            <p-inputgroup-addon>mm</p-inputgroup-addon>
+          </p-inputgroup>
+        </div>
+        <div class="field">
+          <label for="machine-bed-height">Work area height</label>
+          <p-input-group>
+            <p-inputnumber inputId="machine-bed-height" formControlName="bedHeightMm" [min]="1" />
+            <p-inputgroup-addon>mm</p-inputgroup-addon>
+          </p-input-group>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="machine-origin">Origin</label>
+        <p-select
+          inputId="machine-origin"
+          formControlName="origin"
+          [options]="originOptions"
+          optionLabel="label"
+          optionValue="value"
+        />
+      </div>
+
+      <div class="field-row">
+        <div class="field field--inline">
+          <label for="machine-mirror-x">Mirror X</label>
+          <p-toggleswitch inputId="machine-mirror-x" formControlName="mirrorX" />
+        </div>
+        <div class="field field--inline">
+          <label for="machine-mirror-y">Mirror Y</label>
+          <p-toggleswitch inputId="machine-mirror-y" formControlName="mirrorY" />
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="machine-offset-x">Offset X (mm)</label>
+          <p-input-group>
+            <p-inputnumber
+              inputId="machine-offset-x"
+              formControlName="offsetXMm"
+              [step]="0.1"
+              [minFractionDigits]="0"
+              [maxFractionDigits]="3"
+            />
+            <p-inputgroup-addon>mm</p-inputgroup-addon>
+          </p-input-group>
+        </div>
+        <div class="field">
+          <label for="machine-offset-y">Offset Y (mm)</label>
+          <p-input-group>
+            <p-inputnumber
+              inputId="machine-offset-y"
+              formControlName="offsetYMm"
+              [step]="0.1"
+              [minFractionDigits]="0"
+              [maxFractionDigits]="3"
+            />
+            <p-inputgroup-addon>mm</p-inputgroup-addon>
+          </p-input-group>
+        </div>
+      </div>
+    </div>
+  </p-card>
+
+  <p-card header="Laser" class="machine-card">
+    <div class="fieldset">
+      <div class="field">
+        <label for="machine-s-max">Max laser power (S max)</label>
+        <p-inputnumber inputId="machine-s-max" formControlName="sMax" [min]="1" [useGrouping]="false" />
+      </div>
+    </div>
+  </p-card>
+
+  <p-card header="Speeds" class="machine-card">
+    <div class="fieldset">
+      <div class="field-row">
+        <div class="field">
+          <label for="machine-max-accel-x">Max acceleration X</label>
+          <p-input-group>
+            <p-inputnumber inputId="machine-max-accel-x" formControlName="maxAccelerationXMmPerSec2" [min]="0" />
+            <p-inputgroup-addon>mm/s²</p-inputgroup-addon>
+          </p-input-group>
+        </div>
+        <div class="field">
+          <label for="machine-max-accel-y">Max acceleration Y</label>
+          <p-input-group>
+            <p-inputnumber inputId="machine-max-accel-y" formControlName="maxAccelerationYMmPerSec2" [min]="0" />
+            <p-inputgroup-addon>mm/s²</p-inputgroup-addon>
+          </p-input-group>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="machine-max-speed-x">Work speed X</label>
+          <p-input-group>
+            <p-inputnumber inputId="machine-max-speed-x" formControlName="maxSpeedXMmPerMin" [min]="0" />
+            <p-inputgroup-addon>mm/min</p-inputgroup-addon>
+          </p-input-group>
+        </div>
+        <div class="field">
+          <label for="machine-max-speed-y">Work speed Y</label>
+          <p-input-group>
+            <p-inputnumber inputId="machine-max-speed-y" formControlName="maxSpeedYMmPerMin" [min]="0" />
+            <p-inputgroup-addon>mm/min</p-inputgroup-addon>
+          </p-input-group>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="machine-travel-speed-x">Travel speed X</label>
+          <p-input-group>
+            <p-inputnumber inputId="machine-travel-speed-x" formControlName="travelSpeedXMmPerMin" [min]="0" />
+            <p-inputgroup-addon>mm/min</p-inputgroup-addon>
+          </p-input-group>
+        </div>
+        <div class="field">
+          <label for="machine-travel-speed-y">Travel speed Y</label>
+          <p-input-group>
+            <p-inputnumber inputId="machine-travel-speed-y" formControlName="travelSpeedYMmPerMin" [min]="0" />
+            <p-inputgroup-addon>mm/min</p-inputgroup-addon>
+          </p-input-group>
+        </div>
+      </div>
+    </div>
+  </p-card>
+
+  <p-card header="Connection" class="machine-card">
+    <div class="fieldset">
+      <div class="field">
+        <label for="machine-serial-path">Serial port path</label>
+        <input
+          id="machine-serial-path"
+          type="text"
+          pInputText
+          formControlName="serialPortPath"
+          placeholder="/dev/ttyUSB0"
+        />
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="machine-baud-rate">Baud rate</label>
+          <p-inputnumber inputId="machine-baud-rate" formControlName="baudRate" [min]="1" [useGrouping]="false" />
+        </div>
+        <div class="field">
+          <label for="machine-data-bits">Data bits</label>
+          <p-inputnumber inputId="machine-data-bits" formControlName="dataBits" [min]="5" [max]="8" />
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="machine-stop-bits">Stop bits</label>
+          <p-inputnumber inputId="machine-stop-bits" formControlName="stopBits" [min]="1" [max]="2" />
+        </div>
+        <div class="field">
+          <label for="machine-parity">Parity</label>
+          <p-select
+            inputId="machine-parity"
+            formControlName="parity"
+            [options]="parityOptions"
+            optionLabel="label"
+            optionValue="value"
+          />
+        </div>
+      </div>
+    </div>
+  </p-card>
+</form>

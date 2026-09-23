@@ -1,9 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
 import { ConfirmationService, PrimeTemplate } from '@openng/optimus-ui/api';
 import { Button } from '@openng/optimus-ui/button';
-import { Card } from '@openng/optimus-ui/card';
 import { ConfirmDialog } from '@openng/optimus-ui/confirmdialog';
 import { Message } from '@openng/optimus-ui/message';
+import { Panel } from '@openng/optimus-ui/panel';
 import { TableModule } from '@openng/optimus-ui/table';
 import { NotificationService } from '../../../shared/notifications/notification.service';
 import { TablerIcon } from '../../../shared/tabler-icon/tabler-icon';
@@ -12,10 +12,15 @@ import { Material, Profile } from '@webcutter/shared';
 import { MaterialFormDialog, MaterialSaveEvent } from './material-form-dialog';
 import { ProfileFormDialog, ProfileSaveEvent } from './profile-form-dialog';
 
+interface ProfileRow extends Profile {
+  materialName: string;
+  materialThicknessMm: number;
+}
+
 @Component({
   selector: 'app-materials-section',
   imports: [
-    Card,
+    Panel,
     TableModule,
     Button,
     Message,
@@ -41,18 +46,30 @@ export class MaterialsSection {
   protected readonly materials = signal<Material[]>([]);
   protected readonly loading = signal(true);
   protected readonly errorMessage = signal<string | null>(null);
-  protected readonly expandedRowKeys = signal<Record<string, boolean>>({});
+  protected readonly selectedMaterialId = signal<string | null>(null);
+
+  protected readonly profiles = computed<ProfileRow[]>(() => {
+    const selectedId = this.selectedMaterialId();
+    const materials = selectedId === null ? this.materials() : this.materials().filter((m) => m.id === selectedId);
+    return materials.flatMap((material) =>
+      material.profiles.map((profile) => ({
+        ...profile,
+        materialName: material.name,
+        materialThicknessMm: material.thicknessMm,
+      })),
+    );
+  });
 
   constructor() {
     this.refresh();
   }
 
-  protected isExpanded(material: Material): boolean {
-    return !!this.expandedRowKeys()[material.id];
+  protected isSelected(material: Material): boolean {
+    return this.selectedMaterialId() === material.id;
   }
 
-  protected toggleExpanded(material: Material): void {
-    this.expandedRowKeys.update((keys) => ({ ...keys, [material.id]: !keys[material.id] }));
+  protected toggleSelectMaterial(material: Material): void {
+    this.selectedMaterialId.update((id) => (id === material.id ? null : material.id));
   }
 
   protected openCreateMaterial(): void {
@@ -86,7 +103,12 @@ export class MaterialsSection {
       message: `Delete "${material.name}" and its ${material.profiles.length} profile(s)? This cannot be undone.`,
       accept: () => {
         this.api.deleteMaterial(material.id).subscribe({
-          next: () => this.refresh(),
+          next: () => {
+            if (this.selectedMaterialId() === material.id) {
+              this.selectedMaterialId.set(null);
+            }
+            this.refresh();
+          },
           error: () =>
             this.notificationService.notify({
               severity: 'danger',
@@ -99,12 +121,12 @@ export class MaterialsSection {
     });
   }
 
-  protected openCreateProfile(material: Material): void {
-    this.profileDialog().openForCreate(material.id);
+  protected openCreateProfile(): void {
+    this.profileDialog().openForCreate(this.selectedMaterialId() ?? undefined);
   }
 
-  protected openEditProfile(material: Material, profile: Profile): void {
-    this.profileDialog().openForEdit(material.id, profile);
+  protected openEditProfile(profile: ProfileRow): void {
+    this.profileDialog().openForEdit(profile.materialId, profile);
   }
 
   protected onProfileSave(event: ProfileSaveEvent): void {
@@ -124,7 +146,7 @@ export class MaterialsSection {
     });
   }
 
-  protected confirmDeleteProfile(profile: Profile): void {
+  protected confirmDeleteProfile(profile: ProfileRow): void {
     this.confirmation.confirm({
       header: 'Delete profile',
       message: `Delete profile "${profile.name}"? This cannot be undone.`,

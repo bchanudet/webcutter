@@ -6,6 +6,18 @@
 >
   <form [formGroup]="form" class="form-stack">
     <div class="field">
+      <label for="profile-material">Material</label>
+      <p-select
+        inputId="profile-material"
+        formControlName="materialId"
+        [options]="materialOptions()"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Select a material"
+      />
+    </div>
+
+    <div class="field">
       <label for="profile-name">Name</label>
       <input id="profile-name" type="text" pInputText formControlName="name" />
     </div>

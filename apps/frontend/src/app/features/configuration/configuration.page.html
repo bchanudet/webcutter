@@ -1,10 +1,13 @@
-<main class="page">
-  <header class="page__header">
-    <h1>Configuration</h1>
-    <p>Configure the cutter's settings.</p>
-  </header>
+<div class="workspace">
+  <p-tabs [value]="activeTab()" class="workspace__tabs-nav">
+    <p-tablist>
+      <p-tab value="machine" (click)="navigateToTab('machine')">Machine</p-tab>
+      <p-tab value="materials" (click)="navigateToTab('materials')">Materials</p-tab>
+      <p-tab value="gcode" (click)="navigateToTab('gcode')">Custom G-code</p-tab>
+    </p-tablist>
+  </p-tabs>
 
-  <app-machine-section />
-  <app-materials-section />
-  <app-gcode-section />
-</main>
+  <div class="workspace__content">
+    <router-outlet />
+  </div>
+</div>

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { PrimeTemplate } from '@openng/optimus-ui/api';
 import { Button } from '@openng/optimus-ui/button';
@@ -6,7 +6,7 @@ import { Dialog } from '@openng/optimus-ui/dialog';
 import { InputText } from '@openng/optimus-ui/inputtext';
 import { InputNumber } from '@openng/optimus-ui/inputnumber';
 import { Select } from '@openng/optimus-ui/select';
-import { CreateProfileDto, Profile, ProfileMode } from '@webcutter/shared';
+import { CreateProfileDto, Material, Profile, ProfileMode } from '@webcutter/shared';
 import { PROFILE_COLOR_PALETTE } from './profile-color-palette';
 import { InputGroupModule } from '@openng/optimus-ui/inputgroup';
 import { InputGroupAddonModule } from '@openng/optimus-ui/inputgroupaddon';
@@ -27,6 +27,11 @@ const MODE_OPTIONS: ModeOption[] = [
   { label: 'Fill (sweep the enclosed area)', value: ProfileMode.FILL },
 ];
 
+interface MaterialOption {
+  label: string;
+  value: string;
+}
+
 @Component({
   selector: 'app-profile-form-dialog',
   imports: [Dialog, Button, InputText, InputNumber, Select, PrimeTemplate, ReactiveFormsModule, InputGroupModule, InputGroupAddonModule],
@@ -35,15 +40,23 @@ const MODE_OPTIONS: ModeOption[] = [
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProfileFormDialog {
+  readonly materials = input<Material[]>([]);
   readonly save = output<ProfileSaveEvent>();
+
+  protected readonly materialOptions = computed<MaterialOption[]>(() =>
+    this.materials().map((material) => ({
+      label: `${material.name} (${material.thicknessMm} mm)`,
+      value: material.id,
+    })),
+  );
 
   protected readonly modeOptions = MODE_OPTIONS;
   protected readonly colorPalette = PROFILE_COLOR_PALETTE;
   protected readonly visible = signal(false);
-  private materialId: string | null = null;
   private editingId: string | null = null;
 
   protected readonly form = new FormGroup({
+    materialId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     name: new FormControl('', {
       nonNullable: true,
       validators: [Validators.required, Validators.minLength(1)],
@@ -73,10 +86,10 @@ export class ProfileFormDialog {
     return this.form.controls.mode.value === ProfileMode.FILL;
   }
 
-  openForCreate(materialId: string): void {
-    this.materialId = materialId;
+  openForCreate(materialId?: string): void {
     this.editingId = null;
     this.form.reset({
+      materialId: materialId ?? this.materials()[0]?.id ?? '',
       name: '',
       color: PROFILE_COLOR_PALETTE[0],
       mode: ProfileMode.LINE,
@@ -89,9 +102,9 @@ export class ProfileFormDialog {
   }
 
   openForEdit(materialId: string, profile: Profile): void {
-    this.materialId = materialId;
     this.editingId = profile.id;
     this.form.reset({
+      materialId,
       name: profile.name,
       color: profile.color,
       mode: profile.mode,
@@ -104,18 +117,18 @@ export class ProfileFormDialog {
   }
 
   submit(): void {
-    if (this.form.invalid || this.materialId === null) {
+    if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
     }
 
-    const value = this.form.getRawValue();
+    const { materialId, ...value } = this.form.getRawValue();
     const payload: CreateProfileDto = {
       ...value,
       lineSpacingMm: value.mode === ProfileMode.FILL ? value.lineSpacingMm : null,
     };
 
-    this.save.emit({ materialId: this.materialId, id: this.editingId, payload });
+    this.save.emit({ materialId, id: this.editingId, payload });
     this.visible.set(false);
   }
 
