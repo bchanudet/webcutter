@@ -40,7 +40,9 @@ export type TablerIconName =
   | 'window-maximize'
   | 'clipboard-check'
   | 'bell-ringing-2'
-  | 'history';
+  | 'history'
+  | 'logo'
+;
 
 export type TablerIconVariant = 'outline' | 'filled';
 
@@ -334,6 +336,19 @@ export const TABLER_ICON_PATHS: Record<TablerIconName, TablerIconDefinition> = {
     paths: `
       <path d="M12 8l0 4l2 2" />
       <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5" />
+    `,
+  },
+  logo: {
+    variant: 'filled',
+    paths: `
+      <path d="M16,0.028L18,0.028C21.311,0.028 24,2.717 24,6.028L24,18.028C24,21.34 21.311,24.028 18,24.028L6,24.028C2.689,24.028 0,21.34 0,18.028L0,6.028C0,2.717 2.689,0.028 6,0.028L8,0.028L8,2.028L6,2.028C3.792,2.028 2,3.821 2,6.028L2,18.028C2,20.236 3.792,22.028 6,22.028L18,22.028C20.208,22.028 22,20.236 22,18.028L22,6.028C22,3.821 20.208,2.028 18,2.028L16,2.028L16,0.028Z" style="fill:#f79340;"/>
+    <path d="M14,17.382C14.614,17.657 15,18.056 15,18.5C15,19.328 13.656,20 12,20C10.344,20 9,19.328 9,18.5C9,18.056 9.386,17.657 10,17.382L10,-0.02L14,-0.02L14,17.382Z" style="fill:#f79340;"/>
+    <path d="M15.936,16.527L19.937,11.972" style="fill:none;stroke:#f79340;stroke-width:1px;"/>
+    <path d="M15.179,14.289L15.85,12.771" style="fill:none;stroke:#f79340;stroke-width:1px;"/>
+    <path d="M16.305,18.559L20.786,17.194" style="fill:none;stroke:#f79340;stroke-width:1px;"/>
+    <path d="M8.203,18.712L2.844,18.149" style="fill:none;stroke:#f79340;stroke-width:1px;"/>
+    <path d="M8.631,16.106L5.815,8.464" style="fill:none;stroke:#f79340;stroke-width:1px;"/>
+    <path d="M6.334,16.249L4.333,15.295" style="fill:none;stroke:#f79340;stroke-width:1px;"/>
     `,
   },
 };
