@@ -34,6 +34,10 @@
   display: inline-flex;
 }
 
+.p-menubar-item-link-active .p-menubar-item-icon{
+  color: var(--p-primary-color, #ff7300);
+}
+
 .shell__end {
   display: flex;
   align-items: center;
